@@ -1,0 +1,72 @@
+[package]
+name = "kitty-utils"
+version = "0.1.0"
+description = "Unified clipboard history and translation workspace"
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "tauri_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset", "macos-private-api", "tray-icon"] }
+tauri-plugin-opener = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "multipart", "rustls-tls"], default-features = false }
+tokio = { version = "1", features = ["full"] }
+arboard = "3"
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+image = { version = "0.25", default-features = false, features = ["png", "tiff"] }
+png = "0.17"
+base64 = "0.22"
+dirs = "6"
+md5 = "0.7"
+sha2 = "0.10"
+rand = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+screenshots = "0.8"
+lingua = { version = "1.8.0", default-features = false, features = [
+    "chinese",
+    "english",
+    "french",
+    "german",
+    "italian",
+    "japanese",
+    "korean",
+    "portuguese",
+    "russian",
+    "spanish",
+] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-icons = "0.3.0"
+windows = { version = "0.61.3", features = [
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_Graphics_Gdi",
+    "Win32_Foundation",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+core-graphics = "0.25"
+dispatch = "0.2"
+objc2 = "0.5.2"
+objc2-app-kit = { version = "0.2.2", features = ["NSPasteboard", "NSRunningApplication", "NSWorkspace", "NSImage", "libc"] }
+objc2-foundation = { version = "0.2.2", features = ["NSArray", "NSObject", "NSString", "NSURL", "NSData"] }

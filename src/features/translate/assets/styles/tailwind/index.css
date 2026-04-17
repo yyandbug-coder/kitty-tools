@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/geist';
+@import './themes/pink.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply font-sans;
+    height: 100%;
+    /* 从选区子窗口切回时 WebView 可能给根节点焦点描边，看起来像整页内缩一圈 */
+    outline: none;
+  }
+  body {
+    @apply bg-background text-foreground;
+    letter-spacing: var(--tracking-normal);
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    outline: none;
+  }
+  #root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    outline: none;
+  }
+
+   button {
+    @apply cursor-pointer;
+  }
+
+  /* 全局隐藏滚动条（Firefox / IE）；仍可滚轮、触控、键盘滚动 */
+  *,
+  *::before,
+  *::after {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  *::-webkit-scrollbar,
+  *::-webkit-scrollbar-corner,
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-thumb {
+    width: 0;
+    height: 0;
+    display: none;
+    background: transparent;
+  }
+
+  /* 与 ScrollArea / 组件一致：语义化类名（效果已由上方全局规则覆盖） */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}

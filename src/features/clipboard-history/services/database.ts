@@ -1,0 +1,67 @@
+/**
+ * 数据库服务 - 封装 SQLite 数据库连接的初始化和访问
+ * 使用单例模式确保全局只创建一个数据库连接
+ */
+import Database from '@tauri-apps/plugin-sql'
+
+const DB_PATH = 'sqlite:kitty-settings.db'
+const SETTINGS_KEY = 'app-settings'
+const HISTORY_KEY = 'clipboard-history'
+
+let dbInstance: Database | null = null
+
+async function getDb(): Promise<Database> {
+  if (!dbInstance) {
+    dbInstance = await Database.load(DB_PATH)
+    await dbInstance.execute(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+  }
+  return dbInstance
+}
+
+interface SettingsRow {
+  key: string
+  value: string
+  updated_at: number
+}
+
+export async function loadSettingsFromDb(): Promise<string | null> {
+  const db = await getDb()
+  const rows = await db.select<SettingsRow[]>(
+    'SELECT value FROM settings WHERE key = $1',
+    [SETTINGS_KEY],
+  )
+  return rows.length > 0 ? rows[0].value : null
+}
+
+export async function saveSettingsToDb(value: string): Promise<void> {
+  await saveKeyValueToDb(SETTINGS_KEY, value)
+}
+
+export async function loadClipboardHistoryFromDb(): Promise<string | null> {
+  const db = await getDb()
+  const rows = await db.select<SettingsRow[]>(
+    'SELECT value FROM settings WHERE key = $1',
+    [HISTORY_KEY],
+  )
+  return rows.length > 0 ? rows[0].value : null
+}
+
+export async function saveClipboardHistoryToDb(value: string): Promise<void> {
+  await saveKeyValueToDb(HISTORY_KEY, value)
+}
+
+async function saveKeyValueToDb(key: string, value: string): Promise<void> {
+  const db = await getDb()
+  const now = Date.now()
+  await db.execute(
+    `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)
+     ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3`,
+    [key, value, now],
+  )
+}

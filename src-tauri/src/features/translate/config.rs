@@ -1,0 +1,281 @@
+use serde::{Deserialize, Serialize};
+
+fn default_bidirectional_lang_a() -> String {
+    "zh-CN".to_string()
+}
+
+fn default_bidirectional_lang_b() -> String {
+    "en".to_string()
+}
+
+/// 百度：翻译开放平台 + 智能云 OCR（截图识字）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct BaiduConfig {
+    /// 翻译开放平台 App ID
+    pub app_id: String,
+    /// 翻译开放平台密钥
+    pub secret: String,
+    /// 智能云文字识别 API Key
+    pub ocr_api_key: String,
+    /// 智能云文字识别 Secret Key
+    pub ocr_secret_key: String,
+    /// OCR 所用 AIP 根地址；空则内置默认
+    pub ocr_aip_base_url: String,
+}
+
+/// Google：文本 Translation v2 + Vision OCR共用 `api_key`，各服务请求地址分字段存放。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct GoogleConfig {
+    pub api_key: String,
+    pub vision_api_url: String,
+    pub translate_api_url: String,
+}
+
+/// OpenAI 兼容接口。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct OpenaiConfig {
+    pub api_base_url: String,
+    pub api_key: String,
+    pub model: String,
+}
+
+/// 有道智云（文本翻译 + 通用 OCR）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct YoudaoConfig {
+    pub app_key: String,
+    pub app_secret: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AppConfig {
+    pub source_lang: String,
+    pub target_lang: String,
+    pub translate_provider: String,
+    pub baidu: BaiduConfig,
+    pub google: GoogleConfig,
+    pub openai: OpenaiConfig,
+    pub youdao: YoudaoConfig,
+    pub hotkey_selection: String,
+    pub hotkey_screenshot: String,
+    /// 登录系统后是否自动启动应用（托盘驻留）。
+    pub launch_on_startup: bool,
+    pub auto_copy: bool,
+    pub theme: String,
+    pub floating_pinned: bool,
+    pub floating_window_x: Option<i32>,
+    pub floating_window_y: Option<i32>,
+    /// 首次安装为 true：启动时自动打开设置；用户在设置中完成引导后改为 false。
+    pub first_run: bool,
+    /// 源语言为自动检测时，按本地识别结果在 `bidirectional_lang_a` 与 `bidirectional_lang_b` 间自动选向。
+    pub bidirectional_auto: bool,
+    /// 互译语言甲（应用内代码，如 zh-CN）
+    #[serde(default = "default_bidirectional_lang_a")]
+    pub bidirectional_lang_a: String,
+    /// 互译语言乙（如 en）
+    #[serde(default = "default_bidirectional_lang_b")]
+    pub bidirectional_lang_b: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            source_lang: "auto".to_string(),
+            target_lang: "en".to_string(),
+            translate_provider: "youdao".to_string(),
+            baidu: BaiduConfig::default(),
+            google: GoogleConfig {
+                api_key: String::new(),
+                vision_api_url: "https://vision.googleapis.com/v1/images:annotate".to_string(),
+                translate_api_url: "https://translation.googleapis.com/language/translate/v2"
+                    .to_string(),
+            },
+            openai: OpenaiConfig {
+                api_base_url: "https://api.openai.com/v1".to_string(),
+                api_key: String::new(),
+                model: "gpt-4o-mini".to_string(),
+            },
+            youdao: YoudaoConfig::default(),
+            hotkey_selection: "CmdOrCtrl+Shift+T".to_string(),
+            hotkey_screenshot: "CmdOrCtrl+Shift+S".to_string(),
+            launch_on_startup: false,
+            auto_copy: true,
+            theme: "system".to_string(),
+            floating_pinned: false,
+            floating_window_x: None,
+            floating_window_y: None,
+            first_run: true,
+            bidirectional_auto: false,
+            bidirectional_lang_a: "zh-CN".to_string(),
+            bidirectional_lang_b: "en".to_string(),
+        }
+    }
+}
+
+/// SQLite 中曾存扁平字段的旧版 JSON，启动时迁入嵌套结构。
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+struct AppConfigLegacy {
+    source_lang: String,
+    target_lang: String,
+    translate_provider: String,
+    baidu_app_id: String,
+    baidu_secret: String,
+    baidu_ocr_api_key: String,
+    baidu_ocr_secret_key: String,
+    baidu_ocr_api_base_url: String,
+    google_vision_api_url: String,
+    google_cloud_api_key: String,
+    google_translate_api_url: String,
+    openai_api_base_url: String,
+    openai_api_key: String,
+    openai_model: String,
+    youdao_app_key: String,
+    youdao_app_secret: String,
+    hotkey_selection: String,
+    hotkey_screenshot: String,
+    #[serde(default)]
+    launch_on_startup: bool,
+    auto_copy: bool,
+    theme: String,
+    floating_pinned: bool,
+    floating_window_x: Option<i32>,
+    floating_window_y: Option<i32>,
+    first_run: bool,
+    bidirectional_auto: bool,
+    #[serde(default = "default_bidirectional_lang_a")]
+    bidirectional_lang_a: String,
+    #[serde(default = "default_bidirectional_lang_b")]
+    bidirectional_lang_b: String,
+}
+
+impl Default for AppConfigLegacy {
+    fn default() -> Self {
+        Self {
+            source_lang: "auto".to_string(),
+            target_lang: "en".to_string(),
+            translate_provider: "youdao".to_string(),
+            baidu_app_id: String::new(),
+            baidu_secret: String::new(),
+            baidu_ocr_api_key: String::new(),
+            baidu_ocr_secret_key: String::new(),
+            baidu_ocr_api_base_url: String::new(),
+            google_vision_api_url: String::new(),
+            google_cloud_api_key: String::new(),
+            google_translate_api_url: String::new(),
+            openai_api_base_url: "https://api.openai.com/v1".to_string(),
+            openai_api_key: String::new(),
+            openai_model: "gpt-4o-mini".to_string(),
+            youdao_app_key: String::new(),
+            youdao_app_secret: String::new(),
+            hotkey_selection: "CmdOrCtrl+Shift+T".to_string(),
+            hotkey_screenshot: "CmdOrCtrl+Shift+S".to_string(),
+            launch_on_startup: false,
+            auto_copy: true,
+            theme: "system".to_string(),
+            floating_pinned: false,
+            floating_window_x: None,
+            floating_window_y: None,
+            first_run: true,
+            bidirectional_auto: false,
+            bidirectional_lang_a: default_bidirectional_lang_a(),
+            bidirectional_lang_b: default_bidirectional_lang_b(),
+        }
+    }
+}
+
+impl From<AppConfigLegacy> for AppConfig {
+    fn from(l: AppConfigLegacy) -> Self {
+        Self {
+            source_lang: l.source_lang,
+            target_lang: l.target_lang,
+            translate_provider: l.translate_provider,
+            baidu: BaiduConfig {
+                app_id: l.baidu_app_id,
+                secret: l.baidu_secret,
+                ocr_api_key: l.baidu_ocr_api_key,
+                ocr_secret_key: l.baidu_ocr_secret_key,
+                ocr_aip_base_url: l.baidu_ocr_api_base_url,
+            },
+            google: GoogleConfig {
+                api_key: l.google_cloud_api_key,
+                vision_api_url: l.google_vision_api_url,
+                translate_api_url: l.google_translate_api_url,
+            },
+            openai: OpenaiConfig {
+                api_base_url: l.openai_api_base_url,
+                api_key: l.openai_api_key,
+                model: l.openai_model,
+            },
+            youdao: YoudaoConfig {
+                app_key: l.youdao_app_key,
+                app_secret: l.youdao_app_secret,
+            },
+            hotkey_selection: l.hotkey_selection,
+            hotkey_screenshot: l.hotkey_screenshot,
+            launch_on_startup: l.launch_on_startup,
+            auto_copy: l.auto_copy,
+            theme: l.theme,
+            floating_pinned: l.floating_pinned,
+            floating_window_x: l.floating_window_x,
+            floating_window_y: l.floating_window_y,
+            first_run: l.first_run,
+            bidirectional_auto: l.bidirectional_auto,
+            bidirectional_lang_a: l.bidirectional_lang_a,
+            bidirectional_lang_b: l.bidirectional_lang_b,
+        }
+    }
+}
+
+/// 从 SQLite `payload` 解析：新结构含 `baidu` 等对象；旧结构为扁平字段时自动迁移。
+pub fn parse_stored_config_json(json: &str) -> Result<AppConfig, String> {
+    let v: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| format!("配置 JSON 无效: {}", e))?;
+    let has_nested = v
+        .get("baidu")
+        .and_then(|b| b.as_object())
+        .is_some();
+    if has_nested {
+        serde_json::from_value(v).map_err(|e| format!("配置数据损坏: {}", e))
+    } else {
+        let legacy: AppConfigLegacy =
+            serde_json::from_value(v).map_err(|e| format!("配置数据损坏: {}", e))?;
+        Ok(AppConfig::from(legacy))
+    }
+}
+
+pub fn load_config() -> AppConfig {
+    let mut config = match super::config_sqlite::load_from_sqlite() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("加载本地配置失败（SQLite）：{}，已使用默认配置", e);
+            AppConfig::default()
+        }
+    };
+    normalize_builtin_google_api_urls(&mut config);
+    if config.translate_provider == "deepl" {
+        eprintln!("翻译引擎 DeepL 已不再支持，已自动切换为 youdao");
+        config.translate_provider = "youdao".to_string();
+    }
+    config
+}
+
+/// Translation v2 与 Vision `images:annotate` 使用官方固定地址。
+fn normalize_builtin_google_api_urls(config: &mut AppConfig) {
+    config.google.translate_api_url =
+        "https://translation.googleapis.com/language/translate/v2".to_string();
+    config.google.vision_api_url =
+        "https://vision.googleapis.com/v1/images:annotate".to_string();
+}
+
+/// 写入前强制使用内置的 Google 官方接口地址，并持久化到 SQLite，返回与库内一致的配置（供更新内存态）。
+pub fn save_config(config: &AppConfig) -> Result<AppConfig, String> {
+    let mut c = config.clone();
+    normalize_builtin_google_api_urls(&mut c);
+    super::config_sqlite::save_to_sqlite(&c)?;
+    Ok(c)
+}

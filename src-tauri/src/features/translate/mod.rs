@@ -52,6 +52,7 @@ pub struct AppState {
     config: std::sync::Mutex<AppConfig>,
     /// 托盘左键单击延迟打开工作台时，与左键双击打开设置互斥（Windows 会先收到单击再收到双击）。
     tray_click_generation: Arc<AtomicU64>,
+    suppress_next_floating_blur_hide: AtomicBool,
     pending_translation: Arc<Mutex<Option<PendingTranslation>>>,
     region_pending: Mutex<Option<RegionPending>>,
     /// 打开选区前缓存的整屏虚拟桌面图（与视口比例裁剪，参考 ScreenTranslator 先截全屏再 crop）。
@@ -919,10 +920,13 @@ fn register_floating_window_handlers(window: &tauri::WebviewWindow, app: &tauri:
                     .lock()
                     .map(|config| config.floating_pinned)
                     .unwrap_or(false);
+                let suppress_hide = state
+                    .suppress_next_floating_blur_hide
+                    .swap(false, Ordering::SeqCst);
 
                 let _ = save_current_config(&state);
 
-                if !pinned && had_true_focus.load(Ordering::SeqCst) {
+                if !pinned && !suppress_hide && had_true_focus.load(Ordering::SeqCst) {
                     let _ = window_handle.hide();
                 }
             }
@@ -1342,6 +1346,7 @@ pub fn build_state() -> AppState {
         client: Client::new(),
         config: std::sync::Mutex::new(load_config()),
         tray_click_generation: Arc::new(AtomicU64::new(0)),
+        suppress_next_floating_blur_hide: AtomicBool::new(false),
         pending_translation: Arc::new(Mutex::new(None)),
         region_pending: Mutex::new(None),
         region_capture: Mutex::new(None),
@@ -1499,6 +1504,13 @@ pub fn translate_hide_floating_window(app: tauri::AppHandle) -> Result<(), Strin
 }
 
 #[tauri::command]
+pub fn translate_prepare_floating_drag(state: tauri::State<'_, AppState>) {
+    state
+        .suppress_next_floating_blur_hide
+        .store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
 pub fn window_show_translate_floating(app: tauri::AppHandle) -> Result<(), String> {
     show_floating_window(&app)
 }
@@ -1568,6 +1580,7 @@ pub fn run() {
             client,
             config: std::sync::Mutex::new(config),
             tray_click_generation: Arc::new(AtomicU64::new(0)),
+            suppress_next_floating_blur_hide: AtomicBool::new(false),
             pending_translation: Arc::new(Mutex::new(None)),
             region_pending: Mutex::new(None),
             region_capture: Mutex::new(None),

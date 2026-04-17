@@ -275,6 +275,7 @@ pub fn run() {
             features::translate::translate_save_settings,
             features::translate::translate_ocr_image,
             features::translate::translate_hide_floating_window,
+            features::translate::translate_prepare_floating_drag,
             features::translate::window_show_translate_floating,
             features::translate::translate_floating_ready,
         ])

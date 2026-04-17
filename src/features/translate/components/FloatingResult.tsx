@@ -224,6 +224,14 @@ export function FloatingResult() {
     if (target.closest('[data-no-drag="true"]')) return
     if (event.button !== 0) return
 
+    if (!config.floatingPinned) {
+      try {
+        await invoke('translate_prepare_floating_drag')
+      } catch {
+        // 非 Tauri 环境忽略
+      }
+    }
+
     const { getCurrentWindow } = await import('@tauri-apps/api/window')
     await getCurrentWindow().startDragging()
   }

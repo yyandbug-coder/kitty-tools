@@ -24,8 +24,7 @@ import { cn } from '@clipboard/lib/utils'
 import { formatShortcutForDisplay as formatTranslateShortcut } from '@translate/lib/platform'
 import { formatShortcutForDisplay as formatClipboardShortcut } from '@clipboard/lib/shortcuts'
 
-const ONBOARDING_MIN_CLOSE_SECONDS = 15
-const ONBOARDING_REQUIRED_STEP_INDEX = 2
+const ONBOARDING_BACKGROUND_CLOSE_SECONDS = 15
 
 function FeatureCard({
   icon: Icon,
@@ -63,7 +62,6 @@ function OnboardingPage() {
   const { settings: clipboardSettings, isLoading: isClipboardLoading } = useAppSettings()
   const { settings, updateSettings, loaded } = useGlobalAppSettings()
   const [stepIndex, setStepIndex] = useState(0)
-  const [furthestStepIndex, setFurthestStepIndex] = useState(0)
   const [secondsOpen, setSecondsOpen] = useState(0)
   const closeUnlockedRef = useRef(false)
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => {
@@ -95,7 +93,6 @@ function OnboardingPage() {
 
   const resetCloseGate = useCallback(() => {
     setStepIndex(0)
-    setFurthestStepIndex(0)
     setSecondsOpen(0)
     closeUnlockedRef.current = false
   }, [])
@@ -111,10 +108,6 @@ function OnboardingPage() {
       unlisten?.()
     }
   }, [resetCloseGate])
-
-  useEffect(() => {
-    setFurthestStepIndex((prev) => Math.max(prev, stepIndex))
-  }, [stepIndex])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -138,6 +131,7 @@ function OnboardingPage() {
     () => formatTranslateShortcut(config.hotkeyScreenshot),
     [config.hotkeyScreenshot],
   )
+
   const steps = useMemo(
     () => [
       {
@@ -253,40 +247,34 @@ function OnboardingPage() {
     ],
     [clipboardShortcut, screenshotShortcut, selectionShortcut],
   )
+
   const currentStep = steps[stepIndex]
   const isFirstStep = stepIndex === 0
   const isLastStep = stepIndex === steps.length - 1
-  const hasSeenRequiredStep = furthestStepIndex >= ONBOARDING_REQUIRED_STEP_INDEX
-  const secondsUntilClose = Math.max(0, ONBOARDING_MIN_CLOSE_SECONDS - secondsOpen)
-  const canCloseOnboarding = hasSeenRequiredStep || secondsUntilClose === 0
+  const secondsUntilBackgroundClose = Math.max(0, ONBOARDING_BACKGROUND_CLOSE_SECONDS - secondsOpen)
+  const canRunInBackground = secondsUntilBackgroundClose === 0
 
   useEffect(() => {
-    if (!canCloseOnboarding || closeUnlockedRef.current) {
+    if (!canRunInBackground || closeUnlockedRef.current) {
       return
     }
     closeUnlockedRef.current = true
     void invoke('app_unlock_onboarding_close')
-  }, [canCloseOnboarding])
+  }, [canRunInBackground])
 
   const closeOnboarding = async () => {
-    if (!canCloseOnboarding) {
-      return
-    }
     await invoke('app_unlock_onboarding_close')
     await invoke('app_hide_onboarding')
   }
 
   const finishAndOpenSettings = async () => {
-    if (!canCloseOnboarding) {
-      return
-    }
     await updateConfig({ firstRun: false })
     await invoke('app_open_workspace', { module: 'settings' })
     await closeOnboarding()
   }
 
   const finishAndRunInBackground = async () => {
-    if (!canCloseOnboarding) {
+    if (!canRunInBackground) {
       return
     }
     await updateConfig({ firstRun: false })
@@ -354,9 +342,9 @@ function OnboardingPage() {
             </div>
 
             <p className="mb-5 text-xs text-muted-foreground">
-              {canCloseOnboarding
-                ? '已满足关闭条件，可关闭欢迎页。'
-                : `看到第 3 步，或至少浏览 ${secondsUntilClose} 秒后才能关闭欢迎页。`}
+              {canRunInBackground
+                ? '已可点击“完成并后台运行”关闭欢迎页。'
+                : `“完成并后台运行”将在 ${secondsUntilBackgroundClose} 秒后可用。`}
             </p>
 
             <div className="flex min-h-0 flex-1 flex-col">{currentStep.content}</div>
@@ -377,18 +365,16 @@ function OnboardingPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={!canCloseOnboarding}
+                  disabled={!canRunInBackground}
                   onClick={() => void finishAndRunInBackground()}
                 >
-                  完成并后台运行
+                  {canRunInBackground
+                    ? '完成并后台运行'
+                    : `完成并后台运行（${secondsUntilBackgroundClose}s）`}
                 </Button>
               )}
               {isLastStep ? (
-                <Button
-                  type="button"
-                  disabled={!canCloseOnboarding}
-                  onClick={() => void finishAndOpenSettings()}
-                >
+                <Button type="button" onClick={() => void finishAndOpenSettings()}>
                   前往设置
                 </Button>
               ) : (

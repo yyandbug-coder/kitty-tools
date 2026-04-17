@@ -127,8 +127,8 @@ export default function ClipboardPreview({ item, total, onPaste }: Props) {
               'flex size-9 items-center justify-center rounded-xl',
             )}
           >
-            {item.type === 'text' && <SvgIcon name="txt" className="size-5 text-[#9dc8ff]" title="文本" />}
-            {item.type === 'image' && <SvgIcon name="image" className="size-5 text-[#9ef3ca]" title="图片" />}
+            {item.type === 'text' && <SvgIcon name="txt" className="size-5 text-primary" title="文本" />}
+            {item.type === 'image' && <SvgIcon name="image" className="size-5 text-primary" title="图片" />}
             {item.type === 'file' && (
               <FileTypeIcon
                 paths={item.filePaths}

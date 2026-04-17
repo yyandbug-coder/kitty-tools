@@ -83,8 +83,28 @@ function createCustomThemePreview(hue: number) {
   )})`
 }
 
-function buildCustomThemeVariables(hue: number, isDarkMode: boolean) {
-  const accent = deriveAccentFromHue(hue)
+function buildShadowVariables(accent: string, isDarkMode: boolean) {
+  const shadowBase = isDarkMode
+    ? mixColors(accent, '#020617', 0.86)
+    : mixColors(accent, '#0f172a', 0.78)
+  const baseAlpha = isDarkMode ? 0.32 : 0.1
+  const strongAlpha = isDarkMode ? 0.54 : 0.18
+
+  return {
+    '--shadow-color': shadowBase,
+    '--shadow-2xs': `0px 4px 12px 0px ${withAlpha(shadowBase, baseAlpha * 0.45)}`,
+    '--shadow-xs': `0px 4px 12px 0px ${withAlpha(shadowBase, baseAlpha * 0.45)}`,
+    '--shadow-sm': `0px 4px 12px 0px ${withAlpha(shadowBase, baseAlpha)}, 0px 1px 2px -1px ${withAlpha(shadowBase, baseAlpha)}`,
+    '--shadow': `0px 4px 12px 0px ${withAlpha(shadowBase, baseAlpha)}, 0px 1px 2px -1px ${withAlpha(shadowBase, baseAlpha)}`,
+    '--shadow-md': `0px 4px 12px 0px ${withAlpha(shadowBase, baseAlpha)}, 0px 2px 4px -1px ${withAlpha(shadowBase, baseAlpha)}`,
+    '--shadow-lg': `0px 4px 12px 0px ${withAlpha(shadowBase, baseAlpha)}, 0px 4px 6px -1px ${withAlpha(shadowBase, baseAlpha)}`,
+    '--shadow-xl': `0px 4px 12px 0px ${withAlpha(shadowBase, baseAlpha)}, 0px 8px 10px -1px ${withAlpha(shadowBase, baseAlpha)}`,
+    '--shadow-2xl': `0px 4px 12px 0px ${withAlpha(shadowBase, strongAlpha)}`,
+  } as Record<string, string>
+}
+
+function buildThemeVariablesFromAccent(accent: string, isDarkMode: boolean) {
+  const shadowVariables = buildShadowVariables(accent, isDarkMode)
 
   if (!isDarkMode) {
     const background = mixColors(accent, '#ffffff', 0.95)
@@ -130,6 +150,7 @@ function buildCustomThemeVariables(hue: number, isDarkMode: boolean) {
       '--chart-3': mixColors(accent, '#0f172a', 0.12),
       '--chart-4': mixColors(accent, '#ffffff', 0.34),
       '--chart-5': mixColors(accent, '#0f172a', 0.22),
+      ...shadowVariables,
     } as Record<string, string>
   }
 
@@ -175,6 +196,7 @@ function buildCustomThemeVariables(hue: number, isDarkMode: boolean) {
     '--chart-3': mixColors(accent, '#0f172a', 0.1),
     '--chart-4': mixColors(accent, '#ffffff', 0.26),
     '--chart-5': mixColors(accent, '#0f172a', 0.22),
+    ...shadowVariables,
   } as Record<string, string>
 }
 
@@ -199,9 +221,7 @@ export function getThemeRuntimeStyle(
     '--theme-accent': theme.accent,
   }
 
-  if (settings.theme === 'custom') {
-    Object.assign(runtimeStyle, buildCustomThemeVariables(settings.customHue, isDarkMode))
-  }
+  Object.assign(runtimeStyle, buildThemeVariablesFromAccent(theme.accent, isDarkMode))
 
   return runtimeStyle
 }

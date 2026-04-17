@@ -88,9 +88,9 @@ export default memo(function ClipboardItemCard({
             )}
           >
             {item.type === 'text' ? (
-              <SvgIcon name="txt" className="h-8 w-8 p-1.5 text-[#9dc8ff]" title="文本" />
+              <SvgIcon name="txt" className="h-8 w-8 p-1.5 text-primary" title="文本" />
             ) : item.type === 'image' ? (
-              <SvgIcon name="image" className="h-8 w-8 p-1.5 text-[#9ef3ca]" title="图片" />
+              <SvgIcon name="image" className="h-8 w-8 p-1.5 text-primary" title="图片" />
             ) : (
               <FileTypeIcon paths={item.filePaths} className="h-8 w-8 p-1.5" title={fileName} />
             )}

@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::Emitter;
 use tauri::Manager;
+use tauri::Runtime;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::window::Color;
@@ -1025,6 +1026,30 @@ fn validate_hotkey_pair(selection: &str, screenshot: &str) -> Result<(), String>
     Ok(())
 }
 
+fn validate_hotkeys_against_clipboard(
+    app: &tauri::AppHandle,
+    selection: &str,
+    screenshot: &str,
+) -> Result<(), String> {
+    let Some(clipboard_shortcut) = crate::features::clipboard_history::current_clipboard_shortcut() else {
+        return Ok(());
+    };
+    let clipboard_shortcut = clipboard_shortcut.trim();
+    if clipboard_shortcut.is_empty() {
+        return Ok(());
+    }
+
+    if clipboard_shortcut.eq_ignore_ascii_case(selection.trim()) {
+        return Err("划词快捷键不能与历史记录面板快捷键相同".to_string());
+    }
+    if clipboard_shortcut.eq_ignore_ascii_case(screenshot.trim()) {
+        return Err("截图快捷键不能与历史记录面板快捷键相同".to_string());
+    }
+
+    let _ = app;
+    Ok(())
+}
+
 fn sync_launch_on_startup(app: &tauri::AppHandle, want_enabled: bool) {
     let mgr = app.autolaunch();
     let current = match mgr.is_enabled() {
@@ -1175,6 +1200,7 @@ fn save_config_cmd(
 ) -> Result<(), String> {
     config.translate_provider = config.translate_provider.trim().to_string();
     validate_hotkey_pair(&config.hotkey_selection, &config.hotkey_screenshot)?;
+    validate_hotkeys_against_clipboard(&app, &config.hotkey_selection, &config.hotkey_screenshot)?;
     let previous = state
         .config
         .lock()
@@ -1379,6 +1405,21 @@ pub fn is_first_run(app: &tauri::AppHandle) -> bool {
         .lock()
         .map(|config| config.first_run)
         .unwrap_or(false)
+}
+
+pub fn current_translate_shortcuts<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Option<(String, String)> {
+    app.state::<AppState>()
+        .config
+        .lock()
+        .ok()
+        .map(|config| {
+            (
+                config.hotkey_selection.trim().to_string(),
+                config.hotkey_screenshot.trim().to_string(),
+            )
+        })
 }
 
 #[tauri::command]

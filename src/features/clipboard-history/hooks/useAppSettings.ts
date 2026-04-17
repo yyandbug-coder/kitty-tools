@@ -20,6 +20,17 @@ type StoredSettings = Partial<AppSettings> & {
   customTheme?: { primary?: string }
 }
 
+type StoredClipboardSettings = Pick<
+  AppSettings,
+  | 'showPreview'
+  | 'pasteOnEnter'
+  | 'hideWhenUnfocused'
+  | 'historyMaxItems'
+  | 'historyRetentionDays'
+  | 'globalShortcut'
+  | 'disableTextSelection'
+>
+
 const DEFAULT_SETTINGS: AppSettings = {
   showPreview: true,
   pasteOnEnter: true,
@@ -32,6 +43,18 @@ const DEFAULT_SETTINGS: AppSettings = {
   colorMode: 'system',
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
   disableTextSelection: true
+}
+
+function toStoredClipboardSettings(settings: AppSettings): StoredClipboardSettings {
+  return {
+    showPreview: settings.showPreview,
+    pasteOnEnter: settings.pasteOnEnter,
+    hideWhenUnfocused: settings.hideWhenUnfocused,
+    historyMaxItems: settings.historyMaxItems,
+    historyRetentionDays: settings.historyRetentionDays,
+    globalShortcut: settings.globalShortcut,
+    disableTextSelection: settings.disableTextSelection,
+  }
 }
 
 const VALID_THEMES = new Set<AppSettings['theme']>(['default', 'ocean', 'forest', 'sunset', 'custom'])
@@ -143,7 +166,7 @@ export function useAppSettings() {
           if (legacySettings !== DEFAULT_SETTINGS) {
             setSettings(legacySettings)
             const migratedJson = JSON.stringify({
-              ...legacySettings,
+              ...toStoredClipboardSettings(legacySettings),
               storageSchemaVersion: STORAGE_SCHEMA_VERSION
             })
             await saveSettingsToDb(migratedJson)
@@ -202,7 +225,7 @@ export function useAppSettings() {
 
     const timeout = setTimeout(() => {
       const payload = JSON.stringify({
-        ...settings,
+        ...toStoredClipboardSettings(settings),
         storageSchemaVersion: STORAGE_SCHEMA_VERSION
       })
       void saveSettingsToDb(payload)

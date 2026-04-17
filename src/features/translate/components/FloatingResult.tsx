@@ -1,4 +1,5 @@
-import { useEffect, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import type { CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { ArrowRightLeft, Check, Copy, Loader2, Pin, PinOff, Settings, X } from 'lucide-react'
@@ -8,6 +9,9 @@ import { Textarea } from '@translate/components/ui/textarea'
 import { ScrollArea } from '@translate/components/ui/scroll-area'
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@translate/components/ui/tooltip'
 import { useConfig } from '@translate/hooks/useConfig'
+import { ThemeProvider } from '@clipboard/components/ThemeProvider'
+import { getThemeRuntimeStyle } from '@clipboard/lib/theme'
+import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
 import logoUrl from '@translate/assets/images/logo.png'
 import { cn } from '@translate/lib/utils'
 import { translateSubmitShortcutLabel } from '@translate/lib/platform'
@@ -33,6 +37,7 @@ type CopyTarget = 'source' | 'target' | null
 
 export function FloatingResult() {
   const { config, updateConfig } = useConfig()
+  const { settings: globalSettings, updateSettings: updateGlobalSettings, loaded } = useGlobalAppSettings()
   const [sourceText, setSourceText] = useState('')
   const [translatedText, setTranslatedText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -40,6 +45,30 @@ export function FloatingResult() {
   const [copied, setCopied] = useState<CopyTarget>(null)
   /** 引擎返回的源语言（与设置里「自动检测」配合展示） */
   const [detectedSourceLang, setDetectedSourceLang] = useState<string | null>(null)
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
+
+  const isDarkMode =
+    globalSettings.colorMode === 'dark' ||
+    (globalSettings.colorMode === 'system' && systemPrefersDark)
+  const appStyle = useMemo(
+    () => getThemeRuntimeStyle(globalSettings, isDarkMode) as CSSProperties,
+    [globalSettings.backgroundOpacity, globalSettings.theme, globalSettings.customHue, isDarkMode],
+  )
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const updateThemeMode = (event: MediaQueryList | MediaQueryListEvent) => {
+      setSystemPrefersDark(event.matches)
+    }
+    updateThemeMode(mediaQuery)
+    mediaQuery.addEventListener('change', updateThemeMode)
+    return () => mediaQuery.removeEventListener('change', updateThemeMode)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -206,9 +235,28 @@ export function FloatingResult() {
     }
   }
 
+  if (!loaded) {
+    return (
+      <div className="flex h-full items-center justify-center bg-background text-sm text-muted-foreground">
+        正在准备翻译窗口…
+      </div>
+    )
+  }
+
   return (
-    <TooltipProvider>
-      <div className="flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground">
+    <ThemeProvider
+      colorMode={globalSettings.colorMode}
+      onColorModeChange={(mode) => updateGlobalSettings({ colorMode: mode })}
+      systemPrefersDark={systemPrefersDark}
+    >
+      <TooltipProvider>
+      <div
+        className={cn('flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground', isDarkMode && 'dark')}
+        data-kitty-theme-scope
+        data-theme={globalSettings.theme}
+        data-window="translate-floating"
+        style={appStyle}
+      >
         <div
           className="flex shrink-0 items-center justify-between border-b border-border/70 px-4 py-3"
           onPointerDown={handleDragPointerDown}
@@ -438,6 +486,7 @@ export function FloatingResult() {
           <span>拖动顶栏移动窗口</span>
         </div>
       </div>
-    </TooltipProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   )
 }

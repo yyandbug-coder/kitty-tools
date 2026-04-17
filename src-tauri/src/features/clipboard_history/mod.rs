@@ -775,6 +775,16 @@ fn register_toggle_shortcut<R: Runtime>(app: &AppHandle<R>, shortcut: &str) -> R
     if shortcut.is_empty() {
         return Err("快捷键不能为空".to_string());
     }
+    if let Some((selection_shortcut, screenshot_shortcut)) =
+        crate::features::translate::current_translate_shortcuts(app)
+    {
+        if shortcut.eq_ignore_ascii_case(selection_shortcut.trim()) {
+            return Err("历史记录面板快捷键不能与划词翻译快捷键相同".to_string());
+        }
+        if shortcut.eq_ignore_ascii_case(screenshot_shortcut.trim()) {
+            return Err("历史记录面板快捷键不能与截图翻译快捷键相同".to_string());
+        }
+    }
 
     let global_shortcut = app.global_shortcut();
     let previous_shortcut = CURRENT_GLOBAL_SHORTCUT.lock().unwrap().clone();
@@ -1341,24 +1351,7 @@ extern "system" {
 
 pub fn setup<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let window = get_or_create_clipboard_panel_window(app)?;
-
-    #[cfg(debug_assertions)]
-    {
-        #[cfg(target_os = "macos")]
-        {
-            let _ = app.show();
-            activate_current_application();
-        }
-
-        let _ = window.show();
-        let _ = window.set_focus();
-        let _ = app.emit("focus-clipboard-panel", ());
-    }
-
-    #[cfg(not(debug_assertions))]
-    {
-        let _ = window.hide();
-    }
+    let _ = window.hide();
 
     if let Err(error) = register_toggle_shortcut(app, DEFAULT_GLOBAL_SHORTCUT) {
         eprintln!("[kitty-clipboard-history] {error}");
@@ -1402,6 +1395,13 @@ pub fn request_flush_then_exit<R: Runtime>(app: &AppHandle<R>) {
 
 pub fn consume_allow_exit() -> bool {
     ALLOW_APP_EXIT.swap(false, Ordering::SeqCst)
+}
+
+pub fn current_clipboard_shortcut() -> Option<String> {
+    CURRENT_GLOBAL_SHORTCUT
+        .lock()
+        .ok()
+        .and_then(|shortcut| shortcut.clone())
 }
 
 #[tauri::command]

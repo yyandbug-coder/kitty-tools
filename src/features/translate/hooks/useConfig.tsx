@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { AppConfig } from '@translate/types'
 import { DEFAULT_CONFIG, appConfigToRust } from '@translate/types'
-import { useTheme } from '@translate/hooks/useTheme'
 
 interface RawBaidu {
   app_id?: string
@@ -200,8 +199,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const configRef = useRef<AppConfig>(DEFAULT_CONFIG)
   /** 串行化磁盘写入，避免连续修改时后返回的旧请求覆盖新配置 */
   const saveChainRef = useRef<Promise<void>>(Promise.resolve())
-
-  useTheme(config.theme)
 
   const applyRawConfig = useCallback((raw: RawConfig) => {
     const nextConfig = toAppConfig(raw)

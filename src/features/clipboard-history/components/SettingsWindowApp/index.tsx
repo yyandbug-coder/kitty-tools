@@ -12,6 +12,7 @@ import SettingsPanel from '@clipboard/components/SettingsPanel'
 import { ThemeProvider } from '@clipboard/components/ThemeProvider'
 import { useAppSettings } from '@clipboard/hooks/useAppSettings'
 import { getThemeRuntimeStyle } from '@clipboard/lib/theme'
+import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
 import { parseClipboardHistoryImportJson } from '@clipboard/lib/clipboard-history-import'
 import {
   clearClipboardHistoryStorage,
@@ -24,6 +25,7 @@ import { cn } from '@clipboard/lib/utils'
 
 export default function SettingsWindowApp() {
   const { settings, updateSettings, resetSettings, isLoading: isSettingsLoading } = useAppSettings()
+  const { settings: globalSettings, updateSettings: updateGlobalSettings } = useGlobalAppSettings()
   const [historyCount, setHistoryCount] = useState(0)
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => {
     if (typeof window === 'undefined') {
@@ -32,10 +34,12 @@ export default function SettingsWindowApp() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
 
-  const isDarkMode = settings.colorMode === 'dark' || (settings.colorMode === 'system' && systemPrefersDark)
+  const isDarkMode =
+    globalSettings.colorMode === 'dark' ||
+    (globalSettings.colorMode === 'system' && systemPrefersDark)
   const appStyle = useMemo(
-    () => getThemeRuntimeStyle(settings, isDarkMode) as CSSProperties,
-    [settings.backgroundOpacity, settings.theme, settings.customHue, isDarkMode],
+    () => getThemeRuntimeStyle(globalSettings, isDarkMode) as CSSProperties,
+    [globalSettings.backgroundOpacity, globalSettings.theme, globalSettings.customHue, isDarkMode],
   )
 
   const refreshHistoryCount = useCallback(() => {
@@ -137,8 +141,8 @@ export default function SettingsWindowApp() {
 
   return (
     <ThemeProvider
-      colorMode={settings.colorMode}
-      onColorModeChange={(mode) => updateSettings({ colorMode: mode })}
+      colorMode={globalSettings.colorMode}
+      onColorModeChange={(mode) => updateGlobalSettings({ colorMode: mode })}
       systemPrefersDark={systemPrefersDark}
     >
       <>
@@ -161,7 +165,7 @@ export default function SettingsWindowApp() {
               settings.disableTextSelection && 'select-none',
             )}
             data-kitty-theme-scope
-            data-theme={settings.theme}
+            data-theme={globalSettings.theme}
             data-window="settings"
             style={appStyle}
           >

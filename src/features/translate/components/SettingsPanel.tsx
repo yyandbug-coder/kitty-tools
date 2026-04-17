@@ -4,18 +4,13 @@ import {
   Settings,
   Keyboard,
   Globe,
-  Palette,
   ScanText,
   RotateCcw,
-  Sun,
-  Moon,
-  Monitor,
   CircleHelp,
   Eye,
   EyeOff,
   ArrowRightLeft,
   Loader2,
-  Power,
 } from 'lucide-react'
 import { HotkeyInput } from '@translate/components/HotkeyInput'
 import { LanguageSelector } from '@translate/components/LanguageSelector'
@@ -30,7 +25,6 @@ import {
 } from '@translate/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@translate/components/ui/tooltip'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@translate/components/ui/tabs'
-import { Switch } from '@translate/components/ui/switch'
 import { useConfig } from '@translate/hooks/useConfig'
 import type { TranslateProvider, TranslateResult } from '@translate/types'
 import { appConfigToRust, DEFAULT_CONFIG } from '@translate/types'
@@ -98,7 +92,6 @@ const SETTINGS_TAB = {
   bidirectional: 'bidirectional',
   ocr: 'ocr',
   shortcuts: 'shortcuts',
-  appearance: 'appearance',
   about: 'about',
 } as const
 
@@ -157,16 +150,6 @@ export function SettingsPanel() {
     'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm',
     'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
   )
-
-  const themeIconOptions: {
-    value: 'light' | 'dark' | 'system'
-    label: string
-    icon: typeof Sun
-  }[] = [
-    { value: 'light', label: '浅色', icon: Sun },
-    { value: 'dark', label: '深色', icon: Moon },
-    { value: 'system', label: '跟随系统', icon: Monitor },
-  ]
 
   const translateProviderTooltip = (() => {
     const link =
@@ -277,10 +260,6 @@ export function SettingsPanel() {
         <TabsTrigger value={SETTINGS_TAB.shortcuts} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
           <Keyboard className="size-4 opacity-80" aria-hidden />
           交互
-        </TabsTrigger>
-        <TabsTrigger value={SETTINGS_TAB.appearance} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
-          <Palette className="size-4 opacity-80" aria-hidden />
-          外观
         </TabsTrigger>
         <TabsTrigger value={SETTINGS_TAB.about} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
           <Settings className="size-4 opacity-80" aria-hidden />
@@ -629,7 +608,7 @@ export function SettingsPanel() {
             交互
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            全局快捷键与开机自启；关闭或开启自启仅在此生效。
+            全局快捷键在此管理；开机自启与全局主题请前往「通用设置」。
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -648,62 +627,6 @@ export function SettingsPanel() {
               defaultValue={DEFAULT_CONFIG.hotkeyScreenshot}
               onChange={async (v) => updateConfig({ hotkeyScreenshot: v })}
             />
-            <div className="flex flex-row items-center justify-between gap-4 px-4 py-3">
-              <div className="flex min-w-0 flex-1 items-start gap-2.5">
-                <Power
-                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                  aria-hidden
-                />
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-sm font-medium leading-none">开机自启</span>
-                  <span className="text-xs text-muted-foreground leading-relaxed">
-                    须在本页开关；打开后写入系统登录启动项，关闭后移除。
-                  </span>
-                </div>
-              </div>
-              <Switch
-                id="launch-on-startup"
-                checked={config.launchOnStartup}
-                onCheckedChange={(v) => void updateConfig({ launchOnStartup: v })}
-                aria-label="开机自启"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      </TabsContent>
-
-      {/* Theme */}
-      <TabsContent value={SETTINGS_TAB.appearance} className="mt-0 outline-none">
-      <Card>
-        <CardContent className="flex flex-row flex-nowrap items-center gap-3 py-4">
-          <div className="flex shrink-0 items-center gap-2 text-sm font-medium">
-            <Palette className="h-4 w-4" />
-            外观
-          </div>
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
-            {themeIconOptions.map(({ value, label, icon: Icon }) => (
-              <Tooltip key={value}>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      'h-9 w-9',
-                      config.theme === value &&
-                        'bg-accent text-accent-foreground shadow-sm hover:bg-accent hover:text-accent-foreground',
-                    )}
-                    aria-label={label}
-                    aria-pressed={config.theme === value}
-                    onClick={() => void updateConfig({ theme: value })}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{label}</TooltipContent>
-              </Tooltip>
-            ))}
           </div>
         </CardContent>
       </Card>
@@ -731,7 +654,7 @@ export function SettingsPanel() {
             onClick={() => {
               if (
                 !window.confirm(
-                  '将语言、翻译引擎、主题、自动复制、开机自启、快捷键等恢复为安装默认；已填写的各厂商密钥会保留。确定？',
+                  '将语言、翻译引擎、自动复制、快捷键等恢复为安装默认；已填写的各厂商密钥会保留。确定？',
                 )
               ) {
                 return
@@ -742,9 +665,7 @@ export function SettingsPanel() {
                     sourceLang: DEFAULT_CONFIG.sourceLang,
                     targetLang: DEFAULT_CONFIG.targetLang,
                     translateProvider: DEFAULT_CONFIG.translateProvider,
-                    theme: DEFAULT_CONFIG.theme,
                     autoCopy: DEFAULT_CONFIG.autoCopy,
-                    launchOnStartup: DEFAULT_CONFIG.launchOnStartup,
                     floatingPinned: DEFAULT_CONFIG.floatingPinned,
                     floatingWindowX: DEFAULT_CONFIG.floatingWindowX,
                     floatingWindowY: DEFAULT_CONFIG.floatingWindowY,

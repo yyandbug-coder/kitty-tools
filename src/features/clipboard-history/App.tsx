@@ -8,10 +8,6 @@ import { getName } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import WelcomeOnboarding, {
-  hasCompletedWelcomeOnboarding,
-  markWelcomeOnboardingComplete
-} from '@clipboard/components/WelcomeOnboarding'
 import { useClipboard } from '@clipboard/hooks/useClipboard'
 import type { ClipboardItem } from '@clipboard/types'
 import { useAppSettings } from '@clipboard/hooks/useAppSettings'
@@ -19,6 +15,7 @@ import { APP_DISPLAY_NAME } from '@clipboard/lib/app-meta'
 import { getSearchShellStyle, getThemeRuntimeStyle } from '@clipboard/lib/theme'
 import ClipboardItemCard from '@clipboard/components/ClipboardItemCard'
 import ClipboardHistoryListSkeleton from '@clipboard/components/ClipboardHistoryListSkeleton'
+import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
 
 import AppLogoIcon from '@clipboard/components/AppLogoIcon'
 import { ThemeProvider } from '@clipboard/components/ThemeProvider'
@@ -48,8 +45,8 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
   const isWorkspace = mode === 'workspace'
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const keyboardRootRef = useRef<HTMLDivElement>(null)
-  const { settings, updateSettings, isLoading: isSettingsLoading } = useAppSettings()
-  const [welcomeOpen, setWelcomeOpen] = useState(false)
+  const { settings, updateSettings } = useAppSettings()
+  const { settings: globalSettings, updateSettings: updateGlobalSettings } = useGlobalAppSettings()
   const [shortcutStartupError, setShortcutStartupError] = useState<string | null>(null)
   const [appDisplayName, setAppDisplayName] = useState(APP_DISPLAY_NAME)
   const [platform] = useState(() => {
@@ -66,14 +63,16 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
 
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
-  const isDarkMode = settings.colorMode === 'dark' || (settings.colorMode === 'system' && systemPrefersDark)
+  const isDarkMode =
+    globalSettings.colorMode === 'dark' ||
+    (globalSettings.colorMode === 'system' && systemPrefersDark)
   const appStyle = useMemo(
-    () => getThemeRuntimeStyle(settings, isDarkMode) as CSSProperties,
-    [settings.backgroundOpacity, settings.theme, settings.customHue, isDarkMode]
+    () => getThemeRuntimeStyle(globalSettings, isDarkMode) as CSSProperties,
+    [globalSettings.backgroundOpacity, globalSettings.theme, globalSettings.customHue, isDarkMode]
   )
   const searchShellStyle = useMemo(
-    () => getSearchShellStyle(settings.theme, settings.customHue, isDarkMode) as CSSProperties,
-    [settings.theme, settings.customHue, isDarkMode]
+    () => getSearchShellStyle(globalSettings.theme, globalSettings.customHue, isDarkMode) as CSSProperties,
+    [globalSettings.theme, globalSettings.customHue, isDarkMode]
   )
 
   const {
@@ -202,49 +201,8 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
     }
   }, [hasMore, displayed.length, filtered.length, history.length, search, showFavoritesOnly])
 
-  const welcomeOpenRef = useRef(welcomeOpen)
-  welcomeOpenRef.current = welcomeOpen
   const hideWhenUnfocusedRef = useRef(settings.hideWhenUnfocused)
   hideWhenUnfocusedRef.current = settings.hideWhenUnfocused
-  /** 首次欢迎出现前后，避免「失焦自动隐藏」立刻把刚 show 的窗口收掉（Windows WebView 上较常见） */
-  const suppressUnfocusedHideUntilRef = useRef(0)
-
-  useEffect(() => {
-    if (isWorkspace) {
-      return
-    }
-    if (isSettingsLoading) {
-      return
-    }
-    if (hasCompletedWelcomeOnboarding()) {
-      return
-    }
-    // Release 包启动时主窗口默认 hide；首次必须显式呼出，否则欢迎说明与界面都不可见（Windows / macOS 均如此）
-    suppressUnfocusedHideUntilRef.current = Date.now() + 12000
-    const reveal = () => {
-      void invoke('window_show_clipboard_panel').catch((err) => {
-        console.error('首次引导：显示主窗口失败', err)
-      })
-    }
-    reveal()
-    const raf = window.requestAnimationFrame(reveal)
-    const t1 = window.setTimeout(reveal, 120)
-    const t2 = window.setTimeout(reveal, 450)
-    setWelcomeOpen(true)
-    return () => {
-      window.cancelAnimationFrame(raf)
-      window.clearTimeout(t1)
-      window.clearTimeout(t2)
-    }
-  }, [isSettingsLoading, isWorkspace])
-
-  const handleWelcomeDismiss = useCallback((remember: boolean) => {
-    suppressUnfocusedHideUntilRef.current = 0
-    if (remember) {
-      markWelcomeOnboardingComplete()
-    }
-    setWelcomeOpen(false)
-  }, [])
 
   useEffect(() => {
     const unlisten = listen<string>('global-shortcut-register-failed', (event) => {
@@ -312,22 +270,10 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
       if (!hideWhenUnfocusedRef.current) {
         return
       }
-      if (Date.now() < suppressUnfocusedHideUntilRef.current) {
-        return
-      }
-      if (welcomeOpenRef.current) {
-        return
-      }
       clearBlurHideTimer()
       blurHideTimer = window.setTimeout(() => {
         blurHideTimer = 0
         if (!hideWhenUnfocusedRef.current) {
-          return
-        }
-        if (Date.now() < suppressUnfocusedHideUntilRef.current) {
-          return
-        }
-        if (welcomeOpenRef.current) {
           return
         }
         if (isMacOS) {
@@ -435,8 +381,8 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
 
   return (
     <ThemeProvider
-      colorMode={settings.colorMode}
-      onColorModeChange={(mode) => updateSettings({ colorMode: mode })}
+      colorMode={globalSettings.colorMode}
+      onColorModeChange={(mode) => updateGlobalSettings({ colorMode: mode })}
       systemPrefersDark={systemPrefersDark}
     >
       <>
@@ -447,12 +393,6 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
             className: 'text-sm'
           }}
         />
-        <WelcomeOnboarding
-          open={welcomeOpen}
-          globalShortcut={settings.globalShortcut}
-          disableTextSelection={settings.disableTextSelection}
-          onDismiss={handleWelcomeDismiss}
-        />
         <div
           ref={keyboardRootRef}
           className={cn(
@@ -461,7 +401,7 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
             settings.disableTextSelection && 'select-none'
           )}
           data-kitty-theme-scope
-          data-theme={settings.theme}
+          data-theme={globalSettings.theme}
           data-platform={platform}
           style={appStyle}
           onKeyDown={handleKeyDown}

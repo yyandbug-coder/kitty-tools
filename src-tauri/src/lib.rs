@@ -8,6 +8,7 @@ pub mod features {
 use tauri::menu::{Menu, MenuItemBuilder, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
+use std::sync::atomic::{AtomicBool, Ordering};
 const WORKSPACE_EVENT: &str = "workspace:navigate";
 const MAIN_WINDOW_LABEL: &str = "main";
 const ONBOARDING_WINDOW_LABEL: &str = "onboarding";
@@ -17,6 +18,36 @@ const TRAY_OPEN_CLIPBOARD_ID: &str = "tray-open-clipboard";
 const TRAY_SELECTION_ID: &str = "tray-selection";
 const TRAY_SCREENSHOT_ID: &str = "tray-screenshot";
 const TRAY_QUIT_ID: &str = "tray-quit";
+
+struct OnboardingCloseState {
+    unlocked: AtomicBool,
+}
+
+impl OnboardingCloseState {
+    fn reset(&self) {
+        self.unlocked.store(false, Ordering::Relaxed);
+    }
+
+    fn unlock(&self) {
+        self.unlocked.store(true, Ordering::Relaxed);
+    }
+
+    fn is_unlocked(&self) -> bool {
+        self.unlocked.load(Ordering::Relaxed)
+    }
+}
+
+fn reset_onboarding_close_gate(app: &AppHandle) {
+    app.state::<OnboardingCloseState>().reset();
+}
+
+fn unlock_onboarding_close_gate(app: &AppHandle) {
+    app.state::<OnboardingCloseState>().unlock();
+}
+
+fn can_close_onboarding(app: &AppHandle) -> bool {
+    app.state::<OnboardingCloseState>().is_unlocked()
+}
 
 fn normalize_module(module: Option<String>) -> &'static str {
     match module.as_deref() {
@@ -71,10 +102,13 @@ fn get_or_create_onboarding_window(app: &AppHandle) -> Result<tauri::WebviewWind
         .map_err(|e| format!("Create onboarding window error: {}", e))?;
 
     let window_clone = window.clone();
+    let app_handle = app.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
             api.prevent_close();
-            let _ = window_clone.hide();
+            if can_close_onboarding(&app_handle) {
+                let _ = window_clone.hide();
+            }
         }
     });
 
@@ -83,18 +117,50 @@ fn get_or_create_onboarding_window(app: &AppHandle) -> Result<tauri::WebviewWind
 
 fn show_onboarding(app: &AppHandle) -> Result<(), String> {
     let window = get_or_create_onboarding_window(app)?;
+    let was_visible = window.is_visible().unwrap_or(false);
+    if !was_visible {
+        reset_onboarding_close_gate(app);
+    }
     window
         .show()
         .map_err(|e| format!("Show onboarding error: {}", e))?;
     window
         .set_focus()
         .map_err(|e| format!("Focus onboarding error: {}", e))?;
+    if !was_visible {
+        let _ = app.emit("onboarding:opened", ());
+    }
     Ok(())
 }
 
 #[tauri::command]
 fn app_open_workspace(app: tauri::AppHandle, module: Option<String>) -> Result<(), String> {
     open_workspace(&app, module)
+}
+
+#[tauri::command]
+fn app_show_onboarding(app: tauri::AppHandle) -> Result<(), String> {
+    show_onboarding(&app)
+}
+
+#[tauri::command]
+fn app_unlock_onboarding_close(app: tauri::AppHandle) {
+    unlock_onboarding_close_gate(&app);
+}
+
+#[tauri::command]
+fn app_hide_onboarding(app: tauri::AppHandle) -> Result<(), String> {
+    if !can_close_onboarding(&app) {
+        return Err("Onboarding close is still locked".to_string());
+    }
+
+    if let Some(window) = app.get_webview_window(ONBOARDING_WINDOW_LABEL) {
+        window
+            .hide()
+            .map_err(|e| format!("Hide onboarding error: {}", e))?;
+    }
+
+    Ok(())
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -181,9 +247,15 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .manage(OnboardingCloseState {
+            unlocked: AtomicBool::new(false),
+        })
         .manage(features::translate::build_state())
         .invoke_handler(tauri::generate_handler![
             app_open_workspace,
+            app_show_onboarding,
+            app_unlock_onboarding_close,
+            app_hide_onboarding,
             features::clipboard_history::window_show_clipboard_panel,
             features::clipboard_history::window_hide_clipboard_panel,
             features::clipboard_history::clipboard_exit_after_flush,

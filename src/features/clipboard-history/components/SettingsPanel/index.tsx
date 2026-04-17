@@ -3,25 +3,20 @@
  */
 import type { AppSettings } from '@clipboard/types'
 import { useEffect, useRef, useState } from 'react'
-import { MAX_BACKGROUND_OPACITY, MIN_BACKGROUND_OPACITY, getCustomHuePreviewColor, getThemeOption } from '@clipboard/lib/theme'
 import { DEFAULT_GLOBAL_SHORTCUT, formatShortcutForDisplay, shortcutFromKeyboardEvent } from '@clipboard/lib/shortcuts'
 import { HISTORY_MAX_ITEM_OPTIONS, HISTORY_RETENTION_DAY_OPTIONS } from '@clipboard/lib/history-settings'
 import {
-  CheckIcon,
   DatabaseIcon,
   FileDownIcon,
   FileUpIcon,
   KeyboardIcon,
   Loader2Icon,
-  PaletteIcon,
   RotateCcwIcon,
   Settings2Icon,
   Trash2Icon
 } from 'lucide-react'
 import { Button } from '@clipboard/components/ui/button'
 import { Switch } from '@clipboard/components/ui/switch'
-import { Slider } from '@clipboard/components/ui/slider'
-import { Popover, PopoverContent, PopoverTrigger } from '@clipboard/components/ui/popover'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@clipboard/components/ui/tabs'
 import {
   AlertDialog,
@@ -33,11 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@clipboard/components/ui/alert-dialog'
-import CustomColorPicker from '@clipboard/components/CustomColorPicker'
-import ModeToggle from '@clipboard/components/ModeToggle'
 import { cn } from '@clipboard/lib/utils'
-import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart'
-import toast from 'react-hot-toast'
 
 interface Props {
   settings: AppSettings
@@ -60,14 +51,11 @@ export default function SettingsPanel({
   historyCount,
   onExportHistory
 }: Props) {
-  const currentTheme = getThemeOption(settings.theme, settings.customHue)
   const [isRecordingShortcut, setIsRecordingShortcut] = useState(false)
   const [isSavingShortcut, setIsSavingShortcut] = useState(false)
   const [isImportingHistory, setIsImportingHistory] = useState(false)
   const [shortcutError, setShortcutError] = useState('')
   const [destructiveConfirm, setDestructiveConfirm] = useState<'clear' | 'reset' | null>(null)
-  const [launchAtLogin, setLaunchAtLogin] = useState(false)
-  const [launchAtLoginLoading, setLaunchAtLoginLoading] = useState(false)
   const importHistoryInputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -111,16 +99,6 @@ export default function SettingsPanel({
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [isRecordingShortcut, onUpdateShortcut])
 
-  useEffect(() => {
-    setLaunchAtLoginLoading(true)
-    void isEnabled()
-      .then((enabled) => setLaunchAtLogin(enabled))
-      .catch(() => {
-        toast.error('无法读取开机自启动状态。')
-      })
-      .finally(() => setLaunchAtLoginLoading(false))
-  }, [])
-
   return (
     <>
       <div
@@ -151,12 +129,8 @@ export default function SettingsPanel({
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto p-5">
-            <Tabs defaultValue="appearance" className="flex min-h-0 flex-1 flex-col">
+            <Tabs defaultValue="interaction" className="flex min-h-0 flex-1 flex-col">
               <TabsList>
-                <TabsTrigger value="appearance">
-                  <PaletteIcon className="size-4 shrink-0" />
-                  外观
-                </TabsTrigger>
                 <TabsTrigger value="interaction">
                   <KeyboardIcon className="size-4 shrink-0" />
                   交互
@@ -166,113 +140,6 @@ export default function SettingsPanel({
                   数据
                 </TabsTrigger>
               </TabsList>
-
-              <TabsContent value="appearance" className="mt-0 flex flex-col gap-6 outline-none">
-                <section>
-                  <SectionTitle title="外观" description="主题色、显示模式（下拉）与浮窗背景透明度。" />
-
-                  <div className="mt-3 flex items-center gap-2">
-                    {COLOR_THEME_OPTIONS.map((themeOption) => (
-                      <button
-                        key={themeOption.value}
-                        type="button"
-                        className={cn(
-                          'flex size-8 items-center justify-center rounded-full border-2 bg-(--theme-swatch) transition-all',
-                          settings.theme === themeOption.value
-                            ? 'border-foreground scale-110'
-                            : 'border-transparent hover:border-muted-foreground hover:scale-105'
-                        )}
-                        style={{ ['--theme-swatch' as string]: themeOption.color }}
-                        onClick={() => onChange({ theme: themeOption.value })}
-                        title={themeOption.label}
-                      >
-                        {settings.theme === themeOption.value && <CheckIcon className="size-4 text-white" />}
-                      </button>
-                    ))}
-
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className={cn(
-                            'flex size-8 items-center justify-center rounded-full border-2 transition-all',
-                            settings.theme === 'custom'
-                              ? 'border-foreground scale-110 bg-(--custom-swatch)'
-                              : 'border-dashed border-muted-foreground/50 hover:border-muted-foreground hover:scale-105'
-                          )}
-                          style={
-                            settings.theme === 'custom'
-                              ? { ['--custom-swatch' as string]: getCustomHuePreviewColor(settings.customHue) }
-                              : undefined
-                          }
-                          title="自定义颜色"
-                        >
-                          {settings.theme === 'custom' ? (
-                            <CheckIcon className="size-4 text-white" />
-                          ) : (
-                            <PaletteIcon className="size-4 text-muted-foreground" />
-                          )}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-72 p-3" side="bottom" align="end">
-                        <CustomColorPicker
-                          value={settings.customHue}
-                          onChange={(hue) => onChange({ theme: 'custom', customHue: hue })}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div
-                    className={cn(
-                      'bg-[color-mix(in_oklch,var(--card)_34%,transparent)] border border-[color-mix(in_oklch,var(--border)_34%,transparent)]',
-                      'mt-4 rounded-2xl px-4 py-3'
-                    )}
-                    title="浅色、深色或跟随系统；与主界面历史列表分离，仅在此调整。"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className={cn('text-foreground', 'min-w-0 text-sm font-medium')}>显示模式</p>
-                      <ModeToggle />
-                    </div>
-                  </div>
-
-                  <div
-                    className={cn(
-                      'bg-[color-mix(in_oklch,var(--card)_34%,transparent)] border border-[color-mix(in_oklch,var(--border)_34%,transparent)]',
-                      'mt-4 rounded-2xl px-4 py-4'
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className={cn('text-foreground', 'text-sm font-medium')}>背景透明度</p>
-                        <p className={cn('text-muted-foreground', 'mt-1 text-xs leading-5')}>
-                          当前主题：{currentTheme.label}
-                        </p>
-                      </div>
-                      <span
-                        className={cn(
-                          'bg-[color-mix(in_oklch,var(--secondary)_52%,transparent)] border border-[color-mix(in_oklch,var(--border)_36%,transparent)] text-[color-mix(in_oklch,var(--muted-foreground)_88%,transparent)]',
-                          'rounded-full px-2.5 py-1 text-xs'
-                        )}
-                      >
-                        {settings.backgroundOpacity}%
-                      </span>
-                    </div>
-                    <Slider
-                      min={MIN_BACKGROUND_OPACITY}
-                      max={MAX_BACKGROUND_OPACITY}
-                      step={1}
-                      value={[settings.backgroundOpacity]}
-                      onValueChange={([value]) => onChange({ backgroundOpacity: value })}
-                      className="mt-4 w-full"
-                    />
-                    <div className={cn('text-muted-foreground', 'mt-2 flex items-center justify-between text-[11px]')}>
-                      <span>更透明</span>
-                      <span>更厚重</span>
-                    </div>
-                  </div>
-                </section>
-              </TabsContent>
 
               <TabsContent value="interaction" className="mt-0 flex flex-col gap-6 outline-none">
                 <section>
@@ -360,30 +227,6 @@ export default function SettingsPanel({
                       description="开启后左侧列表等处无法用鼠标拖选；右侧仅下方正文滚动区可拖选复制，预览顶部信息区不可选。顶部搜索框也可正常选中编辑。"
                       checked={settings.disableTextSelection}
                       onCheckedChange={(checked) => onChange({ disableTextSelection: checked })}
-                    />
-                    <SettingToggleRow
-                      title="开机自启动"
-                      description="登录系统后自动在后台运行本应用（仍可用快捷键呼出）。"
-                      checked={launchAtLogin}
-                      switchDisabled={launchAtLoginLoading}
-                      onCheckedChange={(checked) => {
-                        void (async () => {
-                          try {
-                            if (checked) {
-                              await enable()
-                            } else {
-                              await disable()
-                            }
-                            setLaunchAtLogin(checked)
-                          } catch {
-                            toast.error('设置开机自启动失败，请稍后重试。')
-                            const actual = await isEnabled().catch(() => null)
-                            if (actual !== null) {
-                              setLaunchAtLogin(actual)
-                            }
-                          }
-                        })()
-                      }}
                     />
                   </div>
                 </section>
@@ -518,7 +361,7 @@ export default function SettingsPanel({
                       className={cn('border-[color-mix(in_oklch,var(--border)_26%,transparent)]', 'border-t px-4 py-4')}
                     >
                       <p className={cn('text-muted-foreground', 'mb-2 text-[11px] leading-relaxed')}>
-                        清空仅删除本机历史。恢复默认将重置主题、显示模式、快捷键与各项开关（不自动清空历史）。
+                        清空仅删除本机历史。恢复默认将重置主题、显示模式、快捷键与各项开关（不自动清空历史，也不影响翻译设置）。
                       </p>
                       <div className="flex flex-col gap-2">
                         <Button
@@ -569,7 +412,7 @@ export default function SettingsPanel({
                 ? historyCount === 0
                   ? '当前没有可清空的历史记录。'
                   : `将永久删除本机全部 ${historyCount} 条剪贴板历史，此操作不可撤销。`
-                : '将重置主题、显示模式、调色板、透明度、快捷键与各项交互开关，并关闭开机自启动；不会清空剪贴板历史。'}
+                : '将重置主题、显示模式、调色板、透明度、快捷键与各项交互开关；不会清空剪贴板历史，也不会影响翻译模块设置。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2">
@@ -592,11 +435,6 @@ export default function SettingsPanel({
                   } else if (destructiveConfirm === 'reset') {
                     setShortcutError('')
                     setIsRecordingShortcut(false)
-                    void disable()
-                      .then(() => setLaunchAtLogin(false))
-                      .catch(() => {
-                        toast.error('已恢复默认设置，但关闭开机自启动失败，可在系统登录项中手动移除。')
-                      })
                     onReset()
                   }
                 }}
@@ -619,13 +457,6 @@ function SectionTitle({ title, description }: { title: string; description: stri
     </div>
   )
 }
-
-const COLOR_THEME_OPTIONS = [
-  { value: 'default' as const, color: '#e11d48', label: '默认玫瑰' },
-  { value: 'ocean' as const, color: '#06b6d4', label: '海雾青' },
-  { value: 'forest' as const, color: '#10b981', label: '林地绿' },
-  { value: 'sunset' as const, color: '#f97316', label: '落日橙' }
-]
 
 /** 单卡片内分区：顶部分割线与开关行（与「数据」卡片分区样式一致） */
 function SettingToggleRow({

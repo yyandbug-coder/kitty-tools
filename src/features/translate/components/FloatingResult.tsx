@@ -37,13 +37,16 @@ type CopyTarget = 'source' | 'target' | null
 
 export function FloatingResult() {
   const { config, updateConfig } = useConfig()
-  const { settings: globalSettings, updateSettings: updateGlobalSettings, loaded } = useGlobalAppSettings()
+  const {
+    settings: globalSettings,
+    updateSettings: updateGlobalSettings,
+    loaded,
+  } = useGlobalAppSettings()
   const [sourceText, setSourceText] = useState('')
   const [translatedText, setTranslatedText] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<CopyTarget>(null)
-  /** 引擎返回的源语言（与设置里「自动检测」配合展示） */
   const [detectedSourceLang, setDetectedSourceLang] = useState<string | null>(null)
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => {
     if (typeof window === 'undefined') {
@@ -74,6 +77,7 @@ export function FloatingResult() {
     let cancelled = false
     let unlistenResult: UnlistenFn | undefined
     let unlistenLoading: UnlistenFn | undefined
+
     ;(async () => {
       try {
         unlistenResult = await listen<EventPayload>('translate-selection-result', (event) => {
@@ -87,8 +91,8 @@ export function FloatingResult() {
           } else {
             setError(null)
             setTranslatedText(event.payload.translated)
-            const sl = event.payload.sourceLang
-            setDetectedSourceLang(sl && sl !== 'auto' ? sl : null)
+            const sourceLang = event.payload.sourceLang
+            setDetectedSourceLang(sourceLang && sourceLang !== 'auto' ? sourceLang : null)
             if (config.autoCopy && event.payload.translated.trim()) {
               void navigator.clipboard.writeText(event.payload.translated).catch(() => {})
             }
@@ -111,7 +115,7 @@ export function FloatingResult() {
 
         await invoke('translate_floating_ready')
       } catch {
-        // 无 Tauri 环境或权限异常时忽略，避免白屏崩溃
+        // 非 Tauri 环境或权限异常时忽略
       }
     })()
 
@@ -122,7 +126,11 @@ export function FloatingResult() {
     }
   }, [config.autoCopy])
 
-  const runTranslation = async (text: string, sourceLang = config.sourceLang, targetLang = config.targetLang) => {
+  const runTranslation = async (
+    text: string,
+    sourceLang = config.sourceLang,
+    targetLang = config.targetLang,
+  ) => {
     if (!text.trim()) {
       setTranslatedText('')
       setError(null)
@@ -138,14 +146,14 @@ export function FloatingResult() {
         request: {
           text,
           source_lang: sourceLang,
-          target_lang: targetLang
-        }
+          target_lang: targetLang,
+        },
       })
 
       setSourceText(result.sourceText ?? result.source_text ?? text)
       setTranslatedText(result.translatedText ?? result.translated_text ?? '')
-      const sl = result.sourceLang ?? result.source_lang
-      setDetectedSourceLang(sl && sl !== 'auto' ? sl : null)
+      const sourceLangResult = result.sourceLang ?? result.source_lang
+      setDetectedSourceLang(sourceLangResult && sourceLangResult !== 'auto' ? sourceLangResult : null)
     } catch (err) {
       setTranslatedText('')
       setDetectedSourceLang(null)
@@ -194,7 +202,7 @@ export function FloatingResult() {
 
     await updateConfig({
       sourceLang: nextSourceLang,
-      targetLang: nextTargetLang
+      targetLang: nextTargetLang,
     })
 
     if (sourceText.trim()) {
@@ -258,242 +266,254 @@ export function FloatingResult() {
       systemPrefersDark={systemPrefersDark}
     >
       <TooltipProvider>
-      <div
-        className={cn('flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground', isDarkMode && 'dark')}
-        data-kitty-theme-scope
-        data-theme={globalSettings.theme}
-        data-window="translate-floating"
-        style={appStyle}
-      >
         <div
-          className="flex shrink-0 items-center justify-between border-b border-border/70 px-4 py-3"
-          onPointerDown={handleDragPointerDown}
+          className={cn(
+            'flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
+            isDarkMode && 'dark',
+          )}
+          data-kitty-theme-scope
+          data-theme={globalSettings.theme}
+          data-window="translate-floating"
+          style={appStyle}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium tracking-tight">
-            <img
-              src={logoUrl}
-              alt=""
-              width={28}
-              height={28}
-              className="size-7 shrink-0 object-contain"
-              draggable={false}
-              aria-hidden
-            />
-            <span className="shrink-0">快速翻译</span>
-            <span className="truncate text-xs font-normal text-muted-foreground">
-              {translateSubmitShortcutLabel()} 翻译
-            </span>
-          </div>
-          <div className="flex items-center gap-1" data-no-drag="true">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={() => void handleOpenSettings()} data-no-drag="true">
-                  <Settings className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>打开设置</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={handleTogglePin} data-no-drag="true">
-                  {config.floatingPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{config.floatingPinned ? '已固定窗口' : '失焦后自动关闭'}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={handleClose} data-no-drag="true">
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>关闭</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2 border-b border-border/70 bg-muted/35 px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <LanguageSelector value={config.sourceLang} onChange={handleSourceLangChange} />
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={handleSwapLanguages}
-                disabled={config.sourceLang === 'auto'}
-              >
-                <ArrowRightLeft className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>交换语言</TooltipContent>
-          </Tooltip>
-          <div className="min-w-0 flex-1">
-            <LanguageSelector value={config.targetLang} onChange={handleTargetLangChange} excludeCodes={['auto']} />
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
-          <div className="flex min-h-0 flex-1 flex-row gap-2">
-            <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
-              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
-                <p className="truncate text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">原文</span>
-                  <span className="mx-1.5 text-border">·</span>
-                  <span>可编辑输入</span>
-                </p>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="shrink-0"
-                      onClick={() => void handleCopy(sourceText, 'source')}
-                      disabled={!sourceText.trim()}
-                    >
-                      {copied === 'source' ? (
-                        <Check className="h-3.5 w-3.5 text-green-600" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{copied === 'source' ? '已复制原文' : '复制原文'}</TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-3">
-                {loading && !sourceText.trim() ? (
-                  <div
-                    className="flex h-full min-h-28 items-center justify-center gap-2 px-2 text-center text-sm text-muted-foreground"
-                    aria-busy
-                    aria-live="polite"
-                  >
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                    <span>正在识别截图中的文字…</span>
-                  </div>
-                ) : (
-                  <Textarea
-                    value={sourceText}
-                    onChange={(event) => setSourceText(event.target.value)}
-                    onKeyDown={handleSourceKeyDown}
-                    placeholder={`粘贴或输入文本，${translateSubmitShortcutLabel()} 翻译`}
-                    className="h-full min-h-0 resize-none overflow-y-auto border-0 bg-transparent px-0 py-0 text-[15px] leading-7 shadow-none field-sizing-fixed focus-visible:ring-0"
-                  />
-                )}
-              </div>
-            </section>
-
-            <section
-              className={cn(
-                'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 shadow-sm',
-                error ? 'bg-destructive/5' : 'bg-card/80'
-              )}
-            >
-              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
-                <p className="min-w-0 truncate text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">译文</span>
-                  <span className="mx-1.5 text-border">·</span>
-                  <span>{error ? '翻译失败' : '翻译结果'}</span>
-                </p>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="shrink-0"
-                      onClick={() => void handleCopy(translatedText, 'target')}
-                      disabled={!translatedText.trim()}
-                    >
-                      {copied === 'target' ? (
-                        <Check className="h-3.5 w-3.5 text-green-600" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{copied === 'target' ? '已复制译文' : '复制译文'}</TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-3">
-                {error ? (
-                  <ScrollArea className="h-full min-h-0">
-                    <div className="rounded-xl border border-destructive/20 bg-background/75 px-3 py-2 text-sm leading-6 text-destructive">
-                      {error}
-                    </div>
-                  </ScrollArea>
-                ) : (
-                  <ScrollArea className="h-full min-h-0">
-                    {loading ? (
-                      <div
-                        className="flex min-h-28 items-center gap-2 text-[15px] leading-7 text-muted-foreground"
-                        aria-busy
-                        aria-live="polite"
-                      >
-                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                        <span>{sourceText.trim() ? '翻译中…' : '请稍候…'}</span>
-                      </div>
-                    ) : translatedText ? (
-                      <p className="whitespace-pre-wrap text-[15px] leading-7 text-foreground">{translatedText}</p>
-                    ) : (
-                      <p className="text-[15px] leading-7 text-muted-foreground">译文将显示在这里</p>
-                    )}
-                  </ScrollArea>
-                )}
-              </div>
-            </section>
-          </div>
-
-          <div className="flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/70 px-3.5 py-2.5 shadow-sm ring-1 ring-foreground/4 backdrop-blur-sm dark:bg-card/50 dark:ring-foreground/6">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1.5">
-              {loading ? (
-                <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground/80" aria-hidden />
-                  <span className="leading-snug">翻译中…</span>
-                </span>
-              ) : (
-                <>
-                  {config.sourceLang === 'auto' && detectedSourceLang ? (
-                    <span
-                      className="inline-flex max-w-full shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-2 py-1 text-[11px] shadow-sm dark:bg-background/70"
-                      title={`检测到的源语言：${getLanguageDisplayName(detectedSourceLang)}`}
-                    >
-                      <span className="shrink-0 text-muted-foreground">检测</span>
-                      <span className="h-3 w-px shrink-0 bg-border/80" aria-hidden />
-                      <span className="min-w-0 truncate font-medium text-foreground">
-                        {getLanguageDisplayName(detectedSourceLang)}
-                      </span>
-                    </span>
-                  ) : null}
-                  <p className="min-w-0 flex-1 text-xs leading-snug text-muted-foreground">
-                    可随时修改原文后再次翻译
-                  </p>
-                </>
-              )}
+          <div
+            className="flex shrink-0 items-center justify-between border-b border-border/70 px-4 py-3"
+            onPointerDown={handleDragPointerDown}
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium tracking-tight">
+              <img
+                src={logoUrl}
+                alt=""
+                width={28}
+                height={28}
+                className="size-7 shrink-0 object-contain"
+                draggable={false}
+                aria-hidden
+              />
+              <span className="shrink-0">快速翻译</span>
+              <span className="truncate text-xs font-normal text-muted-foreground">
+                {translateSubmitShortcutLabel()} 翻译
+              </span>
             </div>
-            <Button
-              onClick={() => void runTranslation(sourceText)}
-              disabled={loading || !sourceText.trim()}
-              size="sm"
-              className="min-w-28"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  翻译中
-                </>
-              ) : (
-                '翻译'
-              )}
-            </Button>
+            <div className="flex items-center gap-1" data-no-drag="true">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => void handleOpenSettings()}
+                    data-no-drag="true"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>打开设置</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" onClick={handleTogglePin} data-no-drag="true">
+                    {config.floatingPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{config.floatingPinned ? '已固定窗口' : '失焦后自动关闭'}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" onClick={handleClose} data-no-drag="true">
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>关闭</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 border-b border-border/70 bg-muted/35 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <LanguageSelector value={config.sourceLang} onChange={handleSourceLangChange} />
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleSwapLanguages}
+                  disabled={config.sourceLang === 'auto'}
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>交换语言</TooltipContent>
+            </Tooltip>
+            <div className="min-w-0 flex-1">
+              <LanguageSelector
+                value={config.targetLang}
+                onChange={handleTargetLangChange}
+                excludeCodes={['auto']}
+              />
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+            <div className="flex min-h-0 flex-1 flex-row gap-2">
+              <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
+                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
+                  <p className="truncate text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">原文</span>
+                    <span className="mx-1.5 text-border">·</span>
+                    <span>可编辑输入</span>
+                  </p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="shrink-0"
+                        onClick={() => void handleCopy(sourceText, 'source')}
+                        disabled={!sourceText.trim()}
+                      >
+                        {copied === 'source' ? (
+                          <Check className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{copied === 'source' ? '已复制原文' : '复制原文'}</TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden p-3">
+                  {loading && !sourceText.trim() ? (
+                    <div
+                      className="flex h-full min-h-28 items-center justify-center gap-2 px-2 text-center text-sm text-muted-foreground"
+                      aria-busy
+                      aria-live="polite"
+                    >
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                      <span>正在识别截图中的文字…</span>
+                    </div>
+                  ) : (
+                    <Textarea
+                      value={sourceText}
+                      onChange={(event) => setSourceText(event.target.value)}
+                      onKeyDown={handleSourceKeyDown}
+                      placeholder={`粘贴或输入文本，${translateSubmitShortcutLabel()} 翻译`}
+                      className="h-full min-h-0 resize-none overflow-y-auto border-0 bg-transparent px-0 py-0 text-[15px] leading-7 shadow-none field-sizing-fixed focus-visible:ring-0"
+                    />
+                  )}
+                </div>
+              </section>
+
+              <section
+                className={cn(
+                  'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 shadow-sm',
+                  error ? 'bg-destructive/5' : 'bg-card/80',
+                )}
+              >
+                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
+                  <p className="min-w-0 truncate text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">译文</span>
+                    <span className="mx-1.5 text-border">·</span>
+                    <span>{error ? '翻译失败' : '翻译结果'}</span>
+                  </p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="shrink-0"
+                        onClick={() => void handleCopy(translatedText, 'target')}
+                        disabled={!translatedText.trim()}
+                      >
+                        {copied === 'target' ? (
+                          <Check className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{copied === 'target' ? '已复制译文' : '复制译文'}</TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden p-3">
+                  {error ? (
+                    <ScrollArea className="h-full min-h-0">
+                      <div className="rounded-xl border border-destructive/20 bg-background/75 px-3 py-2 text-sm leading-6 text-destructive">
+                        {error}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <ScrollArea className="h-full min-h-0">
+                      {loading ? (
+                        <div
+                          className="flex min-h-28 items-center gap-2 text-[15px] leading-7 text-muted-foreground"
+                          aria-busy
+                          aria-live="polite"
+                        >
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                          <span>{sourceText.trim() ? '翻译中…' : '请稍候…'}</span>
+                        </div>
+                      ) : translatedText ? (
+                        <p className="whitespace-pre-wrap text-[15px] leading-7 text-foreground">{translatedText}</p>
+                      ) : (
+                        <p className="text-[15px] leading-7 text-muted-foreground">译文将显示在这里</p>
+                      )}
+                    </ScrollArea>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            <div className="flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/70 px-3.5 py-2.5 shadow-sm ring-1 ring-foreground/4 backdrop-blur-sm dark:bg-card/50 dark:ring-foreground/6">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                {loading ? (
+                  <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground/80" aria-hidden />
+                    <span className="leading-snug">翻译中…</span>
+                  </span>
+                ) : (
+                  <>
+                    {config.sourceLang === 'auto' && detectedSourceLang ? (
+                      <span
+                        className="inline-flex max-w-full shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-2 py-1 text-[11px] shadow-sm dark:bg-background/70"
+                        title={`检测到的源语言：${getLanguageDisplayName(detectedSourceLang)}`}
+                      >
+                        <span className="shrink-0 text-muted-foreground">检测</span>
+                        <span className="h-3 w-px shrink-0 bg-border/80" aria-hidden />
+                        <span className="min-w-0 truncate font-medium text-foreground">
+                          {getLanguageDisplayName(detectedSourceLang)}
+                        </span>
+                      </span>
+                    ) : null}
+                    <p className="min-w-0 flex-1 text-xs leading-snug text-muted-foreground">
+                      可随时修改原文后再次翻译
+                    </p>
+                  </>
+                )}
+              </div>
+              <Button
+                onClick={() => void runTranslation(sourceText)}
+                disabled={loading || !sourceText.trim()}
+                size="sm"
+                className="min-w-28"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    翻译中
+                  </>
+                ) : (
+                  '翻译'
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center justify-between border-t border-border/70 bg-muted/25 px-4 py-2 text-xs text-muted-foreground">
+            <span>{config.floatingPinned ? '已固定窗口' : '失焦后自动关闭'}</span>
+            <span>拖动标题栏移动窗口</span>
           </div>
         </div>
-
-        <div className="flex shrink-0 items-center justify-between border-t border-border/70 bg-muted/25 px-4 py-2 text-xs text-muted-foreground">
-          <span>{config.floatingPinned ? '已固定窗口' : '失焦后自动关闭'}</span>
-          <span>拖动顶栏移动窗口</span>
-        </div>
-      </div>
       </TooltipProvider>
     </ThemeProvider>
   )

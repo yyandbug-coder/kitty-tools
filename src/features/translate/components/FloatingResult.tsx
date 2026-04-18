@@ -12,6 +12,14 @@ import { useConfig } from '@translate/hooks/useConfig'
 import { ThemeProvider } from '@clipboard/components/ThemeProvider'
 import { getThemeRuntimeStyle } from '@clipboard/lib/theme'
 import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
+import {
+  themedChromeSurfaceClassName,
+  themedDestructiveSurfaceClassName,
+  themedMutedSurfaceClassName,
+  themedOverlaySurfaceClassName,
+  themedPanelSurfaceClassName,
+  themedWindowSurfaceClassName,
+} from '@/shared/lib/theme-surfaces'
 import logoUrl from '@translate/assets/images/logo.png'
 import { cn } from '@translate/lib/utils'
 import { translateSubmitShortcutLabel } from '@translate/lib/platform'
@@ -268,7 +276,8 @@ export function FloatingResult() {
       <TooltipProvider>
         <div
           className={cn(
-            'flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
+            'flex h-screen w-screen min-h-0 flex-col overflow-hidden rounded-[24px] text-foreground',
+            themedWindowSurfaceClassName,
             isDarkMode && 'dark',
           )}
           data-kitty-theme-scope
@@ -277,7 +286,11 @@ export function FloatingResult() {
           style={appStyle}
         >
           <div
-            className="flex shrink-0 items-center justify-between border-b border-border/70 px-4 py-3"
+            className={cn(
+              'flex shrink-0 items-center justify-between border-b px-4 py-3',
+              themedChromeSurfaceClassName,
+              'border-[color-mix(in_oklch,var(--border)_30%,transparent)]',
+            )}
             onPointerDown={handleDragPointerDown}
           >
             <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium tracking-tight">
@@ -328,7 +341,13 @@ export function FloatingResult() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 border-b border-border/70 bg-muted/35 px-4 py-3">
+          <div
+            className={cn(
+              'flex shrink-0 items-center gap-2 border-b px-4 py-3',
+              themedChromeSurfaceClassName,
+              'border-[color-mix(in_oklch,var(--border)_28%,transparent)]',
+            )}
+          >
             <div className="min-w-0 flex-1">
               <LanguageSelector value={config.sourceLang} onChange={handleSourceLangChange} />
             </div>
@@ -356,8 +375,13 @@ export function FloatingResult() {
 
           <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
             <div className="flex min-h-0 flex-1 flex-row gap-2">
-              <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
-                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
+              <section
+                className={cn(
+                  'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl shadow-sm',
+                  themedPanelSurfaceClassName,
+                )}
+              >
+                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[color-mix(in_oklch,var(--border)_26%,transparent)] px-3 py-2">
                   <p className="truncate text-xs text-muted-foreground">
                     <span className="font-semibold text-foreground">原文</span>
                     <span className="mx-1.5 text-border">·</span>
@@ -373,7 +397,7 @@ export function FloatingResult() {
                         disabled={!sourceText.trim()}
                       >
                         {copied === 'source' ? (
-                          <Check className="h-3.5 w-3.5 text-green-600" />
+                          <Check className="h-3.5 w-3.5 text-primary" />
                         ) : (
                           <Copy className="h-3.5 w-3.5" />
                         )}
@@ -406,11 +430,12 @@ export function FloatingResult() {
 
               <section
                 className={cn(
-                  'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 shadow-sm',
-                  error ? 'bg-destructive/5' : 'bg-card/80',
+                  'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl shadow-sm',
+                  themedPanelSurfaceClassName,
+                  error && themedDestructiveSurfaceClassName,
                 )}
               >
-                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
+                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[color-mix(in_oklch,var(--border)_26%,transparent)] px-3 py-2">
                   <p className="min-w-0 truncate text-xs text-muted-foreground">
                     <span className="font-semibold text-foreground">译文</span>
                     <span className="mx-1.5 text-border">·</span>
@@ -426,7 +451,7 @@ export function FloatingResult() {
                         disabled={!translatedText.trim()}
                       >
                         {copied === 'target' ? (
-                          <Check className="h-3.5 w-3.5 text-green-600" />
+                          <Check className="h-3.5 w-3.5 text-primary" />
                         ) : (
                           <Copy className="h-3.5 w-3.5" />
                         )}
@@ -438,7 +463,13 @@ export function FloatingResult() {
                 <div className="min-h-0 flex-1 overflow-hidden p-3">
                   {error ? (
                     <ScrollArea className="h-full min-h-0">
-                      <div className="rounded-xl border border-destructive/20 bg-background/75 px-3 py-2 text-sm leading-6 text-destructive">
+                      <div
+                        className={cn(
+                          'rounded-xl px-3 py-2 text-sm leading-6 text-destructive',
+                          themedOverlaySurfaceClassName,
+                          'border-[color-mix(in_oklch,var(--destructive)_28%,var(--border)_72%)]',
+                        )}
+                      >
                         {error}
                       </div>
                     </ScrollArea>
@@ -464,7 +495,12 @@ export function FloatingResult() {
               </section>
             </div>
 
-            <div className="flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/70 px-3.5 py-2.5 shadow-sm ring-1 ring-foreground/4 backdrop-blur-sm dark:bg-card/50 dark:ring-foreground/6">
+            <div
+              className={cn(
+                'flex shrink-0 items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 shadow-sm ring-1 ring-[color-mix(in_oklch,var(--foreground)_6%,transparent)]',
+                themedMutedSurfaceClassName,
+              )}
+            >
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1.5">
                 {loading ? (
                   <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
@@ -475,7 +511,10 @@ export function FloatingResult() {
                   <>
                     {config.sourceLang === 'auto' && detectedSourceLang ? (
                       <span
-                        className="inline-flex max-w-full shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-2 py-1 text-[11px] shadow-sm dark:bg-background/70"
+                        className={cn(
+                          'inline-flex max-w-full shrink-0 items-center gap-2 rounded-lg px-2 py-1 text-[11px] shadow-sm',
+                          themedOverlaySurfaceClassName,
+                        )}
                         title={`检测到的源语言：${getLanguageDisplayName(detectedSourceLang)}`}
                       >
                         <span className="shrink-0 text-muted-foreground">检测</span>
@@ -509,7 +548,13 @@ export function FloatingResult() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center justify-between border-t border-border/70 bg-muted/25 px-4 py-2 text-xs text-muted-foreground">
+          <div
+            className={cn(
+              'flex shrink-0 items-center justify-between border-t px-4 py-2 text-xs text-muted-foreground',
+              themedChromeSurfaceClassName,
+              'border-[color-mix(in_oklch,var(--border)_28%,transparent)]',
+            )}
+          >
             <span>{config.floatingPinned ? '已固定窗口' : '失焦后自动关闭'}</span>
             <span>拖动标题栏移动窗口</span>
           </div>

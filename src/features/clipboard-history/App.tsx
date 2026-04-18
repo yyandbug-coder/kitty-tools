@@ -513,13 +513,13 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
                     </div>
 
                     {shortcutStartupError && (
-                      <div className="mx-3 mt-2 flex flex-wrap items-center gap-2 rounded-[14px] border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
+                      <div className="mx-3 mt-2 flex flex-wrap items-center gap-2 rounded-[14px] border border-[color-mix(in_oklch,var(--primary)_34%,var(--border)_66%)] bg-[color-mix(in_oklch,var(--primary)_10%,transparent)] px-3 py-2 text-xs text-[color-mix(in_oklch,var(--foreground)_88%,var(--primary)_12%)]">
                         <span className="min-w-0 flex-1 leading-relaxed">{shortcutStartupError}</span>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-7 shrink-0 text-amber-950 hover:bg-amber-500/20 dark:text-amber-100"
+                          className="h-7 shrink-0 text-[color-mix(in_oklch,var(--foreground)_88%,var(--primary)_12%)] hover:bg-[color-mix(in_oklch,var(--primary)_16%,transparent)]"
                           onClick={() => setShortcutStartupError(null)}
                         >
                           知道了

@@ -28,6 +28,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@translate/components/
 import { useConfig } from '@translate/hooks/useConfig'
 import type { TranslateProvider, TranslateResult } from '@translate/types'
 import { appConfigToRust, DEFAULT_CONFIG } from '@translate/types'
+import {
+  themedMutedSurfaceClassName,
+  themedOverlaySurfaceClassName,
+} from '@/shared/lib/theme-surfaces'
 import { cn } from '@translate/lib/utils'
 
 type SecretFieldProps = {
@@ -147,14 +151,18 @@ export function SettingsPanel() {
   ]
 
   const credentialInputClass = cn(
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm',
-    'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+    'flex h-9 w-full rounded-md px-3 py-1 text-sm shadow-sm',
+    themedOverlaySurfaceClassName,
+    'placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
   )
 
   const translateProviderTooltip = (() => {
     const link =
       'font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary'
-    const mono = 'rounded bg-muted/90 px-1 py-px font-mono text-[11px] text-foreground/90'
+    const mono = cn(
+      'rounded px-1 py-px font-mono text-[11px] text-foreground/90',
+      themedOverlaySurfaceClassName,
+    )
     switch (config.translateProvider) {
       case 'baidu':
         return (
@@ -418,7 +426,7 @@ export function SettingsPanel() {
               />
             </div>
           )}
-          <div className="mt-4 flex flex-col gap-2 border-t border-border/60 pt-4">
+          <div className="mt-4 flex flex-col gap-2 border-t border-[color-mix(in_oklch,var(--border)_34%,transparent)] pt-4">
             <Button
               type="button"
               variant="outline"
@@ -437,7 +445,7 @@ export function SettingsPanel() {
               className={cn(
                 'text-xs leading-relaxed',
                 testFeedback == null && 'text-muted-foreground',
-                testFeedback?.ok === true && 'text-emerald-600 dark:text-emerald-400',
+                testFeedback?.ok === true && 'text-primary',
                 testFeedback?.ok === false && 'text-destructive',
               )}
             >
@@ -462,7 +470,12 @@ export function SettingsPanel() {
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+          <label
+            className={cn(
+              'flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5',
+              themedMutedSurfaceClassName,
+            )}
+          >
             <input
               type="checkbox"
               className="mt-1 size-4 shrink-0 rounded border-input accent-primary"
@@ -582,7 +595,7 @@ export function SettingsPanel() {
                 inputClassName={credentialInputClass}
               />
             </div>
-            <div className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
+            <div className="flex flex-col gap-1.5 border-t border-[color-mix(in_oklch,var(--border)_34%,transparent)] pt-3">
               <span className="text-xs font-medium text-foreground">Google Cloud Vision · 文字检测</span>
               <SecretField
                 id="google-vision-key"

@@ -17,6 +17,10 @@ import { Slider } from '@clipboard/components/ui/slider'
 import { Popover, PopoverContent, PopoverTrigger } from '@clipboard/components/ui/popover'
 import CustomColorPicker from '@clipboard/components/CustomColorPicker'
 import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
+import {
+  themedMutedSurfaceClassName,
+  themedOverlaySurfaceClassName,
+} from '@/shared/lib/theme-surfaces'
 import { useConfig } from '@translate/hooks/useConfig'
 import { getCustomHuePreviewColor, getThemeOption, MAX_BACKGROUND_OPACITY, MIN_BACKGROUND_OPACITY } from '@clipboard/lib/theme'
 import { cn } from '@clipboard/lib/utils'
@@ -168,7 +172,7 @@ export function CommonSettingsPanel() {
               </Popover>
             </div>
 
-            <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
+            <div className={cn('flex items-center justify-between rounded-2xl px-4 py-3', themedMutedSurfaceClassName)}>
               <div>
                 <p className="text-sm font-medium">显示模式</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">浅色、深色或跟随系统，全局生效。</p>
@@ -190,13 +194,13 @@ export function CommonSettingsPanel() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border/60 bg-muted/30 px-4 py-4">
+            <div className={cn('rounded-2xl px-4 py-4', themedMutedSurfaceClassName)}>
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">背景透明度</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">当前主题：{currentTheme.label}</p>
                 </div>
-                <span className="rounded-full border border-border/60 bg-background/75 px-2.5 py-1 text-xs">
+                <span className={cn('rounded-full px-2.5 py-1 text-xs', themedOverlaySurfaceClassName)}>
                   {settings.backgroundOpacity}%
                 </span>
               </div>
@@ -221,7 +225,7 @@ export function CommonSettingsPanel() {
             <CardDescription>系统级行为只在这里配置，不再拆散到模块设置中。</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
+            <div className={cn('flex items-center justify-between rounded-2xl px-4 py-3', themedMutedSurfaceClassName)}>
               <div>
                 <p className="text-sm font-medium">开机自启</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">登录系统后自动在后台运行本应用。</p>
@@ -234,7 +238,7 @@ export function CommonSettingsPanel() {
               />
             </div>
 
-            <div className="flex flex-wrap gap-2 rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
+            <div className={cn('flex flex-wrap gap-2 rounded-2xl px-4 py-3', themedMutedSurfaceClassName)}>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">欢迎页测试</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -247,7 +251,7 @@ export function CommonSettingsPanel() {
               </Button>
             </div>
 
-            <div className="flex flex-wrap gap-2 rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
+            <div className={cn('flex flex-wrap gap-2 rounded-2xl px-4 py-3', themedMutedSurfaceClassName)}>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">重置通用设置</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">

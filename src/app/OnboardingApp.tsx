@@ -20,6 +20,12 @@ import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
 import { useAppSettings } from '@clipboard/hooks/useAppSettings'
 import { ThemeProvider } from '@clipboard/components/ThemeProvider'
 import { getThemeRuntimeStyle } from '@clipboard/lib/theme'
+import {
+  themedChromeSurfaceClassName,
+  themedOverlaySurfaceClassName,
+  themedPrimarySurfaceClassName,
+  themedWindowSurfaceClassName,
+} from '@/shared/lib/theme-surfaces'
 import { cn } from '@clipboard/lib/utils'
 import { formatShortcutForDisplay as formatTranslateShortcut } from '@translate/lib/platform'
 import { formatShortcutForDisplay as formatClipboardShortcut } from '@clipboard/lib/shortcuts'
@@ -297,7 +303,8 @@ function OnboardingPage() {
     >
       <div
         className={cn(
-          'flex h-full min-h-0 flex-col overflow-hidden text-foreground',
+          'flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] text-foreground',
+          themedWindowSurfaceClassName,
           isDarkMode && 'dark',
         )}
         data-kitty-theme-scope
@@ -306,7 +313,13 @@ function OnboardingPage() {
         style={appStyle}
       >
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,color-mix(in_oklch,var(--theme-accent,var(--ring))_22%,transparent),transparent_32%),linear-gradient(180deg,color-mix(in_oklch,var(--background)_96%,white_4%),color-mix(in_oklch,var(--background)_88%,transparent))]">
-          <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[color-mix(in_oklch,var(--border)_34%,transparent)] bg-[color-mix(in_oklch,var(--background)_72%,transparent)] px-7 py-6 backdrop-blur">
+          <header
+            className={cn(
+              'flex shrink-0 items-start justify-between gap-4 border-b px-7 py-6',
+              themedChromeSurfaceClassName,
+              'border-[color-mix(in_oklch,var(--border)_34%,transparent)]',
+            )}
+          >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <SparklesIcon className="size-4 text-primary" />
@@ -326,14 +339,17 @@ function OnboardingPage() {
                   key={step.id}
                   type="button"
                   className={cn(
-                    'flex items-center gap-2 rounded-full border px-3 py-1.5 text-left text-xs transition-colors',
+                    'flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-xs transition-colors',
                     index === stepIndex
-                      ? 'border-primary/30 bg-primary/10 text-foreground shadow-sm'
-                      : 'border-border/60 bg-background/75 text-muted-foreground hover:bg-accent/55 hover:text-foreground',
+                      ? cn(themedPrimarySurfaceClassName, 'text-foreground')
+                      : cn(
+                          themedOverlaySurfaceClassName,
+                          'text-muted-foreground hover:bg-[color-mix(in_oklch,var(--accent)_44%,transparent)] hover:text-foreground',
+                        ),
                   )}
                   onClick={() => setStepIndex(index)}
                 >
-                  <span className="rounded-full bg-background/80 px-1.5 py-0.5 font-medium text-[10px]">
+                  <span className="rounded-full bg-[color-mix(in_oklch,var(--background)_82%,transparent)] px-1.5 py-0.5 font-medium text-[10px]">
                     {index + 1}
                   </span>
                   <span>{step.eyebrow}</span>
@@ -350,7 +366,13 @@ function OnboardingPage() {
             <div className="flex min-h-0 flex-1 flex-col">{currentStep.content}</div>
           </main>
 
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[color-mix(in_oklch,var(--border)_34%,transparent)] bg-[color-mix(in_oklch,var(--background)_72%,transparent)] px-7 py-5 backdrop-blur">
+          <footer
+            className={cn(
+              'flex shrink-0 items-center justify-between gap-3 border-t px-7 py-5',
+              themedChromeSurfaceClassName,
+              'border-[color-mix(in_oklch,var(--border)_34%,transparent)]',
+            )}
+          >
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <KeyboardIcon className="size-4" />
               {currentStep.eyebrow} · 共 {steps.length} 步

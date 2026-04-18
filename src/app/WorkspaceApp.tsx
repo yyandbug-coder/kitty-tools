@@ -8,6 +8,14 @@ import SettingsWindowApp from '@clipboard/components/SettingsWindowApp'
 import TranslateSettingsApp from '@translate/App'
 import { CommonSettingsPanel } from '@/app/CommonSettingsPanel'
 import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
+import {
+  themedCardSurfaceClassName,
+  themedChromeSurfaceClassName,
+  themedOverlaySurfaceClassName,
+  themedPanelSurfaceClassName,
+  themedPrimarySurfaceClassName,
+  themedWindowSurfaceClassName,
+} from '@/shared/lib/theme-surfaces'
 import type { AppModuleId } from '@/shared/types/app'
 import { cn } from '@clipboard/lib/utils'
 
@@ -94,14 +102,24 @@ export default function WorkspaceApp() {
       systemPrefersDark={systemPrefersDark}
     >
       <div
-        className={cn('flex h-full min-h-0 flex-col overflow-hidden text-foreground', isDarkMode && 'dark')}
+        className={cn(
+          'flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] text-foreground',
+          themedWindowSurfaceClassName,
+          isDarkMode && 'dark',
+        )}
         data-kitty-theme-scope
         data-theme={settings.theme}
         data-window="settings"
         style={appStyle}
       >
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,color-mix(in_oklch,var(--theme-accent,var(--ring))_14%,transparent),transparent_34%),linear-gradient(180deg,color-mix(in_oklch,var(--background)_98%,white_2%),color-mix(in_oklch,var(--background)_90%,transparent))]">
-          <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/60 bg-background/78 px-6 py-4 backdrop-blur">
+          <header
+            className={cn(
+              'flex shrink-0 items-center justify-between gap-4 border-b px-6 py-4',
+              themedChromeSurfaceClassName,
+              'border-[color-mix(in_oklch,var(--border)_32%,transparent)]',
+            )}
+          >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Settings2Icon className="size-4 text-primary" />
@@ -124,10 +142,13 @@ export default function WorkspaceApp() {
                     key={tab.id}
                     type="button"
                     className={cn(
-                      'flex items-center gap-2 rounded-2xl border px-4 py-3 text-left transition-colors',
+                      'flex items-center gap-2 rounded-2xl px-4 py-3 text-left transition-colors',
                       isActive
-                        ? 'border-primary/30 bg-primary/10 text-foreground shadow-sm'
-                        : 'border-border/60 bg-background/75 text-muted-foreground hover:bg-accent/55 hover:text-foreground',
+                        ? cn(themedPrimarySurfaceClassName, 'text-foreground')
+                        : cn(
+                            themedOverlaySurfaceClassName,
+                            'text-muted-foreground hover:bg-[color-mix(in_oklch,var(--accent)_44%,transparent)] hover:text-foreground',
+                          ),
                     )}
                     onClick={() => {
                       setActiveTab(tab.id)
@@ -144,7 +165,7 @@ export default function WorkspaceApp() {
               })}
             </div>
 
-            <div className="mb-4 shrink-0 rounded-[24px] border border-border/60 bg-card/80 px-4 py-3 shadow-sm">
+            <div className={cn('mb-4 shrink-0 rounded-[24px] px-4 py-3', themedCardSurfaceClassName)}>
               <div className="flex items-start gap-3">
                 <SparklesIcon className="mt-0.5 size-4 shrink-0 text-primary" />
                 <div className="min-w-0">
@@ -154,7 +175,7 @@ export default function WorkspaceApp() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-hidden rounded-[28px] border border-border/60 bg-background/86 shadow-sm backdrop-blur">
+            <div className={cn('min-h-0 flex-1 overflow-hidden rounded-[28px]', themedPanelSurfaceClassName)}>
               {activeTab === 'settings' ? (
                 <CommonSettingsPanel />
               ) : activeTab === 'translate' ? (

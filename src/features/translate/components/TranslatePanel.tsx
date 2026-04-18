@@ -10,6 +10,11 @@ import { useTranslate } from '@translate/hooks/useTranslate'
 import { useConfig } from '@translate/hooks/useConfig'
 import { getLanguageDisplayName, getProviderDisplayName } from '@translate/types'
 import { translateSubmitShortcutLabel } from '@translate/lib/platform'
+import {
+  themedDestructiveSurfaceClassName,
+  themedPanelSurfaceClassName,
+} from '@/shared/lib/theme-surfaces'
+import { cn } from '@translate/lib/utils'
 
 export function TranslatePanel() {
   const { config, updateConfig } = useConfig()
@@ -130,7 +135,12 @@ export function TranslatePanel() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-row gap-3">
-        <div className="relative flex min-h-[140px] min-w-0 flex-1 flex-col rounded-lg border bg-card">
+        <div
+          className={cn(
+            'relative flex min-h-[140px] min-w-0 flex-1 flex-col rounded-lg',
+            themedPanelSurfaceClassName,
+          )}
+        >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
             <p className="truncate text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">原文</span>
@@ -178,7 +188,13 @@ export function TranslatePanel() {
           />
         </div>
 
-        <div className="flex min-h-[140px] min-w-0 flex-1 flex-col rounded-lg border bg-muted/40">
+        <div
+          className={cn(
+            'flex min-h-[140px] min-w-0 flex-1 flex-col rounded-lg',
+            themedPanelSurfaceClassName,
+            error && themedDestructiveSurfaceClassName,
+          )}
+        >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
             <p className="min-w-0 truncate text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">译文</span>
@@ -205,7 +221,7 @@ export function TranslatePanel() {
                   disabled={!result?.translatedText}
                 >
                   {copied ? (
-                    <Check className="h-3.5 w-3.5 text-green-500" />
+                    <Check className="h-3.5 w-3.5 text-primary" />
                   ) : (
                     <Copy className="h-3.5 w-3.5" />
                   )}

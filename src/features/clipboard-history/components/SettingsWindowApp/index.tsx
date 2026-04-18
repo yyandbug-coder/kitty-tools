@@ -13,6 +13,7 @@ import { ThemeProvider } from '@clipboard/components/ThemeProvider'
 import { useAppSettings } from '@clipboard/hooks/useAppSettings'
 import { getThemeRuntimeStyle } from '@clipboard/lib/theme'
 import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
+import { themedWindowSurfaceClassName } from '@/shared/lib/theme-surfaces'
 import { parseClipboardHistoryImportJson } from '@clipboard/lib/clipboard-history-import'
 import {
   clearClipboardHistoryStorage,
@@ -160,7 +161,8 @@ export default function SettingsWindowApp() {
         ) : (
           <div
             className={cn(
-              'h-full w-full min-h-0 overflow-hidden text-foreground',
+              'h-full w-full min-h-0 overflow-hidden rounded-[28px] text-foreground',
+              themedWindowSurfaceClassName,
               isDarkMode && 'dark',
               settings.disableTextSelection && 'select-none',
             )}

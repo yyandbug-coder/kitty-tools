@@ -15,14 +15,15 @@ use objc2_app_kit::NSPasteboard;
 #[cfg(target_os = "macos")]
 use objc2_foundation::{NSArray, NSString, NSURL};
 use serde::{Deserialize, Serialize};
+use rusqlite::{Connection, OptionalExtension};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 #[cfg(target_os = "macos")]
 use std::ffi::CStr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use std::{
     collections::hash_map::DefaultHasher,
@@ -70,6 +71,32 @@ const TRAY_TOGGLE_ID: &str = "tray-toggle";
 const TRAY_SETTINGS_ID: &str = "tray-settings";
 const TRAY_QUIT_ID: &str = "tray-quit";
 const CLIPBOARD_PANEL_LABEL: &str = "clipboard-panel";
+const CLIPBOARD_PANEL_STATE_FILE: &str = "clipboard-panel-state.json";
+const SETTINGS_DB_FILE: &str = "kitty-settings.db";
+const SETTINGS_KEY: &str = "app-settings";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+struct ClipboardPanelConfig {
+    hide_when_unfocused: bool,
+    window_x: Option<i32>,
+    window_y: Option<i32>,
+}
+
+impl Default for ClipboardPanelConfig {
+    fn default() -> Self {
+        Self {
+            hide_when_unfocused: true,
+            window_x: None,
+            window_y: None,
+        }
+    }
+}
+
+pub struct AppState {
+    panel_config: Mutex<ClipboardPanelConfig>,
+    suppress_next_panel_blur_hide: AtomicBool,
+}
 
 // 剪贴板事件结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -631,6 +658,140 @@ fn activate_current_application() {
     }
 }
 
+fn clipboard_panel_state_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Resolve app data dir error: {}", e))?;
+    if !dir.exists() {
+        fs::create_dir_all(&dir).map_err(|e| format!("Create app data dir error: {}", e))?;
+    }
+    Ok(dir.join(CLIPBOARD_PANEL_STATE_FILE))
+}
+
+fn settings_db_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Resolve app data dir error: {}", e))?;
+    Ok(dir.join(SETTINGS_DB_FILE))
+}
+
+fn load_hide_when_unfocused_from_settings_db<R: Runtime>(app: &AppHandle<R>) -> Option<bool> {
+    let db_path = settings_db_path(app).ok()?;
+    if !db_path.exists() {
+        return None;
+    }
+
+    let conn = Connection::open(db_path).ok()?;
+    let payload: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            [SETTINGS_KEY],
+            |row| row.get(0),
+        )
+        .optional()
+        .ok()
+        .flatten();
+    let payload = payload?;
+    let json: serde_json::Value = serde_json::from_str(&payload).ok()?;
+    json.get("hideWhenUnfocused").and_then(|v| v.as_bool())
+}
+
+fn load_clipboard_panel_config<R: Runtime>(app: &AppHandle<R>) -> ClipboardPanelConfig {
+    let path = match clipboard_panel_state_path(app) {
+        Ok(path) => path,
+        Err(_) => return ClipboardPanelConfig::default(),
+    };
+
+    if let Ok(raw) = fs::read_to_string(&path) {
+        if let Ok(config) = serde_json::from_str::<ClipboardPanelConfig>(&raw) {
+            return config;
+        }
+    }
+
+    ClipboardPanelConfig {
+        hide_when_unfocused: load_hide_when_unfocused_from_settings_db(app).unwrap_or(true),
+        ..ClipboardPanelConfig::default()
+    }
+}
+
+fn save_clipboard_panel_config<R: Runtime>(
+    app: &AppHandle<R>,
+    config: &ClipboardPanelConfig,
+) -> Result<(), String> {
+    let path = clipboard_panel_state_path(app)?;
+    let raw = serde_json::to_string(config).map_err(|e| e.to_string())?;
+    fs::write(path, raw).map_err(|e| format!("Save clipboard panel state error: {}", e))
+}
+
+fn save_current_clipboard_panel_config<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let config = state
+        .panel_config
+        .lock()
+        .map_err(|e| format!("Clipboard panel state lock error: {}", e))?
+        .clone();
+    save_clipboard_panel_config(app, &config)
+}
+
+fn hydrate_clipboard_panel_state<R: Runtime>(app: &AppHandle<R>) {
+    let config = load_clipboard_panel_config(app);
+    if let Ok(mut state) = app.state::<AppState>().panel_config.lock() {
+        *state = config;
+    }
+}
+
+fn register_clipboard_panel_window_handlers<R: Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    app: &AppHandle<R>,
+) {
+    let app_handle = app.clone();
+    let had_true_focus = Arc::new(AtomicBool::new(false));
+
+    window.on_window_event(move |event| match event {
+        WindowEvent::Moved(position) => {
+            if let Ok(mut config) = app_handle.state::<AppState>().panel_config.lock() {
+                config.window_x = Some(position.x);
+                config.window_y = Some(position.y);
+            }
+            let _ = save_current_clipboard_panel_config(&app_handle);
+        }
+        WindowEvent::Focused(true) => {
+            had_true_focus.store(true, Ordering::SeqCst);
+        }
+        WindowEvent::Focused(false) => {
+            let state = app_handle.state::<AppState>();
+            let hide_when_unfocused = state
+                .panel_config
+                .lock()
+                .map(|config| config.hide_when_unfocused)
+                .unwrap_or(true);
+            let suppress_hide = state
+                .suppress_next_panel_blur_hide
+                .swap(false, Ordering::SeqCst);
+
+            let _ = save_current_clipboard_panel_config(&app_handle);
+
+            if hide_when_unfocused && !suppress_hide && had_true_focus.load(Ordering::SeqCst) {
+                hide_main_window(&app_handle);
+            }
+        }
+        WindowEvent::CloseRequested { api, .. } => {
+            if ALLOW_APP_EXIT.load(Ordering::SeqCst) {
+                return;
+            }
+            api.prevent_close();
+            let _ = save_current_clipboard_panel_config(&app_handle);
+            hide_main_window(&app_handle);
+        }
+        WindowEvent::Destroyed => {
+            let _ = save_current_clipboard_panel_config(&app_handle);
+        }
+        _ => {}
+    });
+}
+
 fn clipboard_panel_url() -> tauri::WebviewUrl {
     if cfg!(debug_assertions) {
         tauri::WebviewUrl::External(
@@ -650,30 +811,36 @@ fn get_or_create_clipboard_panel_window<R: Runtime>(
         return Ok(window);
     }
 
-    let window = tauri::WebviewWindow::builder(app, CLIPBOARD_PANEL_LABEL, clipboard_panel_url())
+    let (saved_x, saved_y) = app
+        .state::<AppState>()
+        .panel_config
+        .lock()
+        .map(|config| (config.window_x, config.window_y))
+        .unwrap_or((None, None));
+
+    let mut builder = tauri::WebviewWindow::builder(app, CLIPBOARD_PANEL_LABEL, clipboard_panel_url());
+    builder = builder
         .title("Clipboard History")
         .inner_size(1080.0, 720.0)
         .min_inner_size(720.0, 520.0)
         .resizable(false)
         .decorations(false)
         .transparent(true)
-        .center()
         .always_on_top(true)
         .skip_taskbar(true)
-        .visible(false)
+        .visible(false);
+
+    builder = if let (Some(x), Some(y)) = (saved_x, saved_y) {
+        builder.position(x as f64, y as f64)
+    } else {
+        builder.center()
+    };
+
+    let window = builder
         .build()
         .map_err(|e| format!("Create clipboard panel error: {}", e))?;
 
-    let app_handle = app.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
-            if ALLOW_APP_EXIT.load(Ordering::SeqCst) {
-                return;
-            }
-            api.prevent_close();
-            hide_main_window(&app_handle);
-        }
-    });
+    register_clipboard_panel_window_handlers(&window, app);
 
     Ok(window)
 }
@@ -1350,6 +1517,7 @@ extern "system" {
 }
 
 pub fn setup<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    hydrate_clipboard_panel_state(app);
     let window = get_or_create_clipboard_panel_window(app)?;
     let _ = window.hide();
 
@@ -1367,6 +1535,13 @@ pub fn show_clipboard_panel<R: Runtime>(app: &AppHandle<R>) {
 
 pub fn toggle_clipboard_panel<R: Runtime>(app: &AppHandle<R>) {
     toggle_main_window(app);
+}
+
+pub fn build_state() -> AppState {
+    AppState {
+        panel_config: Mutex::new(ClipboardPanelConfig::default()),
+        suppress_next_panel_blur_hide: AtomicBool::new(false),
+    }
 }
 
 pub fn request_flush_then_exit<R: Runtime>(app: &AppHandle<R>) {
@@ -1412,6 +1587,29 @@ pub fn window_show_clipboard_panel(window: tauri::Window) {
 #[tauri::command]
 pub fn window_hide_clipboard_panel(window: tauri::Window) {
     hide_window(window)
+}
+
+#[tauri::command]
+pub fn clipboard_prepare_panel_drag(state: tauri::State<'_, AppState>) {
+    state
+        .suppress_next_panel_blur_hide
+        .store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+pub fn clipboard_update_panel_behavior(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    hide_when_unfocused: bool,
+) -> Result<(), String> {
+    {
+        let mut config = state
+            .panel_config
+            .lock()
+            .map_err(|e| format!("Clipboard panel state lock error: {}", e))?;
+        config.hide_when_unfocused = hide_when_unfocused;
+    }
+    save_current_clipboard_panel_config(&app)
 }
 
 #[tauri::command]

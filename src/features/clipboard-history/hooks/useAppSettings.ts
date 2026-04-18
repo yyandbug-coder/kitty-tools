@@ -260,6 +260,17 @@ export function useAppSettings() {
     })
   }, [isLoading, settings.globalShortcut])
 
+  useEffect(() => {
+    if (isLoading) {
+      return
+    }
+    void invoke('clipboard_update_panel_behavior', {
+      hide_when_unfocused: settings.hideWhenUnfocused,
+    }).catch((error) => {
+      console.error('Failed to sync clipboard panel behavior:', error)
+    })
+  }, [isLoading, settings.hideWhenUnfocused])
+
   return {
     settings,
     updateSettings,

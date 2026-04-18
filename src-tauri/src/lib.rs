@@ -250,6 +250,7 @@ pub fn run() {
         .manage(OnboardingCloseState {
             unlocked: AtomicBool::new(false),
         })
+        .manage(features::clipboard_history::build_state())
         .manage(features::translate::build_state())
         .invoke_handler(tauri::generate_handler![
             app_open_workspace,
@@ -258,6 +259,8 @@ pub fn run() {
             app_hide_onboarding,
             features::clipboard_history::window_show_clipboard_panel,
             features::clipboard_history::window_hide_clipboard_panel,
+            features::clipboard_history::clipboard_prepare_panel_drag,
+            features::clipboard_history::clipboard_update_panel_behavior,
             features::clipboard_history::clipboard_exit_after_flush,
             features::clipboard_history::clipboard_update_shortcut,
             features::clipboard_history::clipboard_start_watcher,

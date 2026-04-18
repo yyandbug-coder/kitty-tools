@@ -2,7 +2,7 @@
  * 剪贴板历史浮层 - 由全局快捷键或托盘呼出；主窗口置顶由 Tauri `alwaysOnTop` 配置；设置仅通过托盘菜单等方式打开独立设置窗口
  */
 import type { CSSProperties } from 'react'
-import { lazy, Suspense, useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useRef, useEffect, useState, useCallback, useMemo, type PointerEvent } from 'react'
 import toast, { Toaster } from 'react-hot-toast'
 import { getName } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
@@ -201,9 +201,6 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
     }
   }, [hasMore, displayed.length, filtered.length, history.length, search, showFavoritesOnly])
 
-  const hideWhenUnfocusedRef = useRef(settings.hideWhenUnfocused)
-  hideWhenUnfocusedRef.current = settings.hideWhenUnfocused
-
   useEffect(() => {
     const unlisten = listen<string>('global-shortcut-register-failed', (event) => {
       setShortcutStartupError(event.payload)
@@ -251,11 +248,17 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
     }
     keyboardRootRef.current?.focus({ preventScroll: true })
   }, [])
+  const hideWhenUnfocusedRef = useRef(false)
 
   useEffect(() => {
     if (isWorkspace) {
       return
     }
+    const focusPanelKeyboardRoot = () => {
+      requestAnimationFrame(() => focusListKeyboardRoot())
+      window.setTimeout(() => focusListKeyboardRoot(), 100)
+    }
+    let unlistenFocusPanelEvent: (() => void) | undefined
     let blurHideTimer = 0
     const clearBlurHideTimer = () => {
       window.clearTimeout(blurHideTimer)
@@ -302,19 +305,18 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
     }
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        scheduleUnfocusedHide()
-      } else {
-        clearBlurHideTimer()
-        if (document.visibilityState === 'visible') {
-          requestAnimationFrame(() => focusListKeyboardRoot())
-        }
+      if (document.visibilityState === 'visible') {
+        focusPanelKeyboardRoot()
       }
     }
 
-    window.addEventListener('blur', onWindowBlur)
-    window.addEventListener('focus', onWindowFocus)
+    window.addEventListener('focus', focusPanelKeyboardRoot)
     document.addEventListener('visibilitychange', onVisibilityChange)
+    void listen('focus-clipboard-panel', () => {
+      focusPanelKeyboardRoot()
+    }).then((fn) => {
+      unlistenFocusPanelEvent = fn
+    })
 
     const focusChangedPromise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
       if (focused) {
@@ -336,7 +338,9 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
     })
 
     return () => {
+      unlistenFocusPanelEvent?.()
       clearBlurHideTimer()
+      window.removeEventListener('focus', focusPanelKeyboardRoot)
       window.removeEventListener('blur', onWindowBlur)
       window.removeEventListener('focus', onWindowFocus)
       document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -357,6 +361,26 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
         })
     }
   }, [focusListKeyboardRoot, isWorkspace])
+
+  const handleDragPointerDown = useCallback(
+    async (event: PointerEvent<HTMLDivElement>) => {
+      if (isWorkspace) {
+        return
+      }
+      const target = event.target as HTMLElement
+      if (target.closest('[data-no-drag="true"]')) return
+      if (event.button !== 0) return
+
+      try {
+        await invoke('clipboard_prepare_panel_drag')
+      } catch {
+        // ignore in non-Tauri environments
+      }
+
+      await getCurrentWindow().startDragging()
+    },
+    [isWorkspace],
+  )
 
   const handleItemSelect = useCallback((index: number) => {
     setSelectedIndex(index)
@@ -434,6 +458,7 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
                         'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
                         'flex flex-wrap items-center gap-2 border-b px-2.5 py-2 sm:gap-2.5 sm:px-3'
                       )}
+                      onPointerDown={handleDragPointerDown}
                     >
                       <div className="flex min-w-0 shrink-0 items-center gap-2">
                         <AppLogoIcon className="h-10 w-10 shrink-0 object-contain " alt="" aria-hidden />
@@ -449,6 +474,7 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
                           'border border-[var(--search-shell-border)] bg-[var(--search-shell-bg)] backdrop-blur-[16px] backdrop-saturate-[140%] transition-[border-color,background-color,box-shadow] duration-[160ms] ease-out focus-within:border-[color-mix(in_oklch,var(--theme-accent,var(--ring))_42%,var(--border)_58%)] focus-within:shadow-[0_0_0_1px_var(--search-shell-focus-ring)]',
                           'flex min-w-0 flex-1 items-center gap-2 rounded-[16px] px-2.5 sm:gap-2.5 sm:px-3'
                         )}
+                        data-no-drag="true"
                         style={searchShellStyle}
                       >
                         <input
@@ -474,7 +500,7 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-1.5">
+                      <div className="flex shrink-0 items-center gap-1.5" data-no-drag="true">
                         <div
                           className={cn(
                             'bg-[color-mix(in_oklch,var(--secondary)_52%,transparent)] border border-[color-mix(in_oklch,var(--border)_36%,transparent)] text-[color-mix(in_oklch,var(--muted-foreground)_88%,transparent)]',

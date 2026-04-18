@@ -19,6 +19,7 @@ import { Button } from '@translate/components/ui/button'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -296,11 +297,13 @@ export function SettingsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {providers.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {providers.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
             <Tooltip>

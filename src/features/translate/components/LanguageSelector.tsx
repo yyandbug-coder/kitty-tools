@@ -1,6 +1,7 @@
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -25,11 +26,13 @@ export function LanguageSelector({ value, onChange, excludeCodes = [] }: Languag
         <SelectValue placeholder="选择语言" />
       </SelectTrigger>
       <SelectContent>
-        {languages.map((lang: Language) => (
-          <SelectItem key={lang.code} value={lang.code}>
-            {lang.name}
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {languages.map((lang: Language) => (
+            <SelectItem key={lang.code} value={lang.code}>
+              {lang.name}
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )

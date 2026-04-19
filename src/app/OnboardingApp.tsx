@@ -145,7 +145,7 @@ function OnboardingPage() {
         eyebrow: '第一步',
         title: '这是什么应用',
         description:
-          'Kitty Utils 是一个常驻系统托盘的桌面工具，不依赖主窗口常开。平时你只需要记住快捷键，或者从托盘右键菜单进入设置。',
+          'Kitty Tools 是一个常驻系统托盘的桌面工具，不依赖主窗口常开。平时你只需要记住快捷键，或者从托盘右键菜单进入设置。',
         content: (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <Card className="border-[color-mix(in_oklch,var(--primary)_28%,transparent)] bg-[color-mix(in_oklch,var(--primary)_8%,transparent)] shadow-sm">
@@ -244,7 +244,7 @@ function OnboardingPage() {
               <CardContent className="flex flex-col gap-3 text-sm leading-7 text-muted-foreground">
                 <p>如果你想继续配置，点“前往设置”。</p>
                 <p>如果你已经了解用法，点“完成并后台运行”即可直接开始使用。</p>
-                <p>以后如果还想重看本引导，可以在“通用设置”里点“再次显示欢迎页”。</p>
+                <p>完成后应用会继续在后台运行，后续可随时从托盘进入设置调整行为。</p>
               </CardContent>
             </Card>
           </div>
@@ -323,7 +323,7 @@ function OnboardingPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <SparklesIcon className="size-4 text-primary" />
-                <p className="text-sm font-semibold tracking-tight">欢迎使用 Kitty Utils</p>
+                <p className="text-sm font-semibold tracking-tight">欢迎使用 Kitty Tools</p>
               </div>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight">{currentStep.title}</h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">

@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 const WORKSPACE_EVENT: &str = "workspace:navigate";
 const MAIN_WINDOW_LABEL: &str = "main";
 const ONBOARDING_WINDOW_LABEL: &str = "onboarding";
-const TRAY_ID: &str = "kitty-utils-tray";
+const TRAY_ID: &str = "kitty-tools-tray";
 const TRAY_OPEN_SETTINGS_ID: &str = "tray-open-settings";
 const TRAY_OPEN_CLIPBOARD_ID: &str = "tray-open-clipboard";
 const TRAY_SELECTION_ID: &str = "tray-selection";
@@ -91,7 +91,7 @@ fn get_or_create_onboarding_window(app: &AppHandle) -> Result<tauri::WebviewWind
     }
 
     let window = tauri::WebviewWindow::builder(app, ONBOARDING_WINDOW_LABEL, onboarding_url())
-        .title("Kitty Utils · 欢迎")
+        .title("Kitty Tools · 欢迎")
         .inner_size(1080.0, 820.0)
         .min_inner_size(920.0, 720.0)
         .resizable(true)
@@ -190,7 +190,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
     let mut tray_builder = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
-        .tooltip("Kitty Utils")
+        .tooltip("Kitty Tools")
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             TRAY_OPEN_SETTINGS_ID => {
@@ -199,12 +199,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             TRAY_OPEN_CLIPBOARD_ID => features::clipboard_history::show_clipboard_panel(app),
             TRAY_SELECTION_ID => {
                 if let Err(error) = features::translate::trigger_selection_translate(app) {
-                    eprintln!("[kitty-utils] selection translate failed: {}", error);
+                    eprintln!("[kitty-tools] selection translate failed: {}", error);
                 }
             }
             TRAY_SCREENSHOT_ID => {
                 if let Err(error) = features::translate::trigger_screenshot_translate(app) {
-                    eprintln!("[kitty-utils] screenshot translate failed: {}", error);
+                    eprintln!("[kitty-tools] screenshot translate failed: {}", error);
                 }
             }
             TRAY_QUIT_ID => features::clipboard_history::request_flush_then_exit(app),

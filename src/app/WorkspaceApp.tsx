@@ -16,7 +16,7 @@ import {
   themedPrimarySurfaceClassName,
   themedWindowSurfaceClassName,
 } from '@/shared/lib/theme-surfaces'
-import type { AppModuleId } from '@/shared/types/app'
+import { isAppModuleId, type AppModuleId } from '@/shared/types/app'
 import { cn } from '@clipboard/lib/utils'
 
 const SETTINGS_TABS: Array<{
@@ -28,7 +28,7 @@ const SETTINGS_TABS: Array<{
   {
     id: 'settings',
     label: '通用设置',
-    description: '全局主题、暗黑模式、开机自启与欢迎页测试。',
+    description: '全局主题、暗黑模式与开机自启。',
     icon: Settings2Icon,
   },
   {
@@ -82,6 +82,9 @@ export default function WorkspaceApp() {
     let unlisten: (() => void) | undefined
 
     void listen<AppModuleId>('workspace:navigate', (event) => {
+      if (!isAppModuleId(event.payload)) {
+        return
+      }
       setActiveTab(event.payload)
       setLastActiveModule(event.payload)
     }).then((fn) => {
@@ -123,7 +126,7 @@ export default function WorkspaceApp() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <Settings2Icon className="size-4 text-primary" />
-                <p className="text-sm font-semibold tracking-tight">Kitty Utils 设置</p>
+                <p className="text-sm font-semibold tracking-tight">Kitty Tools 设置</p>
               </div>
               <p className="mt-1 truncate text-xs text-muted-foreground">
                 常驻系统托盘；日常功能通过快捷键和托盘菜单触发。

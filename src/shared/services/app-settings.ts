@@ -1,6 +1,6 @@
 import Database from '@tauri-apps/plugin-sql'
 import type { AppSettings } from '@/shared/types/app'
-import { DEFAULT_APP_SETTINGS } from '@/shared/types/app'
+import { DEFAULT_APP_SETTINGS, sanitizeAppSettings } from '@/shared/types/app'
 
 const DB_PATH = 'sqlite:kitty-app.db'
 const SETTINGS_KEY = 'app_settings'
@@ -36,10 +36,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
   }
 
   try {
-    return {
-      ...DEFAULT_APP_SETTINGS,
-      ...(JSON.parse(rows[0].value) as Partial<AppSettings>),
-    }
+    return sanitizeAppSettings(JSON.parse(rows[0].value) as Partial<AppSettings>)
   } catch {
     return DEFAULT_APP_SETTINGS
   }
@@ -47,9 +44,10 @@ export async function loadAppSettings(): Promise<AppSettings> {
 
 export async function saveAppSettings(settings: AppSettings): Promise<void> {
   const db = await getDb()
+  const sanitizedSettings = sanitizeAppSettings(settings)
   await db.execute(
     `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)
      ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3`,
-    [SETTINGS_KEY, JSON.stringify(settings), Date.now()],
+    [SETTINGS_KEY, JSON.stringify(sanitizedSettings), Date.now()],
   )
 }

@@ -1,5 +1,5 @@
 [package]
-name = "kitty-utils"
+name = "kitty-tools"
 version = "0.1.0"
 description = "Unified clipboard history and translation workspace"
 authors = ["you"]

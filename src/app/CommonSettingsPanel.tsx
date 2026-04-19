@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart'
 import {
   Monitor,
@@ -7,7 +6,6 @@ import {
   Palette,
   Power,
   RotateCcwIcon,
-  SparklesIcon,
   Sun,
 } from 'lucide-react'
 import { Button } from '@translate/components/ui/button'
@@ -99,17 +97,11 @@ export function CommonSettingsPanel() {
     }
   }
 
-  const handleShowOnboardingAgain = async () => {
-    await updateConfig({ firstRun: true })
-    await invoke('app_show_onboarding')
-  }
-
   const handleResetCommonSettings = async () => {
     resetSettings()
     await updateConfig({
       theme: 'system',
       launchOnStartup: false,
-      firstRun: false,
     })
     try {
       await disable()
@@ -236,19 +228,6 @@ export function CommonSettingsPanel() {
                 disabled={launchOnStartupLoading}
                 aria-label="开机自启"
               />
-            </div>
-
-            <div className={cn('flex flex-wrap gap-2 rounded-2xl px-4 py-3', themedMutedSurfaceClassName)}>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">欢迎页测试</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  本地测试时可再次打开欢迎页；会同时把首次引导标记改回未完成。
-                </p>
-              </div>
-              <Button type="button" variant="outline" onClick={() => void handleShowOnboardingAgain()}>
-                <SparklesIcon className="size-4" />
-                再次显示欢迎页
-              </Button>
             </div>
 
             <div className={cn('flex flex-wrap gap-2 rounded-2xl px-4 py-3', themedMutedSurfaceClassName)}>

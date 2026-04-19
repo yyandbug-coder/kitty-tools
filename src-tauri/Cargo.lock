@@ -2831,7 +2831,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kitty-utils"
+name = "kitty-tools"
 version = "0.1.0"
 dependencies = [
  "arboard",

@@ -1386,11 +1386,11 @@ pub fn maybe_handle_global_shortcut(
 
     if shortcut == &selection_shortcut {
         if let Err(error) = trigger_selection_translate(app) {
-            eprintln!("[kitty-utils] selection translate failed: {}", error);
+            eprintln!("[kitty-tools] selection translate failed: {}", error);
         }
     } else if shortcut == &screenshot_shortcut {
         if let Err(error) = trigger_screenshot_translate(app) {
-            eprintln!("[kitty-utils] screenshot translate failed: {}", error);
+            eprintln!("[kitty-tools] screenshot translate failed: {}", error);
             notify_screenshot_translate_ui(
                 app,
                 serde_json::json!({

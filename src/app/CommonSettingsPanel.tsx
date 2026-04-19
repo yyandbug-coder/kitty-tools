@@ -9,13 +9,14 @@ import {
   Sun,
 } from 'lucide-react'
 import { Button } from '@translate/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@translate/components/ui/card'
+import { Card, CardContent } from '@translate/components/ui/card'
 import { Switch } from '@translate/components/ui/switch'
 import { Slider } from '@clipboard/components/ui/slider'
 import { Popover, PopoverContent, PopoverTrigger } from '@clipboard/components/ui/popover'
 import CustomColorPicker from '@clipboard/components/CustomColorPicker'
 import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
 import { SettingsControlRow } from '@/shared/components/settings/SettingsControlRow'
+import { SettingsCardHeading } from '@/shared/components/settings/SettingsCardHeading'
 import {
   themedMutedSurfaceClassName,
   themedOverlaySurfaceClassName,
@@ -120,13 +121,12 @@ export function CommonSettingsPanel() {
     <div className="flex h-full min-h-0 flex-col overflow-auto p-5">
       <div className="flex flex-col gap-5">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Palette className="h-4 w-4" />
-              通用外观
-            </CardTitle>
-            <CardDescription>这一组设置会统一作用于设置页、欢迎页和历史记录面板。</CardDescription>
-          </CardHeader>
+          <SettingsCardHeading
+            icon={<Palette className="h-4 w-4" />}
+            title="通用外观"
+            description="这一组设置会统一作用于设置页、欢迎页和历史记录面板。"
+            descriptionClassName="text-xs leading-5 text-muted-foreground"
+          />
           <CardContent className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
               {COLOR_THEME_OPTIONS.map((themeOption) => (
@@ -214,13 +214,12 @@ export function CommonSettingsPanel() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Power className="h-4 w-4" />
-              通用行为
-            </CardTitle>
-            <CardDescription>系统级行为只在这里配置，不再拆散到模块设置中。</CardDescription>
-          </CardHeader>
+          <SettingsCardHeading
+            icon={<Power className="h-4 w-4" />}
+            title="通用行为"
+            description="系统级行为只在这里配置，不再拆散到模块设置中。"
+            descriptionClassName="text-xs leading-5 text-muted-foreground"
+          />
           <CardContent className="flex flex-col gap-4">
             <SettingsControlRow
               title="开机自启"

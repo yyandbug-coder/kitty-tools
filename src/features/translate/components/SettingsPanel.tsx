@@ -34,6 +34,7 @@ import {
   themedOverlaySurfaceClassName,
 } from '@/shared/lib/theme-surfaces'
 import { SecretField } from '@/shared/components/settings/SecretField'
+import { TextField } from '@/shared/components/settings/TextField'
 import { cn } from '@translate/lib/utils'
 
 type SecretFieldProps = {
@@ -326,20 +327,14 @@ export function SettingsPanel() {
           </div>
           {config.translateProvider === 'baidu' && (
             <div className="mt-4 flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="baidu-app-id" className="text-xs font-medium text-foreground">
-                  App ID
-                </label>
-                <input
-                  id="baidu-app-id"
-                  type="text"
-                  autoComplete="off"
-                  className={credentialInputClass}
-                  value={config.baidu.appId}
-                  onChange={(e) => void updateConfig({ baidu: { ...config.baidu, appId: e.target.value } })}
-                  placeholder="例如：12345678"
-                />
-              </div>
+              <TextField
+                id="baidu-app-id"
+                label="App ID"
+                value={config.baidu.appId}
+                onValueChange={(value) => void updateConfig({ baidu: { ...config.baidu, appId: value } })}
+                placeholder="例如：12345678"
+                inputClassName={credentialInputClass}
+              />
               <SecretField
                 id="baidu-secret"
                 label="密钥"
@@ -364,22 +359,16 @@ export function SettingsPanel() {
           )}
           {config.translateProvider === 'openai' && (
             <div className="mt-4 flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="openai-base" className="text-xs font-medium text-foreground">
-                  API 根路径
-                </label>
-                <input
-                  id="openai-base"
-                  type="text"
-                  autoComplete="off"
-                  className={credentialInputClass}
-                  value={config.openai.apiBaseUrl}
-                  onChange={(e) =>
-                    void updateConfig({ openai: { ...config.openai, apiBaseUrl: e.target.value } })
-                  }
-                  placeholder="https://api.openai.com/v1"
-                />
-              </div>
+              <TextField
+                id="openai-base"
+                label="API 根路径"
+                value={config.openai.apiBaseUrl}
+                onValueChange={(value) =>
+                  void updateConfig({ openai: { ...config.openai, apiBaseUrl: value } })
+                }
+                placeholder="https://api.openai.com/v1"
+                inputClassName={credentialInputClass}
+              />
               <SecretField
                 id="openai-key"
                 label="API Key"
@@ -388,38 +377,26 @@ export function SettingsPanel() {
                 placeholder="sk-…"
                 inputClassName={credentialInputClass}
               />
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="openai-model" className="text-xs font-medium text-foreground">
-                  模型
-                </label>
-                <input
-                  id="openai-model"
-                  type="text"
-                  autoComplete="off"
-                  className={credentialInputClass}
-                  value={config.openai.model}
-                  onChange={(e) => void updateConfig({ openai: { ...config.openai, model: e.target.value } })}
-                  placeholder="gpt-4o-mini"
-                />
-              </div>
+              <TextField
+                id="openai-model"
+                label="模型"
+                value={config.openai.model}
+                onValueChange={(value) => void updateConfig({ openai: { ...config.openai, model: value } })}
+                placeholder="gpt-4o-mini"
+                inputClassName={credentialInputClass}
+              />
             </div>
           )}
           {config.translateProvider === 'youdao' && (
             <div className="mt-4 flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="youdao-app-key" className="text-xs font-medium text-foreground">
-                  应用 ID（appKey）
-                </label>
-                <input
-                  id="youdao-app-key"
-                  type="text"
-                  autoComplete="off"
-                  className={credentialInputClass}
-                  value={config.youdao.appKey}
-                  onChange={(e) => void updateConfig({ youdao: { ...config.youdao, appKey: e.target.value } })}
-                  placeholder="智云控制台应用 ID"
-                />
-              </div>
+              <TextField
+                id="youdao-app-key"
+                label="应用 ID（appKey）"
+                value={config.youdao.appKey}
+                onValueChange={(value) => void updateConfig({ youdao: { ...config.youdao, appKey: value } })}
+                placeholder="智云控制台应用 ID"
+                inputClassName={credentialInputClass}
+              />
               <SecretField
                 id="youdao-app-secret"
                 label="应用密钥"
@@ -563,31 +540,25 @@ export function SettingsPanel() {
             </p>
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-foreground">百度智能云 · 通用文字识别</span>
-              <label htmlFor="baidu-ocr-base" className="text-xs text-muted-foreground">
-                AIP 根地址（可选）
-              </label>
-              <input
+              <TextField
                 id="baidu-ocr-base"
-                type="text"
-                autoComplete="off"
-                className={credentialInputClass}
+                label="AIP 根地址（可选）"
+                labelClassName="text-xs text-muted-foreground"
                 value={config.baidu.ocrAipBaseUrl}
-                onChange={(e) =>
-                  void updateConfig({ baidu: { ...config.baidu, ocrAipBaseUrl: e.target.value } })
+                onValueChange={(value) =>
+                  void updateConfig({ baidu: { ...config.baidu, ocrAipBaseUrl: value } })
                 }
                 placeholder="留空则 https://aip.baidubce.com"
+                inputClassName={credentialInputClass}
               />
-              <label htmlFor="baidu-ocr-key" className="text-xs text-muted-foreground">
-                API Key
-              </label>
-              <input
+              <TextField
                 id="baidu-ocr-key"
-                type="text"
-                autoComplete="off"
-                className={credentialInputClass}
+                label="API Key"
+                labelClassName="text-xs text-muted-foreground"
                 value={config.baidu.ocrApiKey}
-                onChange={(e) => void updateConfig({ baidu: { ...config.baidu, ocrApiKey: e.target.value } })}
+                onValueChange={(value) => void updateConfig({ baidu: { ...config.baidu, ocrApiKey: value } })}
                 placeholder="智能云文字识别应用的 API Key"
+                inputClassName={credentialInputClass}
               />
               <SecretField
                 id="baidu-ocr-secret"

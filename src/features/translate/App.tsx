@@ -1,5 +1,5 @@
 import { Settings } from 'lucide-react'
-import logoUrl from '@translate/assets/images/logo.png'
+import logoUrl from '@shared/assets/images/logo.png'
 import { TooltipProvider } from '@translate/components/ui/tooltip'
 import { SettingsPanel } from '@translate/components/SettingsPanel'
 import { themedChromeSurfaceClassName } from '@/shared/lib/theme-surfaces'

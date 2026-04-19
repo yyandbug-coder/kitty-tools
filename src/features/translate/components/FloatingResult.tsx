@@ -20,7 +20,7 @@ import {
   themedPanelSurfaceClassName,
   themedWindowSurfaceClassName,
 } from '@/shared/lib/theme-surfaces'
-import logoUrl from '@translate/assets/images/logo.png'
+import logoUrl from '@shared/assets/images/logo.png'
 import { cn } from '@translate/lib/utils'
 import { formatSubmitShortcutLabel } from '@/shared/lib/shortcuts'
 import { getLanguageDisplayName } from '@translate/types'

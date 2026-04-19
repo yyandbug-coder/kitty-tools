@@ -46,7 +46,7 @@ const SETTINGS_TABS: Array<{
 ]
 
 export default function WorkspaceApp() {
-  const { settings, loaded, setLastActiveModule, updateSettings } = useGlobalAppSettings()
+  const { settings, loaded, setLastActiveModule, updateSettings, resetSettings } = useGlobalAppSettings()
   const [activeTab, setActiveTab] = useState<AppModuleId>(settings.lastActiveModule)
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => {
     if (typeof window === 'undefined') {
@@ -177,7 +177,11 @@ export default function WorkspaceApp() {
 
             <div className={cn('min-h-0 flex-1 overflow-hidden rounded-[28px]', themedPanelSurfaceClassName)}>
               {activeTab === 'settings' ? (
-                <CommonSettingsPanel />
+                <CommonSettingsPanel
+                  settings={settings}
+                  updateSettings={updateSettings}
+                  resetSettings={resetSettings}
+                />
               ) : activeTab === 'translate' ? (
                 <TranslateSettingsApp />
               ) : (

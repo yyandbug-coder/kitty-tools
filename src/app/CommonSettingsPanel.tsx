@@ -14,9 +14,9 @@ import { Switch } from '@translate/components/ui/switch'
 import { Slider } from '@clipboard/components/ui/slider'
 import { Popover, PopoverContent, PopoverTrigger } from '@clipboard/components/ui/popover'
 import CustomColorPicker from '@clipboard/components/CustomColorPicker'
-import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
 import { SettingsControlRow } from '@/shared/components/settings/SettingsControlRow'
 import { SettingsCardHeading } from '@/shared/components/settings/SettingsCardHeading'
+import type { AppSettings } from '@/shared/types/app'
 import {
   themedMutedSurfaceClassName,
   themedOverlaySurfaceClassName,
@@ -37,8 +37,15 @@ const COLOR_THEME_OPTIONS = [
   { value: 'sunset' as const, color: '#f97316', label: '落日橙' },
 ]
 
-export function CommonSettingsPanel() {
-  const { settings, updateSettings, resetSettings } = useGlobalAppSettings()
+export function CommonSettingsPanel({
+  settings,
+  updateSettings,
+  resetSettings,
+}: {
+  settings: AppSettings
+  updateSettings: (patch: Partial<AppSettings>) => void
+  resetSettings: () => void
+}) {
   const { updateConfig } = useConfig()
   const [launchOnStartupLoading, setLaunchOnStartupLoading] = useState(false)
 

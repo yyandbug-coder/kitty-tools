@@ -22,29 +22,29 @@ export const DEFAULT_CUSTOM_HUE = 160
 const PRESET_THEMES: ThemeOption[] = [
   {
     id: 'default',
-    label: '榛樿鐜懓',
-    description: '浣跨敤榛樿鐨勭帿鐟颁富鑹诧紝娴呰壊涓庢繁鑹叉ā寮忛兘鏇存煍鍜岀ǔ瀹氥€?',
+    label: '默认玫瑰',
+    description: '使用默认的玫瑰主色，浅色与深色模式都更柔和与稳定。',
     accent: '#e11d48',
     preview: 'linear-gradient(135deg, rgba(244,114,182,0.52), rgba(255,241,242,0.92))',
   },
   {
     id: 'ocean',
-    label: '娴烽浘钃?',
-    description: '閫氶€忕殑钃濈豢鑹诧紝閫傚悎鍗婇€忔槑娴獥涓庡伐鍏烽潰鏉裤€?',
+    label: '海雾蓝',
+    description: '通透的蓝绿色，适合半透明浮窗与工具面板。',
     accent: '#06b6d4',
     preview: 'linear-gradient(135deg, rgba(34,211,238,0.48), rgba(8,47,73,0.92))',
   },
   {
     id: 'forest',
-    label: '鏋楀湴缁?',
-    description: '鍏嬪埗鐨勭豢鑹茶皟锛屾闈㈠伐鍏锋劅鏇村己銆€?',
+    label: '林地绿',
+    description: '克制的绿色调，桌面工具感更强。',
     accent: '#10b981',
     preview: 'linear-gradient(135deg, rgba(16,185,129,0.46), rgba(20,83,45,0.92))',
   },
   {
     id: 'sunset',
-    label: '钀芥棩姗?',
-    description: '鍋忔殩鐨勬鑹诧紝瑙嗚灞傛鏇存槑鏄俱€?',
+    label: '落日橙',
+    description: '偏暖的橙色，视觉层次更明显。',
     accent: '#f97316',
     preview: 'linear-gradient(135deg, rgba(249,115,22,0.52), rgba(67,20,7,0.92))',
   },
@@ -63,8 +63,8 @@ export function getThemeOption(theme: AppTheme, customHue = DEFAULT_CUSTOM_HUE) 
     const accent = deriveAccentFromHue(customHue)
     return {
       id: 'custom',
-      label: '鑷畾涔夐鑹?',
-      description: '浣跨敤鍗曚竴 accent 棰滆壊鐢熸垚鏁村涓婚銆€?',
+      label: '自定义颜色',
+      description: '使用单一 accent 颜色生成整套主题。',
       accent,
       preview: createCustomThemePreview(customHue),
     } satisfies ThemeOption

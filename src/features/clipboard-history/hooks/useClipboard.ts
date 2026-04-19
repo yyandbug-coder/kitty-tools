@@ -58,6 +58,10 @@ export function useClipboard(settings: AppSettings) {
   historyRef.current = history
 
   useEffect(() => {
+    pruneClipboardImagePreviewCache(history.map((item) => item.id))
+  }, [history])
+
+  useEffect(() => {
     setHistory((prev) => {
       const next = filterHistoryByRetention(prev, settings.historyRetentionDays)
       if (
@@ -66,7 +70,6 @@ export function useClipboard(settings: AppSettings) {
       ) {
         return prev
       }
-      pruneClipboardImagePreviewCache(next.map((item) => item.id))
       return next
     })
   }, [settings.historyRetentionDays])
@@ -81,7 +84,6 @@ export function useClipboard(settings: AppSettings) {
       if (next.length === prev.length && next.every((item, idx) => item === prev[idx])) {
         return prev
       }
-      pruneClipboardImagePreviewCache(next.map((item) => item.id))
       return next
     })
   }, [settings.historyMaxItems])
@@ -100,7 +102,6 @@ export function useClipboard(settings: AppSettings) {
         ) {
           return prev
         }
-        pruneClipboardImagePreviewCache(next.map((item) => item.id))
         return next
       })
     }
@@ -120,7 +121,9 @@ export function useClipboard(settings: AppSettings) {
   }, [settings.historyRetentionDays])
 
   useEffect(() => {
-    void invoke('clipboard_start_watcher')
+    void invoke('clipboard_start_watcher').catch((err) => {
+      console.error('启动剪贴板监听失败:', err)
+    })
 
     let teardown = false
 
@@ -145,7 +148,6 @@ export function useClipboard(settings: AppSettings) {
               ),
               retentionDaysRef.current,
             )
-            pruneClipboardImagePreviewCache(nextHistory.map((item) => item.id))
             return nextHistory
           })
           setSelectedIndex(0)
@@ -206,7 +208,6 @@ export function useClipboard(settings: AppSettings) {
             ),
             retentionDaysRef.current,
           )
-          pruneClipboardImagePreviewCache(merged.map((item) => item.id))
           return merged
         })
       } catch (error) {
@@ -378,7 +379,6 @@ export function useClipboard(settings: AppSettings) {
       applyClipboardHistoryMaxSlice(await normalizeSyncMergedHistoryAsync(items), historyMaxRef.current),
       retentionDaysRef.current,
     )
-    pruneClipboardImagePreviewCache(nextHistory.map((item) => item.id))
     startTransition(() => {
       setHistory(nextHistory)
       setSelectedIndex(0)
@@ -396,7 +396,6 @@ export function useClipboard(settings: AppSettings) {
         applyClipboardHistoryMaxSlice(mergeClipboardHistoriesForSync(prev, items), historyMaxRef.current),
         retentionDaysRef.current,
       )
-      pruneClipboardImagePreviewCache(merged.map((item) => item.id))
       return merged
     })
     setSelectedIndex(0)
@@ -436,7 +435,6 @@ export function useClipboard(settings: AppSettings) {
         applyClipboardHistoryMaxSlice(normalized, historyMaxRef.current),
         retentionDaysRef.current,
       )
-      pruneClipboardImagePreviewCache(cachedHistory.map((item) => item.id))
       startTransition(() => {
         setHistory(cachedHistory)
         setSelectedIndex(0)
@@ -468,17 +466,24 @@ export function useClipboard(settings: AppSettings) {
   }, [])
 
   const removeHistoryItem = useCallback((id: string): boolean => {
-    let removed = false
+    const current = historyRef.current
+    const idx = current.findIndex((item) => item.id === id)
+    if (idx === -1) {
+      return false
+    }
     setHistory((prev) => {
       const next = prev.filter((item) => item.id !== id)
       if (next.length === prev.length) {
         return prev
       }
-      removed = true
-      pruneClipboardImagePreviewCache(next.map((item) => item.id))
       return next
     })
-    return removed
+    setSelectedIndex((prev) => {
+      if (idx < prev) return prev - 1
+      if (idx === prev) return Math.min(prev, current.length - 2)
+      return prev
+    })
+    return true
   }, [])
 
   /** 立即将当前历史写入 SQLite（退出应用前调用，避免防抖尚未触发导致丢失） */

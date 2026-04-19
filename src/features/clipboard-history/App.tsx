@@ -166,6 +166,11 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
   hasMoreRef.current = hasMore
   const loadMoreRef = useRef(loadMore)
   loadMoreRef.current = loadMore
+  const loadingMoreRef = useRef(false)
+
+  useEffect(() => {
+    loadingMoreRef.current = false
+  }, [displayed.length])
 
   useEffect(() => {
     const root = scrollAreaRef.current
@@ -176,7 +181,8 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = viewport
-      if (scrollHeight - scrollTop - clientHeight < 200 && hasMoreRef.current) {
+      if (scrollHeight - scrollTop - clientHeight < 200 && hasMoreRef.current && !loadingMoreRef.current) {
+        loadingMoreRef.current = true
         loadMoreRef.current()
       }
     }
@@ -249,6 +255,7 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
     keyboardRootRef.current?.focus({ preventScroll: true })
   }, [])
   const hideWhenUnfocusedRef = useRef(false)
+  hideWhenUnfocusedRef.current = settings.hideWhenUnfocused
 
   useEffect(() => {
     if (isWorkspace) {
@@ -311,6 +318,8 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
     }
 
     window.addEventListener('focus', focusPanelKeyboardRoot)
+    window.addEventListener('focus', onWindowFocus)
+    window.addEventListener('blur', onWindowBlur)
     document.addEventListener('visibilitychange', onVisibilityChange)
     void listen('focus-clipboard-panel', () => {
       focusPanelKeyboardRoot()
@@ -377,7 +386,11 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
         // ignore in non-Tauri environments
       }
 
-      await getCurrentWindow().startDragging()
+      try {
+        await getCurrentWindow().startDragging()
+      } catch {
+        // ignore drag failures (e.g. window in invalid state)
+      }
     },
     [isWorkspace],
   )

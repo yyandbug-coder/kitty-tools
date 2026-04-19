@@ -1,62 +1,12 @@
 import type { ClipboardItem } from '@clipboard/types'
 import { normalizeClipboardHistoryInWorker } from '@clipboard/lib/clipboard-history-worker'
+import {
+  ensureClipboardItemHasUuid,
+  mergeClipboardItem,
+  dedupeHistoryById,
+} from './clipboard-merge'
 
-/** UUID v4：历史记录以 id 为主键，缺失或非标准格式时补全新 id */
-const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-function isUuidV4String(id: string | undefined): boolean {
-  return typeof id === 'string' && UUID_V4_RE.test(id.trim())
-}
-
-export function ensureClipboardItemHasUuid(item: ClipboardItem): ClipboardItem {
-  if (isUuidV4String(item.id)) {
-    return item
-  }
-
-  const newId =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`
-
-  return { ...item, id: newId }
-}
-
-function mergeClipboardItem(preferred: ClipboardItem, candidate: ClipboardItem): ClipboardItem {
-  return {
-    ...candidate,
-    ...preferred,
-    contentHash: preferred.contentHash ?? candidate.contentHash,
-    imageByteSize: preferred.imageByteSize ?? candidate.imageByteSize,
-    fileByteSizes: preferred.fileByteSizes ?? candidate.fileByteSizes,
-    filePaths: preferred.filePaths?.length ? preferred.filePaths : candidate.filePaths,
-    imageRgba: preferred.imageRgba?.length ? preferred.imageRgba : candidate.imageRgba,
-    imageWidth: preferred.imageWidth ?? candidate.imageWidth,
-    imageHeight: preferred.imageHeight ?? candidate.imageHeight,
-    sourceApp: preferred.sourceApp ?? candidate.sourceApp,
-    sourceAppPath: preferred.sourceAppPath ?? candidate.sourceAppPath,
-    timestamp: Math.max(preferred.timestamp, candidate.timestamp),
-    favorited: Boolean(preferred.favorited || candidate.favorited),
-  }
-}
-
-function dedupeHistoryById(history: ClipboardItem[]): ClipboardItem[] {
-  const byId = new Map<string, ClipboardItem>()
-
-  for (const raw of history) {
-    const item = ensureClipboardItemHasUuid(raw)
-    const existing = byId.get(item.id)
-    if (!existing) {
-      byId.set(item.id, item)
-      continue
-    }
-
-    const preferred = existing.timestamp >= item.timestamp ? existing : item
-    const candidate = preferred === existing ? item : existing
-    byId.set(item.id, mergeClipboardItem(preferred, candidate))
-  }
-
-  return [...byId.values()].sort((a, b) => b.timestamp - a.timestamp)
-}
+export { ensureClipboardItemHasUuid }
 
 export function mergeClipboardHistoriesForSync(
   localHistory: ClipboardItem[],
@@ -82,7 +32,10 @@ function getClipboardItemFingerprint(item: ClipboardItem) {
   }
 
   if (item.type === 'image') {
-    return item.contentHash ? `image:${item.contentHash}` : `image-id:${item.id}`
+    if (item.contentHash) return `image:${item.contentHash}`
+    const dims = `${item.imageWidth ?? 0}x${item.imageHeight ?? 0}`
+    const size = item.imageByteSize ?? 0
+    return `image:${dims}:${size}:${item.content}`
   }
 
   return `text:${item.content}`

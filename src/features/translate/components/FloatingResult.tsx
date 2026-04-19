@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { useEffect, useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { ArrowRightLeft, Check, Copy, Loader2, Pin, PinOff, Settings, X } from 'lucide-react'
@@ -55,6 +55,13 @@ export function FloatingResult() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<CopyTarget>(null)
+  const copiedTimerRef = useRef(0)
+  const autoCopyRef = useRef(config.autoCopy)
+  autoCopyRef.current = config.autoCopy
+  const sourceTextRef = useRef(sourceText)
+  sourceTextRef.current = sourceText
+
+  useEffect(() => () => window.clearTimeout(copiedTimerRef.current), [])
   const [detectedSourceLang, setDetectedSourceLang] = useState<string | null>(null)
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => {
     if (typeof window === 'undefined') {
@@ -101,14 +108,17 @@ export function FloatingResult() {
             setTranslatedText(event.payload.translated)
             const sourceLang = event.payload.sourceLang
             setDetectedSourceLang(sourceLang && sourceLang !== 'auto' ? sourceLang : null)
-            if (config.autoCopy && event.payload.translated.trim()) {
+            if (autoCopyRef.current && event.payload.translated.trim()) {
               void navigator.clipboard.writeText(event.payload.translated).catch(() => {})
             }
           }
         })
 
         unlistenLoading = await listen<string>('translate-selection-start', (event) => {
-          setSourceText(event.payload)
+          // T3: 只在用户没有手动输入时覆盖 sourceText
+          if (!sourceTextRef.current.trim()) {
+            setSourceText(event.payload)
+          }
           setTranslatedText('')
           setLoading(true)
           setError(null)
@@ -132,7 +142,9 @@ export function FloatingResult() {
       unlistenResult?.()
       unlistenLoading?.()
     }
-  }, [config.autoCopy])
+  }, [])
+
+  const translateSeqRef = useRef(0)
 
   const runTranslation = async (
     text: string,
@@ -145,6 +157,7 @@ export function FloatingResult() {
       return
     }
 
+    const seq = ++translateSeqRef.current
     setLoading(true)
     setError(null)
     setDetectedSourceLang(null)
@@ -158,16 +171,21 @@ export function FloatingResult() {
         },
       })
 
+      if (seq !== translateSeqRef.current) return
+
       setSourceText(result.sourceText ?? result.source_text ?? text)
       setTranslatedText(result.translatedText ?? result.translated_text ?? '')
       const sourceLangResult = result.sourceLang ?? result.source_lang
       setDetectedSourceLang(sourceLangResult && sourceLangResult !== 'auto' ? sourceLangResult : null)
     } catch (err) {
+      if (seq !== translateSeqRef.current) return
       setTranslatedText('')
       setDetectedSourceLang(null)
       setError(typeof err === 'string' ? err : String(err))
     } finally {
-      setLoading(false)
+      if (seq === translateSeqRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -177,7 +195,8 @@ export function FloatingResult() {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(target)
-      setTimeout(() => {
+      window.clearTimeout(copiedTimerRef.current)
+      copiedTimerRef.current = window.setTimeout(() => {
         setCopied((current) => (current === target ? null : current))
       }, 1600)
     } catch {
@@ -189,14 +208,22 @@ export function FloatingResult() {
     if (value !== 'auto') {
       setDetectedSourceLang(null)
     }
-    await updateConfig({ sourceLang: value })
+    try {
+      await updateConfig({ sourceLang: value })
+    } catch {
+      return
+    }
     if (sourceText.trim()) {
       await runTranslation(sourceText, value, config.targetLang)
     }
   }
 
   const handleTargetLangChange = async (value: string) => {
-    await updateConfig({ targetLang: value })
+    try {
+      await updateConfig({ targetLang: value })
+    } catch {
+      return
+    }
     if (sourceText.trim()) {
       await runTranslation(sourceText, config.sourceLang, value)
     }
@@ -249,7 +276,11 @@ export function FloatingResult() {
     }
 
     const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    await getCurrentWindow().startDragging()
+    try {
+      await getCurrentWindow().startDragging()
+    } catch {
+      // ignore drag failures
+    }
   }
 
   const handleSourceKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {

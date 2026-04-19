@@ -1,5 +1,6 @@
 import { useRef, createContext, useContext, type ReactNode, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import toast from 'react-hot-toast'
 import type { AppConfig } from '@translate/types'
 import { DEFAULT_CONFIG, appConfigToRust } from '@translate/types'
 import { usePersistedSyncState } from '@/shared/hooks/usePersistedSyncState'
@@ -239,9 +240,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         replaceState(prev)
       }
       const msg = typeof error === 'string' ? error : String(error)
-      console.error('淇濆瓨璁剧疆澶辫触', error)
+      console.error('保存设置失败', error)
       if (!isHotkey) {
-        window.alert(`淇濆瓨璁剧疆澶辫触锛?${msg}`)
+        toast.error(`保存设置失败：${msg}`)
       }
       throw error
     }

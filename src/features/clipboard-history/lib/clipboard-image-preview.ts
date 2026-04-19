@@ -6,9 +6,14 @@ import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem } from '@clipboard/types'
 
 const MAX_PREVIEW_EDGE = 420
+const NOT_AVAILABLE = '\x00__NOT_AVAILABLE__'
 
 const previewUrlCache = new Map<string, string>()
 const previewPromiseCache = new Map<string, Promise<string | null>>()
+
+function isRealUrl(value: string | undefined): value is string {
+  return !!value && value !== NOT_AVAILABLE
+}
 
 async function fetchPreviewAssetUrlFromRust(id: string): Promise<string | null> {
   try {
@@ -23,22 +28,25 @@ async function resolvePreviewUrl(item: ClipboardItem): Promise<string | null> {
   if (item.type !== 'image' || !item.id) return null
 
   const cached = previewUrlCache.get(item.id)
-  if (cached) return cached
+  if (cached !== undefined) {
+    return isRealUrl(cached) ? cached : null
+  }
 
   return fetchPreviewAssetUrlFromRust(item.id)
 }
 
-export function peekClipboardImagePreviewUrl(id?: string) {
+export function peekClipboardImagePreviewUrl(id?: string): string | null {
   if (!id) return null
-  return previewUrlCache.get(id) ?? null
+  const cached = previewUrlCache.get(id)
+  return isRealUrl(cached) ? cached : null
 }
 
-export function warmClipboardImagePreview(item: ClipboardItem) {
+export function warmClipboardImagePreview(item: ClipboardItem): Promise<string | null> {
   if (item.type !== 'image' || !item.id) return Promise.resolve(null)
 
   const cached = previewUrlCache.get(item.id)
-  if (cached) {
-    return Promise.resolve(cached)
+  if (cached !== undefined) {
+    return Promise.resolve(isRealUrl(cached) ? cached : null)
   }
 
   const pending = previewPromiseCache.get(item.id)
@@ -48,7 +56,7 @@ export function warmClipboardImagePreview(item: ClipboardItem) {
 
   const promise = resolvePreviewUrl(item)
     .then((url) => {
-      if (url) previewUrlCache.set(item.id, url)
+      previewUrlCache.set(item.id, url ?? NOT_AVAILABLE)
       return url
     })
     .finally(() => {
@@ -62,7 +70,7 @@ export function warmClipboardImagePreview(item: ClipboardItem) {
 export function clearClipboardImagePreviewCache() {
   previewPromiseCache.clear()
   for (const url of previewUrlCache.values()) {
-    if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+    if (isRealUrl(url) && url.startsWith('blob:')) URL.revokeObjectURL(url)
   }
   previewUrlCache.clear()
 }
@@ -71,7 +79,7 @@ export function pruneClipboardImagePreviewCache(validIds: string[]) {
   const validIdSet = new Set(validIds)
   for (const [id, url] of previewUrlCache.entries()) {
     if (validIdSet.has(id)) continue
-    if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+    if (isRealUrl(url) && url.startsWith('blob:')) URL.revokeObjectURL(url)
     previewUrlCache.delete(id)
     previewPromiseCache.delete(id)
   }

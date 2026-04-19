@@ -28,7 +28,10 @@ export function TranslatePanel() {
   } = useTranslate()
   const [inputText, setInputText] = useState('')
   const [copied, setCopied] = useState(false)
+  const copiedTimerRef = useRef(0)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => () => window.clearTimeout(copiedTimerRef.current), [])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -62,12 +65,16 @@ export function TranslatePanel() {
     }
   }
 
-  const handleSwapLanguages = () => {
+  const handleSwapLanguages = async () => {
     if (config.sourceLang === 'auto') return
-    void updateConfig({
-      sourceLang: config.targetLang,
-      targetLang: config.sourceLang,
-    })
+    try {
+      await updateConfig({
+        sourceLang: config.targetLang,
+        targetLang: config.sourceLang,
+      })
+    } catch {
+      return
+    }
     if (result) {
       setInputText(result.translatedText)
       clearResult()
@@ -79,7 +86,8 @@ export function TranslatePanel() {
     try {
       await navigator.clipboard.writeText(result.translatedText)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      window.clearTimeout(copiedTimerRef.current)
+      copiedTimerRef.current = window.setTimeout(() => setCopied(false), 2000)
     } catch {
       // fallback
     }

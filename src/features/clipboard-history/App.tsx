@@ -529,7 +529,7 @@ export default function App({ mode = 'panel' }: { mode?: ClipboardAppMode }) {
                           }
                           title={
                             settings.hideWhenUnfocused
-                              ? '固定面板：打开后点击外部应用不会收起（与设置中「失焦时隐藏」联动）'
+                              ? '固定面板：打开后点击外部应用不会收起'
                               : '取消固定：点击其他应用后自动收起'
                           }
                         >

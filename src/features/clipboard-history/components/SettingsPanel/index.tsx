@@ -217,12 +217,6 @@ export default function SettingsPanel({
                       onCheckedChange={(checked) => onChange({ pasteOnEnter: checked })}
                     />
                     <SettingToggleRow
-                      title="失焦时隐藏窗口"
-                      description="点击其他应用后约 0.36 秒自动收起；打开本页设置或系统另存为对话框时可能短暂失焦，可按快捷键再次呼出。"
-                      checked={settings.hideWhenUnfocused}
-                      onCheckedChange={(checked) => onChange({ hideWhenUnfocused: checked })}
-                    />
-                    <SettingToggleRow
                       title="禁止选中界面文字"
                       description="开启后左侧列表等处无法用鼠标拖选；右侧仅下方正文滚动区可拖选复制，预览顶部信息区不可选。顶部搜索框也可正常选中编辑。"
                       checked={settings.disableTextSelection}

@@ -1,10 +1,18 @@
 /**
- * 设置页 - 在独立窗口中展示；外观含主题、下拉切换显示模式与透明度（主窗口历史列表旁不再放模式按钮）
+ * 设置页
+ * 在独立窗口中展示；外观包含主题、显示模式与透明度（主窗口历史列表旁不再放模式按钮）
  */
 import type { AppSettings } from '@clipboard/types'
 import { useEffect, useRef, useState } from 'react'
-import { DEFAULT_GLOBAL_SHORTCUT, formatShortcutForDisplay, shortcutFromKeyboardEvent } from '@clipboard/lib/shortcuts'
-import { HISTORY_MAX_ITEM_OPTIONS, HISTORY_RETENTION_DAY_OPTIONS } from '@clipboard/lib/history-settings'
+import {
+  DEFAULT_GLOBAL_SHORTCUT,
+  formatShortcutForDisplay,
+  shortcutFromKeyboardEvent,
+} from '@clipboard/lib/shortcuts'
+import {
+  HISTORY_MAX_ITEM_OPTIONS,
+  HISTORY_RETENTION_DAY_OPTIONS,
+} from '@clipboard/lib/history-settings'
 import {
   DatabaseIcon,
   FileDownIcon,
@@ -13,7 +21,7 @@ import {
   Loader2Icon,
   RotateCcwIcon,
   Settings2Icon,
-  Trash2Icon
+  Trash2Icon,
 } from 'lucide-react'
 import { Button } from '@clipboard/components/ui/button'
 import { Switch } from '@clipboard/components/ui/switch'
@@ -26,9 +34,11 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle
+  AlertDialogTitle,
 } from '@clipboard/components/ui/alert-dialog'
 import { cn } from '@clipboard/lib/utils'
+import { SettingsSectionTitle } from '@/shared/components/settings/SettingsSectionTitle'
+import { SettingsControlRow } from '@/shared/components/settings/SettingsControlRow'
 
 interface Props {
   settings: AppSettings
@@ -49,7 +59,7 @@ export default function SettingsPanel({
   onClearHistory,
   onImportHistoryFile,
   historyCount,
-  onExportHistory
+  onExportHistory,
 }: Props) {
   const [isRecordingShortcut, setIsRecordingShortcut] = useState(false)
   const [isSavingShortcut, setIsSavingShortcut] = useState(false)
@@ -107,14 +117,14 @@ export default function SettingsPanel({
         className={cn(
           '[background:linear-gradient(180deg,color-mix(in_oklch,var(--theme-accent,var(--ring))_8%,transparent),transparent_26%),color-mix(in_oklch,var(--background)_var(--panel-alpha),transparent)] backdrop-blur-[22px]',
           'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
-          'flex h-full w-full min-h-0 flex-col overflow-hidden border-0'
+          'flex h-full w-full min-h-0 flex-col overflow-hidden border-0',
         )}
       >
         <div className="flex h-full flex-col">
           <div
             className={cn(
               'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
-              'flex items-start justify-between border-b p-5'
+              'flex items-start justify-between border-b p-5',
             )}
           >
             <div>
@@ -123,7 +133,7 @@ export default function SettingsPanel({
                 设置
               </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                主题、显示模式与透明度保存在本机；剪贴板条数与保留策略在「数据」中配置。
+                主题、显示模式与透明度保存在本机；剪贴板条数与保留策略在“数据”中配置。
               </p>
             </div>
           </div>
@@ -143,12 +153,15 @@ export default function SettingsPanel({
 
               <TabsContent value="interaction" className="mt-0 flex flex-col gap-6 outline-none">
                 <section>
-                  <SectionTitle title="交互" description="快捷键、预览、粘贴与菜单栏。" />
+                  <SettingsSectionTitle
+                    title="交互"
+                    description="快捷键、预览、粘贴与菜单栏。"
+                  />
 
                   <div
                     className={cn(
                       'bg-[color-mix(in_oklch,var(--card)_34%,transparent)] border border-[color-mix(in_oklch,var(--border)_34%,transparent)]',
-                      'mt-3 overflow-hidden rounded-2xl'
+                      'mt-3 overflow-hidden rounded-2xl',
                     )}
                   >
                     <div className="px-4 py-3">
@@ -194,46 +207,86 @@ export default function SettingsPanel({
                       </div>
                       {isRecordingShortcut ? (
                         <p className={cn('text-muted-foreground', 'mt-2 text-[11px] leading-relaxed')}>
-                          按下新组合键；<kbd className="rounded border px-1">Esc</kbd> 取消。需含修饰键。
+                          按下新组合键，<kbd className="rounded border px-1">Esc</kbd> 取消。需包含修饰键。
                         </p>
                       ) : (
                         <p className={cn('text-muted-foreground', 'mt-2 text-[11px] leading-relaxed')}>
                           需同时按修饰键与字母键，例如 {formatShortcutForDisplay(DEFAULT_GLOBAL_SHORTCUT)}。
                         </p>
                       )}
-                      {shortcutError && <p className="mt-1.5 text-xs leading-5 text-destructive">{shortcutError}</p>}
+                      {shortcutError ? (
+                        <p className="mt-1.5 text-xs leading-5 text-destructive">{shortcutError}</p>
+                      ) : null}
                     </div>
 
-                    <SettingToggleRow
+                    <SettingsControlRow
                       title="右侧预览"
                       description="列表旁显示完整内容与时间。"
-                      checked={settings.showPreview}
-                      onCheckedChange={(checked) => onChange({ showPreview: checked })}
-                    />
-                    <SettingToggleRow
+                      className={cn(
+                        'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
+                        'rounded-none border-t px-4 py-3',
+                      )}
+                      contentClassName="pr-1"
+                      titleClassName="leading-tight"
+                      descriptionClassName="mt-0.5 text-[11px] leading-snug"
+                    >
+                      <Switch
+                        checked={settings.showPreview}
+                        onCheckedChange={(checked) => onChange({ showPreview: checked })}
+                        className="shrink-0"
+                      />
+                    </SettingsControlRow>
+
+                    <SettingsControlRow
                       title="回车粘贴"
-                      description="选中项后回车即粘贴到前台应用。"
-                      checked={settings.pasteOnEnter}
-                      onCheckedChange={(checked) => onChange({ pasteOnEnter: checked })}
-                    />
-                    <SettingToggleRow
+                      description="选中项后回车即可粘贴到前台应用。"
+                      className={cn(
+                        'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
+                        'rounded-none border-t px-4 py-3',
+                      )}
+                      contentClassName="pr-1"
+                      titleClassName="leading-tight"
+                      descriptionClassName="mt-0.5 text-[11px] leading-snug"
+                    >
+                      <Switch
+                        checked={settings.pasteOnEnter}
+                        onCheckedChange={(checked) => onChange({ pasteOnEnter: checked })}
+                        className="shrink-0"
+                      />
+                    </SettingsControlRow>
+
+                    <SettingsControlRow
                       title="禁止选中界面文字"
                       description="开启后左侧列表等处无法用鼠标拖选；右侧仅下方正文滚动区可拖选复制，预览顶部信息区不可选。顶部搜索框也可正常选中编辑。"
-                      checked={settings.disableTextSelection}
-                      onCheckedChange={(checked) => onChange({ disableTextSelection: checked })}
-                    />
+                      className={cn(
+                        'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
+                        'rounded-none border-t px-4 py-3',
+                      )}
+                      contentClassName="pr-1"
+                      titleClassName="leading-tight"
+                      descriptionClassName="mt-0.5 text-[11px] leading-snug"
+                    >
+                      <Switch
+                        checked={settings.disableTextSelection}
+                        onCheckedChange={(checked) => onChange({ disableTextSelection: checked })}
+                        className="shrink-0"
+                      />
+                    </SettingsControlRow>
                   </div>
                 </section>
               </TabsContent>
 
               <TabsContent value="data" className="mt-0 flex flex-col gap-6 outline-none">
                 <section>
-                  <SectionTitle title="数据" description="本地历史保留、JSON 备份与清理，集中在一处管理。" />
+                  <SettingsSectionTitle
+                    title="数据"
+                    description="本地历史保留、JSON 备份与清理，集中在一处管理。"
+                  />
 
                   <div
                     className={cn(
                       'bg-[color-mix(in_oklch,var(--card)_34%,transparent)] border border-[color-mix(in_oklch,var(--border)_34%,transparent)]',
-                      'mt-3 overflow-hidden rounded-2xl'
+                      'mt-3 overflow-hidden rounded-2xl',
                     )}
                   >
                     <input
@@ -256,7 +309,7 @@ export default function SettingsPanel({
                     <div className="px-4 py-4">
                       <p className={cn('text-foreground', 'text-sm font-medium')}>列表条数上限</p>
                       <p className={cn('text-muted-foreground', 'mt-1 text-xs leading-5')}>
-                        「不限制」时列表可无限增长；有上限时新复制会顶替最旧的一条（与保留天数无关）。
+                        “不限制”时列表可无限增长；有上限时新复制会顶替最旧的一条（与保留天数无关）。
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button
@@ -288,7 +341,7 @@ export default function SettingsPanel({
                     >
                       <p className={cn('text-foreground', 'text-sm font-medium')}>历史保留</p>
                       <p className={cn('text-muted-foreground', 'mt-1 text-xs leading-5')}>
-                        「永久」不会按时间清理；选天数则超期条目从本地移除，不影响已导出的 JSON。
+                        “永久”不会按时间清理；选天数则超期条目从本地移除，不影响已导出的 JSON。
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button
@@ -320,8 +373,7 @@ export default function SettingsPanel({
                     >
                       <p className={cn('text-foreground', 'text-sm font-medium')}>JSON 备份</p>
                       <p className={cn('text-muted-foreground', 'mt-1 text-xs leading-5')}>
-                        导入导出格式一致（含 history）。支持条目数组或含 history 的对象；按 id
-                        合并列表，图片仅元数据。当前 {historyCount} 条。
+                        导入导出格式一致（含 `history`）。支持条目数组或含 `history` 的对象；按 id 合并列表，图片仅元数据。当前 {historyCount} 条。
                       </p>
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <Button
@@ -363,7 +415,7 @@ export default function SettingsPanel({
                           variant="danger"
                           className={cn(
                             'bg-[color-mix(in_oklch,var(--destructive)_14%,transparent)] border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)]',
-                            'flex h-auto min-h-10 w-full items-center justify-between rounded-xl px-3 py-2.5 text-left'
+                            'flex h-auto min-h-10 w-full items-center justify-between rounded-xl px-3 py-2.5 text-left',
                           )}
                           disabled={historyCount === 0}
                           onClick={() => setDestructiveConfirm('clear')}
@@ -400,7 +452,9 @@ export default function SettingsPanel({
       >
         <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>{destructiveConfirm === 'clear' ? '清空当前历史？' : '恢复默认设置？'}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {destructiveConfirm === 'clear' ? '清空当前历史？' : '恢复默认设置？'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {destructiveConfirm === 'clear'
                 ? historyCount === 0
@@ -440,44 +494,5 @@ export default function SettingsPanel({
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
-}
-
-function SectionTitle({ title, description }: { title: string; description: string }) {
-  return (
-    <div>
-      <p className={cn('text-foreground', 'text-sm font-medium')}>{title}</p>
-      <p className={cn('text-muted-foreground', 'mt-1 text-xs leading-5')}>{description}</p>
-    </div>
-  )
-}
-
-/** 单卡片内分区：顶部分割线与开关行（与「数据」卡片分区样式一致） */
-function SettingToggleRow({
-  title,
-  description,
-  checked,
-  onCheckedChange,
-  switchDisabled = false
-}: {
-  title: string
-  description: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-  switchDisabled?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
-        'flex items-center justify-between gap-3 border-t px-4 py-3'
-      )}
-    >
-      <div className="min-w-0 flex-1 pr-1">
-        <p className={cn('text-foreground', 'text-sm font-medium leading-tight')}>{title}</p>
-        <p className={cn('text-muted-foreground', 'mt-0.5 text-[11px] leading-snug')}>{description}</p>
-      </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} disabled={switchDisabled} className="shrink-0" />
-    </div>
   )
 }

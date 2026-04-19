@@ -15,17 +15,23 @@ import { Slider } from '@clipboard/components/ui/slider'
 import { Popover, PopoverContent, PopoverTrigger } from '@clipboard/components/ui/popover'
 import CustomColorPicker from '@clipboard/components/CustomColorPicker'
 import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
+import { SettingsControlRow } from '@/shared/components/settings/SettingsControlRow'
 import {
   themedMutedSurfaceClassName,
   themedOverlaySurfaceClassName,
 } from '@/shared/lib/theme-surfaces'
 import { useConfig } from '@translate/hooks/useConfig'
-import { getCustomHuePreviewColor, getThemeOption, MAX_BACKGROUND_OPACITY, MIN_BACKGROUND_OPACITY } from '@clipboard/lib/theme'
+import {
+  getCustomHuePreviewColor,
+  getThemeOption,
+  MAX_BACKGROUND_OPACITY,
+  MIN_BACKGROUND_OPACITY,
+} from '@/shared/lib/theme'
 import { cn } from '@clipboard/lib/utils'
 
 const COLOR_THEME_OPTIONS = [
   { value: 'default' as const, color: '#e11d48', label: '默认玫瑰' },
-  { value: 'ocean' as const, color: '#06b6d4', label: '海雾青' },
+  { value: 'ocean' as const, color: '#06b6d4', label: '海雾蓝' },
   { value: 'forest' as const, color: '#10b981', label: '林地绿' },
   { value: 'sunset' as const, color: '#f97316', label: '落日橙' },
 ]
@@ -164,27 +170,26 @@ export function CommonSettingsPanel() {
               </Popover>
             </div>
 
-            <div className={cn('flex items-center justify-between rounded-2xl px-4 py-3', themedMutedSurfaceClassName)}>
-              <div>
-                <p className="text-sm font-medium">显示模式</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">浅色、深色或跟随系统，全局生效。</p>
-              </div>
-              <div className="flex items-center gap-1">
-                {themeIconOptions.map(({ value, label, icon: Icon }) => (
-                  <Button
-                    key={value}
-                    type="button"
-                    variant={settings.colorMode === value ? 'default' : 'ghost'}
-                    size="icon"
-                    className="size-9"
-                    aria-label={label}
-                    onClick={() => void handleColorModeChange(value)}
-                  >
-                    <Icon className="size-4" />
-                  </Button>
-                ))}
-              </div>
-            </div>
+            <SettingsControlRow
+              title="显示模式"
+              description="浅色、深色或跟随系统，全局生效。"
+              className={themedMutedSurfaceClassName}
+              controlClassName="flex items-center gap-1"
+            >
+              {themeIconOptions.map(({ value, label, icon: Icon }) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={settings.colorMode === value ? 'default' : 'ghost'}
+                  size="icon"
+                  className="size-9"
+                  aria-label={label}
+                  onClick={() => void handleColorModeChange(value)}
+                >
+                  <Icon className="size-4" />
+                </Button>
+              ))}
+            </SettingsControlRow>
 
             <div className={cn('rounded-2xl px-4 py-4', themedMutedSurfaceClassName)}>
               <div className="flex items-center justify-between gap-3">
@@ -217,31 +222,29 @@ export function CommonSettingsPanel() {
             <CardDescription>系统级行为只在这里配置，不再拆散到模块设置中。</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className={cn('flex items-center justify-between rounded-2xl px-4 py-3', themedMutedSurfaceClassName)}>
-              <div>
-                <p className="text-sm font-medium">开机自启</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">登录系统后自动在后台运行本应用。</p>
-              </div>
+            <SettingsControlRow
+              title="开机自启"
+              description="登录系统后自动在后台运行本应用。"
+              className={themedMutedSurfaceClassName}
+            >
               <Switch
                 checked={settings.launchOnStartup}
                 onCheckedChange={(checked) => void handleLaunchOnStartupChange(checked)}
                 disabled={launchOnStartupLoading}
                 aria-label="开机自启"
               />
-            </div>
+            </SettingsControlRow>
 
-            <div className={cn('flex flex-wrap gap-2 rounded-2xl px-4 py-3', themedMutedSurfaceClassName)}>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">重置通用设置</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  重置全局主题、暗黑模式、透明度和开机自启，不影响模块数据。
-                </p>
-              </div>
+            <SettingsControlRow
+              title="重置通用设置"
+              description="重置全局主题、暗黑模式、透明度和开机自启，不影响模块数据。"
+              className={cn(themedMutedSurfaceClassName, 'flex-wrap gap-2')}
+            >
               <Button type="button" variant="outline" onClick={() => void handleResetCommonSettings()}>
                 <RotateCcwIcon className="size-4" />
                 恢复默认
               </Button>
-            </div>
+            </SettingsControlRow>
           </CardContent>
         </Card>
       </div>

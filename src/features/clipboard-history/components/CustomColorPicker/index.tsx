@@ -3,7 +3,7 @@
  * 显示色相条并支持拖拽选择，用于自定义主题色调
  */
 import { useCallback, useRef } from 'react'
-import { hslToHex } from '@clipboard/lib/color'
+import { hslToHex } from '@/shared/lib/color'
 import { cn } from '@clipboard/lib/utils'
 
 const HUE_TRACK_CLASS =

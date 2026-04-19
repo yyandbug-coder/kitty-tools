@@ -1,3 +1,5 @@
+import { formatShortcutForDisplay } from '@/shared/lib/shortcuts'
+
 export const DEFAULT_GLOBAL_SHORTCUT = 'CommandOrControl+Shift+V'
 
 const MODIFIER_KEYS = new Set([
@@ -40,26 +42,7 @@ export function shortcutFromKeyboardEvent(event: KeyboardEvent): string | null {
   return parts.join('+')
 }
 
-export function formatShortcutForDisplay(shortcut: string) {
-  return shortcut
-    .split('+')
-    .map((part) => {
-      if (part === 'CommandOrControl') {
-        return isMacPlatform() ? '⌘' : 'Ctrl'
-      }
-      if (part === 'Shift') {
-        return isMacPlatform() ? '⇧' : 'Shift'
-      }
-      if (part === 'Alt') {
-        return isMacPlatform() ? '⌥' : 'Alt'
-      }
-      if (part === 'Space') {
-        return 'Space'
-      }
-      return part.length === 1 ? part.toUpperCase() : part
-    })
-    .join(' + ')
-}
+export { formatShortcutForDisplay }
 
 function normalizeShortcutKey(event: KeyboardEvent) {
   if (/^Key[A-Z]$/.test(event.code)) {
@@ -94,12 +77,4 @@ function normalizeShortcutKey(event: KeyboardEvent) {
   }
 
   return namedKeyMap[event.key] ?? null
-}
-
-function isMacPlatform() {
-  if (typeof navigator === 'undefined') {
-    return false
-  }
-
-  return /Mac|iPhone|iPad|iPod/.test(navigator.platform)
 }

@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect, useRef, createContext, useContext, type ReactNode } from 'react'
+import { useRef, createContext, useContext, type ReactNode, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { AppConfig } from '@translate/types'
 import { DEFAULT_CONFIG, appConfigToRust } from '@translate/types'
+import { usePersistedSyncState } from '@/shared/hooks/usePersistedSyncState'
 
 interface RawBaidu {
   app_id?: string
@@ -37,7 +37,6 @@ interface RawConfig {
   google?: RawGoogle
   openai?: RawOpenai
   youdao?: RawYoudao
-  /** 旧版扁平字段（兼容尚未迁移的 JSON） */
   baidu_app_id?: string
   baidu_secret?: string
   baidu_ocr_api_key?: string
@@ -183,7 +182,6 @@ function toRawConfig(cfg: AppConfig): RawConfig {
 interface ConfigContextValue {
   config: AppConfig
   loaded: boolean
-  /** 保存失败时会回滚内存状态并抛出错误（便于快捷键等需提示的场景） */
   updateConfig: (updates: Partial<AppConfig>) => Promise<void>
 }
 
@@ -194,76 +192,60 @@ const ConfigContext = createContext<ConfigContextValue>({
 })
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG)
-  const [loaded, setLoaded] = useState(false)
-  const configRef = useRef<AppConfig>(DEFAULT_CONFIG)
-  /** 串行化磁盘写入，避免连续修改时后返回的旧请求覆盖新配置 */
   const saveChainRef = useRef<Promise<void>>(Promise.resolve())
 
-  const applyRawConfig = useCallback((raw: RawConfig) => {
-    const nextConfig = toAppConfig(raw)
-    configRef.current = nextConfig
-    setConfig(nextConfig)
-  }, [])
-
-  useEffect(() => {
-    invoke<RawConfig>('translate_get_settings')
-      .then((cfg) => {
-        applyRawConfig(cfg)
-        setLoaded(true)
-      })
-      .catch(() => {
-        setLoaded(true)
-      })
-  }, [applyRawConfig])
-
-  useEffect(() => {
-    let unlisten: UnlistenFn | undefined
-    void listen('config-updated', () => {
-      void invoke<RawConfig>('translate_get_settings')
-        .then(applyRawConfig)
-        .catch(() => {})
-    }).then((fn) => {
-      unlisten = fn
-    })
-    return () => {
-      unlisten?.()
-    }
-  }, [applyRawConfig])
+  const {
+    state: config,
+    loaded,
+    replaceState,
+    stateRef: configRef,
+    applyLoadedState,
+    persistNow,
+  } = usePersistedSyncState<AppConfig>({
+    initialState: DEFAULT_CONFIG,
+    syncEvent: 'config-updated',
+    autoPersist: false,
+    loadState: async () => {
+      const raw = await invoke<RawConfig>('translate_get_settings')
+      return toAppConfig(raw)
+    },
+    persistState: async (nextConfig) => {
+      await invoke('translate_save_settings', { config: toRawConfig(nextConfig) })
+    },
+    serializeState: (nextConfig) => JSON.stringify(toRawConfig(nextConfig)),
+  })
 
   const updateConfig = useCallback(async (updates: Partial<AppConfig>) => {
     const prev = configRef.current
-    const newConfig = mergeAppConfig(prev, updates)
-    configRef.current = newConfig
-    setConfig(newConfig)
+    const nextConfig = mergeAppConfig(prev, updates)
+    replaceState(nextConfig)
 
     const isHotkey =
       Object.prototype.hasOwnProperty.call(updates, 'hotkeySelection') ||
       Object.prototype.hasOwnProperty.call(updates, 'hotkeyScreenshot')
 
     const persist = saveChainRef.current.then(async () => {
-      await invoke('translate_save_settings', { config: toRawConfig(configRef.current) })
+      await persistNow(nextConfig, nextConfig)
     })
     saveChainRef.current = persist.catch(() => {})
 
     try {
       await persist
-    } catch (e) {
+    } catch (error) {
       try {
         const raw = await invoke<RawConfig>('translate_get_settings')
-        applyRawConfig(raw)
+        applyLoadedState(toAppConfig(raw))
       } catch {
-        configRef.current = prev
-        setConfig(prev)
+        replaceState(prev)
       }
-      const msg = typeof e === 'string' ? e : String(e)
-      console.error('保存设置失败', e)
+      const msg = typeof error === 'string' ? error : String(error)
+      console.error('淇濆瓨璁剧疆澶辫触', error)
       if (!isHotkey) {
-        window.alert(`保存设置失败：${msg}`)
+        window.alert(`淇濆瓨璁剧疆澶辫触锛?${msg}`)
       }
-      throw e
+      throw error
     }
-  }, [applyRawConfig])
+  }, [applyLoadedState, configRef, persistNow, replaceState])
 
   return (
     <ConfigContext.Provider value={{ config, loaded, updateConfig }}>

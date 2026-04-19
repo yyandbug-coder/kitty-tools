@@ -1,7 +1,13 @@
 import * as React from "react"
 import { ScrollArea as ScrollAreaPrimitive } from "radix-ui"
-
-import { cn } from "@translate/lib/utils"
+import {
+  ScrollAreaCornerBase,
+  ScrollAreaRootBase,
+  ScrollAreaScrollbarBase,
+  ScrollAreaThumbBase,
+  ScrollAreaViewportBase,
+} from "@/shared/components/ui/base-scroll-area"
+import { cn } from "@/shared/lib/utils"
 
 function ScrollArea({
   className,
@@ -9,21 +15,14 @@ function ScrollArea({
   ...props
 }: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
   return (
-    <ScrollAreaPrimitive.Root
-      data-slot="scroll-area"
-      className={cn("relative overflow-hidden", className)}
-      {...props}
-    >
-      <ScrollAreaPrimitive.Viewport
-        data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] outline-none transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
-      >
+    <ScrollAreaRootBase className={className} {...props}>
+      <ScrollAreaViewportBase className="size-full rounded-[inherit] outline-none transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1">
         {children}
-      </ScrollAreaPrimitive.Viewport>
-      {/* Radix 需挂载 Scrollbar 才能正确建立视口滚动；透明且不占交互，视觉上等同隐藏滚动条 */}
+      </ScrollAreaViewportBase>
+      {/* Radix 闇€鎸傝浇 Scrollbar 鎵嶈兘姝ｇ‘寤虹珛瑙嗗彛婊氬姩锛涢€忔槑涓斾笉鍗犱氦浜掞紝瑙嗚涓婄瓑鍚岄殣钘忔粴鍔ㄦ潯 */}
       <ScrollBar className="pointer-events-none opacity-0" />
-      <ScrollAreaPrimitive.Corner className="pointer-events-none opacity-0" />
-    </ScrollAreaPrimitive.Root>
+      <ScrollAreaCornerBase className="pointer-events-none opacity-0" />
+    </ScrollAreaRootBase>
   )
 }
 
@@ -33,9 +32,7 @@ function ScrollBar({
   ...props
 }: React.ComponentProps<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>) {
   return (
-    <ScrollAreaPrimitive.ScrollAreaScrollbar
-      data-slot="scroll-area-scrollbar"
-      data-orientation={orientation}
+    <ScrollAreaScrollbarBase
       orientation={orientation}
       className={cn(
         "flex touch-none p-px transition-colors select-none data-horizontal:h-2.5 data-horizontal:flex-col data-horizontal:border-t data-horizontal:border-t-transparent data-vertical:h-full data-vertical:w-2.5 data-vertical:border-l data-vertical:border-l-transparent",
@@ -43,11 +40,8 @@ function ScrollBar({
       )}
       {...props}
     >
-      <ScrollAreaPrimitive.ScrollAreaThumb
-        data-slot="scroll-area-thumb"
-        className="relative flex-1 rounded-full bg-transparent"
-      />
-    </ScrollAreaPrimitive.ScrollAreaScrollbar>
+      <ScrollAreaThumbBase className="relative flex-1 rounded-full bg-transparent" />
+    </ScrollAreaScrollbarBase>
   )
 }
 

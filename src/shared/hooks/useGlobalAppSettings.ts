@@ -1,15 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { emit, listen } from '@tauri-apps/api/event'
+import { useCallback, useRef } from 'react'
 import type { AppModuleId, AppSettings } from '@/shared/types/app'
 import { DEFAULT_APP_SETTINGS, sanitizeAppSettings } from '@/shared/types/app'
 import { loadAppSettings, saveAppSettings } from '@/shared/services/app-settings'
+import { usePersistedSyncState } from '@/shared/hooks/usePersistedSyncState'
 
 const GLOBAL_SETTINGS_SYNC_EVENT = 'global-app-settings-sync'
 type AppSettingsKey = keyof AppSettings
-
-function mergeSettings(base: AppSettings, patch: Partial<AppSettings>): AppSettings {
-  return { ...base, ...patch }
-}
 
 function mergeDirtySettings(
   base: AppSettings,
@@ -43,119 +39,54 @@ function getPersistedSettingsSnapshot(serializedSettings: string): AppSettings |
 }
 
 export function useGlobalAppSettings() {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS)
-  const [loaded, setLoaded] = useState(false)
-  const settingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS)
-  const isLoadingRef = useRef(true)
-  const lastPersistedSettingsJsonRef = useRef('')
   const dirtyKeysRef = useRef<Set<AppSettingsKey>>(new Set())
+  const {
+    state: settings,
+    loaded,
+    updateState,
+  } = usePersistedSyncState<AppSettings>({
+    initialState: DEFAULT_APP_SETTINGS,
+    syncEvent: GLOBAL_SETTINGS_SYNC_EVENT,
+    loadState: loadAppSettings,
+    persistState: saveAppSettings,
+    serializeState: (next) => JSON.stringify(next),
+    saveDelayMs: 150,
+    mergeLoadedState: (loadedState, currentState) =>
+      mergeDirtySettings(loadedState, currentState, dirtyKeysRef.current),
+    prepareStateForPersist: async (
+      settingsSnapshot,
+      { currentState, lastPersistedSerialized },
+    ): Promise<AppSettings> => {
+      if (dirtyKeysRef.current.size === 0) {
+        return settingsSnapshot
+      }
+
+      const dirtyKeysSnapshot = [...dirtyKeysRef.current]
+      const persistedFallback =
+        getPersistedSettingsSnapshot(lastPersistedSerialized) ?? currentState
+      const latest = await loadAppSettings().catch(() => persistedFallback)
+
+      return mergeDirtySettings(latest, settingsSnapshot, dirtyKeysSnapshot)
+    },
+    onSyncError: (error) => {
+      console.error('Failed to sync global app settings:', error)
+    },
+    onPersistError: (error) => {
+      console.error('Failed to save global app settings:', error)
+    },
+    onPersisted: (_persistedState, snapshotState, { currentState }) => {
+      for (const key of [...dirtyKeysRef.current]) {
+        if (currentState[key] === snapshotState[key]) {
+          dirtyKeysRef.current.delete(key)
+        }
+      }
+    },
+  })
 
   const applyLocalPatch = useCallback((patch: Partial<AppSettings>) => {
     markDirtyKeys(dirtyKeysRef.current, patch)
-    setSettings((prev) => {
-      const next = mergeSettings(prev, patch)
-      settingsRef.current = next
-      return next
-    })
-  }, [])
-
-  const syncFromStorage = useCallback((next: AppSettings) => {
-    const merged = mergeDirtySettings(next, settingsRef.current, dirtyKeysRef.current)
-    settingsRef.current = merged
-    setSettings(merged)
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-
-    void loadAppSettings()
-      .then((next) => {
-        if (!cancelled) {
-          lastPersistedSettingsJsonRef.current = JSON.stringify(next)
-          syncFromStorage(next)
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          isLoadingRef.current = false
-          setLoaded(true)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-
-    void listen(GLOBAL_SETTINGS_SYNC_EVENT, async () => {
-      try {
-        const next = await loadAppSettings()
-        const serialized = JSON.stringify(next)
-        if (serialized === lastPersistedSettingsJsonRef.current) {
-          return
-        }
-        lastPersistedSettingsJsonRef.current = serialized
-        syncFromStorage(next)
-      } catch (error) {
-        console.error('Failed to sync global app settings:', error)
-      }
-    }).then((fn) => {
-      unlisten = fn
-    })
-
-    return () => {
-      unlisten?.()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isLoadingRef.current || dirtyKeysRef.current.size === 0) {
-      return
-    }
-
-    const settingsSnapshot = settings
-    const dirtyKeysSnapshot = [...dirtyKeysRef.current]
-
-    const timeout = window.setTimeout(() => {
-      const persistedFallback =
-        getPersistedSettingsSnapshot(lastPersistedSettingsJsonRef.current) ?? settingsRef.current
-
-      void loadAppSettings()
-        .catch(() => persistedFallback)
-        .then((latest) => {
-          const nextToPersist = mergeDirtySettings(latest, settingsSnapshot, dirtyKeysSnapshot)
-          const payload = JSON.stringify(nextToPersist)
-
-          if (payload === lastPersistedSettingsJsonRef.current) {
-            for (const key of dirtyKeysSnapshot) {
-              if (settingsRef.current[key] === settingsSnapshot[key]) {
-                dirtyKeysRef.current.delete(key)
-              }
-            }
-            return
-          }
-
-          return saveAppSettings(nextToPersist).then(() => {
-            lastPersistedSettingsJsonRef.current = payload
-            for (const key of dirtyKeysSnapshot) {
-              if (settingsRef.current[key] === settingsSnapshot[key]) {
-                dirtyKeysRef.current.delete(key)
-              }
-            }
-            syncFromStorage(nextToPersist)
-            return emit(GLOBAL_SETTINGS_SYNC_EVENT, {})
-          })
-        })
-        .catch((error) => {
-          console.error('Failed to save global app settings:', error)
-        })
-    }, 150)
-
-    return () => window.clearTimeout(timeout)
-  }, [settings])
+    updateState((prev) => ({ ...prev, ...patch }))
+  }, [updateState])
 
   const updateSettings = useCallback((patch: Partial<AppSettings>) => {
     applyLocalPatch(patch)
@@ -167,15 +98,14 @@ export function useGlobalAppSettings() {
       ...resettableSettings
     } = DEFAULT_APP_SETTINGS
     markDirtyKeys(dirtyKeysRef.current, resettableSettings)
-    setSettings((prev) => {
+    updateState((prev) => {
       const next = {
         ...DEFAULT_APP_SETTINGS,
         lastActiveModule: prev.lastActiveModule,
       }
-      settingsRef.current = next
       return next
     })
-  }, [])
+  }, [updateState])
 
   const setLastActiveModule = useCallback((moduleId: AppModuleId) => {
     applyLocalPatch({ lastActiveModule: moduleId })

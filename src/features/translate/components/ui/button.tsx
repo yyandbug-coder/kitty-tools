@@ -1,8 +1,8 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
+import { ButtonBase } from "@/shared/components/ui/base-button"
 
-import { cn } from "@translate/lib/utils"
+import { cn } from "@/shared/lib/utils"
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-[color-mix(in_oklch,var(--destructive)_40%,transparent)] aria-invalid:ring-3 aria-invalid:ring-[color-mix(in_oklch,var(--destructive)_22%,transparent)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -51,13 +51,11 @@ function Button({
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
   }) {
-  const Comp = asChild ? Slot.Root : "button"
-
   return (
-    <Comp
-      data-slot="button"
-      data-variant={variant}
-      data-size={size}
+    <ButtonBase
+      asChild={asChild}
+      variant={variant}
+      size={size}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

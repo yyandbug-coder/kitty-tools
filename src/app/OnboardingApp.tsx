@@ -18,8 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@translate/components/
 import { ConfigProvider, useConfig } from '@translate/hooks/useConfig'
 import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
 import { useAppSettings } from '@clipboard/hooks/useAppSettings'
-import { ThemeProvider } from '@clipboard/components/ThemeProvider'
-import { getThemeRuntimeStyle } from '@clipboard/lib/theme'
+import { ThemeProvider } from '@/shared/components/ThemeProvider'
+import { getThemeRuntimeStyle } from '@/shared/lib/theme'
 import {
   themedChromeSurfaceClassName,
   themedOverlaySurfaceClassName,

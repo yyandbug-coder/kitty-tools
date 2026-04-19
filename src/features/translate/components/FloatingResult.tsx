@@ -9,8 +9,8 @@ import { Textarea } from '@translate/components/ui/textarea'
 import { ScrollArea } from '@translate/components/ui/scroll-area'
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@translate/components/ui/tooltip'
 import { useConfig } from '@translate/hooks/useConfig'
-import { ThemeProvider } from '@clipboard/components/ThemeProvider'
-import { getThemeRuntimeStyle } from '@clipboard/lib/theme'
+import { ThemeProvider } from '@/shared/components/ThemeProvider'
+import { getThemeRuntimeStyle } from '@/shared/lib/theme'
 import { useGlobalAppSettings } from '@/shared/hooks/useGlobalAppSettings'
 import {
   themedChromeSurfaceClassName,
@@ -22,7 +22,7 @@ import {
 } from '@/shared/lib/theme-surfaces'
 import logoUrl from '@translate/assets/images/logo.png'
 import { cn } from '@translate/lib/utils'
-import { translateSubmitShortcutLabel } from '@translate/lib/platform'
+import { formatSubmitShortcutLabel } from '@/shared/lib/shortcuts'
 import { getLanguageDisplayName } from '@translate/types'
 
 interface EventPayload {
@@ -305,7 +305,7 @@ export function FloatingResult() {
               />
               <span className="shrink-0">快速翻译</span>
               <span className="truncate text-xs font-normal text-muted-foreground">
-                {translateSubmitShortcutLabel()} 翻译
+                {formatSubmitShortcutLabel()} 翻译
               </span>
             </div>
             <div className="flex items-center gap-1" data-no-drag="true">
@@ -421,7 +421,7 @@ export function FloatingResult() {
                       value={sourceText}
                       onChange={(event) => setSourceText(event.target.value)}
                       onKeyDown={handleSourceKeyDown}
-                      placeholder={`粘贴或输入文本，${translateSubmitShortcutLabel()} 翻译`}
+                      placeholder={`粘贴或输入文本，${formatSubmitShortcutLabel()} 翻译`}
                       className="h-full min-h-0 resize-none overflow-y-auto border-0 bg-transparent px-0 py-0 text-[15px] leading-7 shadow-none field-sizing-fixed focus-visible:ring-0"
                     />
                   )}

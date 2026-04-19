@@ -1,67 +1,25 @@
 /**
- * 数据库服务 - 封装 SQLite 数据库连接的初始化和访问
- * 使用单例模式确保全局只创建一个数据库连接
+ * 数据库服务 - 封装剪贴板历史相关的 SQLite KV 访问
  */
-import Database from '@tauri-apps/plugin-sql'
+import { createSqliteKeyValueStore } from '@/shared/services/sqlite-kv'
 
 const DB_PATH = 'sqlite:kitty-settings.db'
 const SETTINGS_KEY = 'app-settings'
 const HISTORY_KEY = 'clipboard-history'
-
-let dbInstance: Database | null = null
-
-async function getDb(): Promise<Database> {
-  if (!dbInstance) {
-    dbInstance = await Database.load(DB_PATH)
-    await dbInstance.execute(`
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-    `)
-  }
-  return dbInstance
-}
-
-interface SettingsRow {
-  key: string
-  value: string
-  updated_at: number
-}
+const clipboardStore = createSqliteKeyValueStore({ dbPath: DB_PATH })
 
 export async function loadSettingsFromDb(): Promise<string | null> {
-  const db = await getDb()
-  const rows = await db.select<SettingsRow[]>(
-    'SELECT value FROM settings WHERE key = $1',
-    [SETTINGS_KEY],
-  )
-  return rows.length > 0 ? rows[0].value : null
+  return clipboardStore.loadValue(SETTINGS_KEY)
 }
 
 export async function saveSettingsToDb(value: string): Promise<void> {
-  await saveKeyValueToDb(SETTINGS_KEY, value)
+  await clipboardStore.saveValue(SETTINGS_KEY, value)
 }
 
 export async function loadClipboardHistoryFromDb(): Promise<string | null> {
-  const db = await getDb()
-  const rows = await db.select<SettingsRow[]>(
-    'SELECT value FROM settings WHERE key = $1',
-    [HISTORY_KEY],
-  )
-  return rows.length > 0 ? rows[0].value : null
+  return clipboardStore.loadValue(HISTORY_KEY)
 }
 
 export async function saveClipboardHistoryToDb(value: string): Promise<void> {
-  await saveKeyValueToDb(HISTORY_KEY, value)
-}
-
-async function saveKeyValueToDb(key: string, value: string): Promise<void> {
-  const db = await getDb()
-  const now = Date.now()
-  await db.execute(
-    `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)
-     ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3`,
-    [key, value, now],
-  )
+  await clipboardStore.saveValue(HISTORY_KEY, value)
 }

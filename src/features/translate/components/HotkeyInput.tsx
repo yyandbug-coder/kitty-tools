@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@translate/components/ui/button'
-import { formatShortcutForDisplay } from '@translate/lib/platform'
+import { formatShortcutForDisplay } from '@/shared/lib/shortcuts'
 
 /** 将 KeyboardEvent.code 转为 global-hotkey 可解析的键名 */
 function physicalKeyToToken(code: string): string {

@@ -9,7 +9,7 @@ import { LanguageSelector } from '@translate/components/LanguageSelector'
 import { useTranslate } from '@translate/hooks/useTranslate'
 import { useConfig } from '@translate/hooks/useConfig'
 import { getLanguageDisplayName, getProviderDisplayName } from '@translate/types'
-import { translateSubmitShortcutLabel } from '@translate/lib/platform'
+import { formatSubmitShortcutLabel } from '@/shared/lib/shortcuts'
 import {
   themedDestructiveSurfaceClassName,
   themedPanelSurfaceClassName,
@@ -183,7 +183,7 @@ export function TranslatePanel() {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`输入要翻译的文本…（${translateSubmitShortcutLabel()} 翻译）`}
+            placeholder={`输入要翻译的文本…（${formatSubmitShortcutLabel()} 翻译）`}
             className="min-h-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-3 py-2 text-base shadow-none field-sizing-fixed focus-visible:ring-0"
           />
         </div>

@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@clipboard/components/ui/dropdown-menu'
-import { useTheme } from '@clipboard/components/ThemeProvider'
+import { useTheme } from '@/shared/components/ThemeProvider'
 
 export default function ModeToggle() {
   const { setTheme } = useTheme()

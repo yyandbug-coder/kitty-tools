@@ -33,6 +33,7 @@ import {
   themedMutedSurfaceClassName,
   themedOverlaySurfaceClassName,
 } from '@/shared/lib/theme-surfaces'
+import { SecretField } from '@/shared/components/settings/SecretField'
 import { cn } from '@translate/lib/utils'
 
 type SecretFieldProps = {
@@ -46,7 +47,7 @@ type SecretFieldProps = {
 }
 
 /** 密钥输入：默认密文，可通过按钮切换为明文以便核对。 */
-function SecretField({
+export function LegacySecretField({
   id,
   label,
   labelClassName = 'text-xs font-medium text-foreground',

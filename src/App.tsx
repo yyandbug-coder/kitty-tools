@@ -181,7 +181,6 @@ export default function App() {
   const handleOpenSettings = useCallback(async () => {
     try {
       await invoke('open_settings_window')
-      await invoke('hide_window')
     } catch { /* ignore */ }
   }, [])
 

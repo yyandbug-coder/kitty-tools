@@ -33,8 +33,10 @@ fn hide_window(window: tauri::Window) {
 
 #[tauri::command]
 fn open_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    // 先隐藏浮动窗口，避免 always-on-top 的浮动窗遮挡设置窗口
+    // 先隐藏 always-on-top 的浮动窗口和剪贴板面板，避免遮挡设置窗口，
+    // 也避免失焦自动隐藏逻辑干扰设置窗口的显示和聚焦
     window::hide_floating_window(&app);
+    window::hide_clipboard_popup(&app);
     window::show_settings_window(&app).map_err(|e| e.to_string())
 }
 

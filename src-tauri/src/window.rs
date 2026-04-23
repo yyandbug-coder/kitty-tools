@@ -365,26 +365,8 @@ pub fn get_or_create_settings_window<R: Runtime>(
 /// Show the settings window.
 pub fn show_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let window = get_or_create_settings_window(app)?;
-    window.show()?;
-
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(hwnd) = window.hwnd() {
-            unsafe {
-                use windows::Win32::Foundation::HWND;
-                use windows::Win32::UI::WindowsAndMessaging::{
-                    IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE,
-                };
-                let hwnd = HWND(hwnd.0 as *mut _);
-                if IsIconic(hwnd).as_bool() {
-                    let _ = ShowWindow(hwnd, SW_RESTORE);
-                }
-                let _ = SetForegroundWindow(hwnd);
-            }
-        }
-    }
-
-    window.set_focus()?;
+    let _ = window.show();
+    let _ = window.set_focus();
     Ok(())
 }
 

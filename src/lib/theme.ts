@@ -5,13 +5,13 @@ export const DEFAULT_CUSTOM_HUE = 160
 export const MIN_BACKGROUND_OPACITY = 35
 export const MAX_BACKGROUND_OPACITY = 95
 
-interface ThemeOption {
+export interface ThemeOption {
   id: AppTheme
   label: string
   accent: string
 }
 
-const PRESET_THEMES: ThemeOption[] = [
+export const PRESET_THEMES: ThemeOption[] = [
   { id: 'default', label: '默认玫瑰', accent: '#e11d48' },
   { id: 'ocean', label: '海雾青', accent: '#06b6d4' },
   { id: 'forest', label: '林地绿', accent: '#10b981' },

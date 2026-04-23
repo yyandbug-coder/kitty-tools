@@ -24,6 +24,8 @@ import {
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useTheme } from '@/hooks/useTheme'
 import { DEFAULT_CONFIG, type TranslateProvider, type TranslateResult } from '@/types'
+import { HISTORY_MAX_ITEMS_OPTIONS, HISTORY_RETENTION_OPTIONS } from '@/lib/history-settings'
+import { PRESET_THEMES, getThemeOption, MIN_BACKGROUND_OPACITY, MAX_BACKGROUND_OPACITY } from '@/lib/theme'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -336,6 +338,41 @@ export default function SettingsPanel() {
                     <Input type="text" value={config.clipboardShortcut} readOnly className="text-xs" />
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">最大条目数</label>
+                    <div className="flex flex-wrap gap-2">
+                      {HISTORY_MAX_ITEMS_OPTIONS.map((opt) => (
+                        <Button
+                          key={opt.value}
+                          variant={config.clipboardHistoryMax === opt.value ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => void updateConfig({ clipboardHistoryMax: opt.value })}
+                          className="text-xs"
+                        >
+                          {opt.label}
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">收藏条目不受此限制影响</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">保留天数</label>
+                    <div className="flex flex-wrap gap-2">
+                      {HISTORY_RETENTION_OPTIONS.map((opt) => (
+                        <Button
+                          key={opt.value}
+                          variant={config.clipboardHistoryRetentionDays === opt.value ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => void updateConfig({ clipboardHistoryRetentionDays: opt.value })}
+                          className="text-xs"
+                        >
+                          {opt.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="text-sm font-medium">失焦自动隐藏</label>
@@ -369,6 +406,17 @@ export default function SettingsPanel() {
                     <Switch
                       checked={config.clipboardShowPreview}
                       onCheckedChange={(v) => void updateConfig({ clipboardShowPreview: v })}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium">禁止文本选中</label>
+                      <p className="text-xs text-muted-foreground">macOS 风格，防止意外选中文字</p>
+                    </div>
+                    <Switch
+                      checked={config.clipboardDisableTextSelection}
+                      onCheckedChange={(v) => void updateConfig({ clipboardDisableTextSelection: v })}
                     />
                   </div>
                 </CardContent>
@@ -711,38 +759,100 @@ export default function SettingsPanel() {
             </TabsContent>
 
             {/* 外观 */}
-            <TabsContent value={SETTINGS_TAB.appearance} className="mt-0">
+            <TabsContent value={SETTINGS_TAB.appearance} className="mt-0 space-y-5">
               <Card>
-                <CardContent className="flex flex-row flex-nowrap items-center gap-3 py-4">
-                  <div className="flex shrink-0 items-center gap-2 text-sm font-medium">
-                    <Palette className="size-4" />
-                    外观
+                <CardContent className="space-y-5 pt-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">深浅模式</label>
+                    <div className="flex gap-1">
+                      {([
+                        { value: 'light', icon: Sun, label: '浅色' },
+                        { value: 'dark', icon: Moon, label: '深色' },
+                        { value: 'system', icon: Monitor, label: '跟随系统' },
+                      ] as const).map(({ value, label, icon: Icon }) => (
+                        <Tooltip key={value}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={cn(
+                                'size-9',
+                                config.theme === value && 'bg-accent text-accent-foreground shadow-sm hover:bg-accent hover:text-accent-foreground',
+                              )}
+                              aria-label={label}
+                              aria-pressed={config.theme === value}
+                              onClick={() => void updateConfig({ theme: value })}
+                            >
+                              <Icon className="size-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">{label}</TooltipContent>
+                        </Tooltip>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
-                    {([
-                      { value: 'light', icon: Sun, label: '浅色' },
-                      { value: 'dark', icon: Moon, label: '深色' },
-                      { value: 'system', icon: Monitor, label: '跟随系统' },
-                    ] as const).map(({ value, label, icon: Icon }) => (
-                      <Tooltip key={value}>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={cn(
-                              'size-9',
-                              config.theme === value && 'bg-accent text-accent-foreground shadow-sm hover:bg-accent hover:text-accent-foreground',
-                            )}
-                            aria-label={label}
-                            aria-pressed={config.theme === value}
-                            onClick={() => void updateConfig({ theme: value })}
-                          >
-                            <Icon className="size-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">{label}</TooltipContent>
-                      </Tooltip>
-                    ))}
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">主题色</label>
+                    <div className="flex flex-wrap gap-2">
+                      {PRESET_THEMES.map((t) => (
+                        <Button
+                          key={t.id}
+                          variant={config.appThemePreset === t.id ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => void updateConfig({ appThemePreset: t.id })}
+                          className="text-xs gap-1.5"
+                        >
+                          <span
+                            className="inline-block size-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: t.accent }}
+                          />
+                          {t.label}
+                        </Button>
+                      ))}
+                      <Button
+                        variant={config.appThemePreset === 'custom' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => void updateConfig({ appThemePreset: 'custom' })}
+                        className="text-xs gap-1.5"
+                      >
+                        <span
+                          className="inline-block size-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: getThemeOption('custom', config.customHue).accent }}
+                        />
+                        自定义
+                      </Button>
+                    </div>
+                  </div>
+
+                  {config.appThemePreset === 'custom' && (
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">
+                        色相值（0-360）：{config.customHue}
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={360}
+                        value={config.customHue}
+                        onChange={(e) => void updateConfig({ customHue: Number(e.target.value) })}
+                        className="w-full accent-primary"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      背景不透明度（{MIN_BACKGROUND_OPACITY}–{MAX_BACKGROUND_OPACITY}）：{config.backgroundOpacity}%
+                    </label>
+                    <input
+                      type="range"
+                      min={MIN_BACKGROUND_OPACITY}
+                      max={MAX_BACKGROUND_OPACITY}
+                      value={config.backgroundOpacity}
+                      onChange={(e) => void updateConfig({ backgroundOpacity: Number(e.target.value) })}
+                      className="w-full accent-primary"
+                    />
                   </div>
                 </CardContent>
               </Card>

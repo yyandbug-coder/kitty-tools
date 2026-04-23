@@ -49,18 +49,20 @@ export default function FloatingResult() {
       try {
         unlistenResult = await listen<EventPayload>('translate-selection-result', (event) => {
           setLoading(false)
-          setSourceText(event.payload.text)
-          if (event.payload.error) {
+          const text = event.payload?.text ?? ''
+          const translated = event.payload?.translated ?? ''
+          setSourceText(text)
+          if (event.payload?.error) {
             setError(event.payload.error)
             setTranslatedText('')
             setDetectedSourceLang(null)
           } else {
             setError(null)
-            setTranslatedText(event.payload.translated)
-            const sl = event.payload.sourceLang
+            setTranslatedText(translated)
+            const sl = event.payload?.sourceLang
             setDetectedSourceLang(sl && sl !== 'auto' ? sl : null)
-            if (config.autoCopy && event.payload.translated.trim()) {
-              void navigator.clipboard.writeText(event.payload.translated).catch(() => {})
+            if (config.autoCopy && translated.trim()) {
+              void navigator.clipboard.writeText(translated).catch(() => {})
             }
           }
         })

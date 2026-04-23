@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { createSvgIconsPlugin } from 'vite-plugin-svg-icons-ng'
 import path from 'path'
-import { fileURLToPath } from 'node:url'
 import { resolve } from 'path'
+import { fileURLToPath } from 'node:url'
 
 const host = process.env.TAURI_DEV_HOST
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
@@ -14,19 +14,18 @@ export default defineConfig(async ({ command }) => ({
     react(),
     tailwindcss(),
     createSvgIconsPlugin({
-      iconDirs: [path.resolve(rootDir, './src/features/clipboard-history/assets/images/icons')],
+      iconDirs: [path.resolve(rootDir, './src/assets/images/icons')],
       symbolId: 'icon-[name]'
     })
   ],
   base: command === 'serve' ? '/' : './',
+
   resolve: {
     alias: {
-      '@': path.resolve(rootDir, './src'),
-      '@clipboard': path.resolve(rootDir, './src/features/clipboard-history'),
-      '@translate': path.resolve(rootDir, './src/features/translate'),
-      '@shared': path.resolve(rootDir, './src/shared')
+      '@': path.resolve(rootDir, './src')
     }
   },
+
   clearScreen: false,
   server: {
     port: 1420,
@@ -43,15 +42,17 @@ export default defineConfig(async ({ command }) => ({
       ignored: ['**/src-tauri/**']
     }
   },
+
   build: {
-    chunkSizeWarningLimit: 700,
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       input: {
         main: resolve(rootDir, 'index.html'),
+        floating: resolve(rootDir, 'floating.html'),
+        'region-select': resolve(rootDir, 'region-select.html'),
+        'translate-workspace': resolve(rootDir, 'translate-workspace.html'),
+        settings: resolve(rootDir, 'settings.html'),
         onboarding: resolve(rootDir, 'onboarding.html'),
-        'clipboard-panel': resolve(rootDir, 'clipboard-panel.html'),
-        'translate-floating': resolve(rootDir, 'translate-floating.html'),
-        'translate-region-select': resolve(rootDir, 'translate-region-select.html')
       },
       output: {
         manualChunks(id) {

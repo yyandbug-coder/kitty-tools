@@ -17,10 +17,7 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@clipboard/*": ["./src/features/clipboard-history/*"],
-      "@translate/*": ["./src/features/translate/*"],
-      "@shared/*": ["./src/shared/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"],

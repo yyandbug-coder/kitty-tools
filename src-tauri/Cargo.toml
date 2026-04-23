@@ -1,12 +1,12 @@
 [package]
 name = "kitty-tools"
 version = "0.1.0"
-description = "Unified clipboard history and translation workspace"
+description = "Kitty Tools - Clipboard History & Translation"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "tauri_app_lib"
+name = "kitty_tools_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -14,24 +14,27 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset", "macos-private-api", "tray-icon"] }
-tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
-tauri-plugin-autostart = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
-tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-reqwest = { version = "0.12", features = ["json", "multipart", "rustls-tls"], default-features = false }
-tokio = { version = "1", features = ["full"] }
+
+# Clipboard
 arboard = "3"
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
 image = { version = "0.25", default-features = false, features = ["png", "tiff"] }
 png = "0.17"
 base64 = "0.22"
-dirs = "6"
+
+# Translate
+reqwest = { version = "0.12", features = ["json", "multipart", "rustls-tls"], default-features = false }
+tokio = { version = "1", features = ["full"] }
 md5 = "0.7"
 sha2 = "0.10"
 rand = "0.8"
@@ -49,6 +52,7 @@ lingua = { version = "1.8.0", default-features = false, features = [
     "russian",
     "spanish",
 ] }
+dirs = "6"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-icons = "0.3.0"

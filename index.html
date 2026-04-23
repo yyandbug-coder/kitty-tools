@@ -1,14 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src-tauri/icons/32x32.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kitty Tools</title>
+    <title>Kitty Tools · 剪贴板</title>
+    <style>
+      html, body, #root {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent !important;
+      }
+    </style>
   </head>
-
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/app/boot/main.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install *)",
+      "Bash(pnpm build *)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //PID 25696 //F)",
+      "Bash(taskkill //PID 11532 //F)",
+      "Bash(grep -v \"^$\")",
+      "Bash(taskkill //PID 3720 //F)",
+      "Bash(taskkill //IM kitty-tools.exe //F)",
+      "Bash(npx tsc *)",
+      "Bash(npx vite *)",
+      "Bash(mkdir -p d:/Yy/yy/App/kitty-tools/src/assets/images/icons)",
+      "Bash(cp d:/Yy/yy/App/kitty-tools/example/kitty-clipboard-history/src/assets/images/icons/*.svg d:/Yy/yy/App/kitty-tools/src/assets/images/icons/)"
+    ]
+  }
+}

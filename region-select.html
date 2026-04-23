@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN" class="region-select-html">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>选择截屏区域</title>
+    <style>
+      html.region-select-html,
+      html.region-select-html body,
+      html.region-select-html #root {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/region-select.tsx"></script>
+  </body>
+</html>

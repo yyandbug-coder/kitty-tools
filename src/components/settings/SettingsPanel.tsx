@@ -12,9 +12,9 @@ import {
   Eye,
   Loader2,
   Globe,
-  Palette,
   ScanText,
   RotateCcw,
+  Info,
   CircleHelp,
   Sparkles,
   ArrowRightLeft,
@@ -42,10 +42,10 @@ import { formatShortcutForDisplay } from '@/lib/platform'
 
 const SETTINGS_TAB = {
   welcome: 'welcome',
+  general: 'general',
   clipboard: 'clipboard',
   translate: 'translate',
   shortcuts: 'shortcuts',
-  appearance: 'appearance',
   about: 'about'
 } as const
 
@@ -53,7 +53,7 @@ export default function SettingsPanel() {
   const { config, updateConfig, loaded } = useAppConfig()
   const [testing, setTesting] = useState(false)
   const [testFeedback, setTestFeedback] = useState<{ ok: boolean; text: string } | null>(null)
-  const [activeTab, setActiveTab] = useState<string>(SETTINGS_TAB.translate)
+  const [activeTab, setActiveTab] = useState<string>(SETTINGS_TAB.general)
   const hasShownFirstRunTabRef = useRef(false)
   useTheme(config.theme)
 
@@ -68,7 +68,7 @@ export default function SettingsPanel() {
 
   useLayoutEffect(() => {
     if (!config.firstRun && activeTab === SETTINGS_TAB.welcome) {
-      setActiveTab(SETTINGS_TAB.translate)
+      setActiveTab(SETTINGS_TAB.general)
     }
   }, [config.firstRun, activeTab])
 
@@ -201,6 +201,13 @@ export default function SettingsPanel() {
               </TabsTrigger>
             ) : null}
             <TabsTrigger
+              value={SETTINGS_TAB.general}
+              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
+            >
+              <Settings className="size-4 opacity-80" />
+              通用
+            </TabsTrigger>
+            <TabsTrigger
               value={SETTINGS_TAB.clipboard}
               className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
             >
@@ -222,17 +229,10 @@ export default function SettingsPanel() {
               交互
             </TabsTrigger>
             <TabsTrigger
-              value={SETTINGS_TAB.appearance}
-              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
-            >
-              <Palette className="size-4 opacity-80" />
-              外观
-            </TabsTrigger>
-            <TabsTrigger
               value={SETTINGS_TAB.about}
               className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
             >
-              <Settings className="size-4 opacity-80" />
+              <Info className="size-4 opacity-80" />
               关于
             </TabsTrigger>
           </TabsList>
@@ -282,14 +282,6 @@ export default function SettingsPanel() {
             <TabsContent value={SETTINGS_TAB.clipboard} className="mt-0 space-y-5">
               <Card>
                 <CardContent className="space-y-5 pt-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-1.5">
-                      <Keyboard className="size-3.5" />
-                      全局快捷键
-                    </label>
-                    <Input type="text" value={config.clipboardShortcut} readOnly className="text-xs" />
-                  </div>
-
                   <div className="space-y-2">
                     <label className="text-sm font-medium">最大条目数</label>
                     <div className="flex flex-wrap gap-2">
@@ -703,7 +695,7 @@ export default function SettingsPanel() {
                     <Keyboard className="size-4" />
                     交互
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground">全局快捷键与开机自启。</p>
+                  <p className="text-xs text-muted-foreground">全局快捷键。</p>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="divide-y divide-border">
@@ -728,31 +720,32 @@ export default function SettingsPanel() {
                       defaultValue={DEFAULT_CONFIG.clipboardShortcut}
                       onChange={async (v) => updateConfig({ clipboardShortcut: v })}
                     />
-                    <div className="flex flex-row items-center justify-between gap-4 px-4 py-3">
-                      <div className="flex min-w-0 flex-1 items-start gap-2.5">
-                        <Power className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                          <span className="text-sm font-medium leading-none">开机自启</span>
-                          <span className="text-xs text-muted-foreground leading-relaxed">
-                            须在本页开关；打开后写入系统登录启动项，关闭后移除。
-                          </span>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.launchOnStartup}
-                        onCheckedChange={(v) => void updateConfig({ launchOnStartup: v })}
-                        aria-label="开机自启"
-                      />
-                    </div>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* 外观 */}
-            <TabsContent value={SETTINGS_TAB.appearance} className="mt-0 space-y-5">
+            {/* 通用 */}
+            <TabsContent value={SETTINGS_TAB.general} className="mt-0 space-y-5">
               <Card>
                 <CardContent className="space-y-5 pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                      <Power className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-sm font-medium leading-none">开机自启</span>
+                        <span className="text-xs text-muted-foreground leading-relaxed">
+                          打开后写入系统登录启动项，关闭后移除。
+                        </span>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={config.launchOnStartup}
+                      onCheckedChange={(v) => void updateConfig({ launchOnStartup: v })}
+                      aria-label="开机自启"
+                    />
+                  </div>
+
                   <div className="space-y-2">
                     <label className="text-sm font-medium">深浅模式</label>
                     <div className="flex gap-1">
@@ -853,7 +846,7 @@ export default function SettingsPanel() {
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                    <Settings className="size-4" />
+                    <Info className="size-4" />
                     关于
                   </CardTitle>
                 </CardHeader>

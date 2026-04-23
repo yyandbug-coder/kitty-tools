@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Runtime};
 
 use crate::window;
@@ -83,7 +83,7 @@ pub fn build_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
         }
     };
     let tray_builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("Kitty Tools · 左键翻译工作台，右键打开菜单")
+        .tooltip("Kitty Tools · 右键打开菜单")
         .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -112,28 +112,8 @@ pub fn build_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             }
             _ => {}
         })
-        .on_tray_icon_event(|tray, event| {
-            let app = tray.app_handle().clone();
-            match event {
-                TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    ..
-                } => {
-                    if let Err(e) = window::show_translate_workspace(&app) {
-                        eprintln!("[kitty-tools] 翻译工作台（托盘左键）: {}", e);
-                    }
-                }
-                TrayIconEvent::DoubleClick {
-                    button: MouseButton::Left,
-                    ..
-                } => {
-                    if let Err(e) = window::show_settings_window(&app) {
-                        eprintln!("[kitty-tools] 打开设置窗口失败: {}", e);
-                    }
-                }
-                _ => {}
-            }
+        .on_tray_icon_event(|_tray, event| {
+            let _ = event;
         });
 
     #[cfg(target_os = "macos")]

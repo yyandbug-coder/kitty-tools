@@ -170,7 +170,7 @@ export default function FloatingResult() {
   }
 
   const handleOpenSettings = async () => {
-    try { await invoke('show_settings_window') } catch { /* ignore */ }
+    try { await invoke('open_settings_window') } catch { /* ignore */ }
   }
 
   const handleTogglePin = async () => {

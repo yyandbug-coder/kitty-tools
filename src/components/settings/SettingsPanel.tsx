@@ -27,6 +27,7 @@ import { DEFAULT_CONFIG, type TranslateProvider, type TranslateResult } from '@/
 import { HISTORY_MAX_ITEMS_OPTIONS, HISTORY_RETENTION_OPTIONS } from '@/lib/history-settings'
 import { PRESET_THEMES, getThemeOption, MIN_BACKGROUND_OPACITY, MAX_BACKGROUND_OPACITY } from '@/lib/theme'
 import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -599,11 +600,10 @@ export default function SettingsPanel() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
                   <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
-                    <input
-                      type="checkbox"
-                      className="mt-1 size-4 shrink-0 rounded border-input accent-primary"
+                    <Switch
+                      className="mt-0.5 shrink-0"
                       checked={config.bidirectionalAuto}
-                      onChange={(e) => void updateConfig({ bidirectionalAuto: e.target.checked })}
+                      onCheckedChange={(checked) => void updateConfig({ bidirectionalAuto: checked })}
                     />
                     <span className="min-w-0 text-sm leading-snug">
                       <span className="font-medium text-foreground">启用</span>
@@ -830,13 +830,12 @@ export default function SettingsPanel() {
                       <label className="text-xs text-muted-foreground">
                         色相值（0-360）：{config.customHue}
                       </label>
-                      <input
-                        type="range"
+                      <Slider
                         min={0}
                         max={360}
-                        value={config.customHue}
-                        onChange={(e) => void updateConfig({ customHue: Number(e.target.value) })}
-                        className="w-full accent-primary"
+                        step={1}
+                        value={[config.customHue]}
+                        onValueChange={([v]) => void updateConfig({ customHue: v })}
                       />
                     </div>
                   )}
@@ -845,13 +844,12 @@ export default function SettingsPanel() {
                     <label className="text-xs text-muted-foreground">
                       背景不透明度（{MIN_BACKGROUND_OPACITY}–{MAX_BACKGROUND_OPACITY}）：{config.backgroundOpacity}%
                     </label>
-                    <input
-                      type="range"
+                    <Slider
                       min={MIN_BACKGROUND_OPACITY}
                       max={MAX_BACKGROUND_OPACITY}
-                      value={config.backgroundOpacity}
-                      onChange={(e) => void updateConfig({ backgroundOpacity: Number(e.target.value) })}
-                      className="w-full accent-primary"
+                      step={1}
+                      value={[config.backgroundOpacity]}
+                      onValueChange={([v]) => void updateConfig({ backgroundOpacity: v })}
                     />
                   </div>
                 </CardContent>

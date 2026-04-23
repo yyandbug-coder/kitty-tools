@@ -223,22 +223,27 @@ fn register_floating_window_handlers<R: Runtime>(
     let app_handle = app.clone();
     let window_handle = window.clone();
     let had_true_focus = Arc::new(AtomicBool::new(false));
+    let is_dragging = Arc::new(AtomicBool::new(false));
 
     window.on_window_event(move |event| {
         match event {
             WindowEvent::Moved(position) => {
-                // Save position to config via event so lib.rs can handle persistence
+                is_dragging.store(true, Ordering::SeqCst);
                 let _ = app_handle.emit(
                     "floating-window-moved",
                     serde_json::json!({"x": position.x, "y": position.y}),
                 );
             }
             WindowEvent::Focused(true) => {
+                is_dragging.store(false, Ordering::SeqCst);
                 had_true_focus.store(true, Ordering::SeqCst);
             }
             WindowEvent::Focused(false) => {
+                // Skip auto-hide if the window is being dragged
+                if is_dragging.swap(false, Ordering::SeqCst) {
+                    return;
+                }
                 let pinned = {
-                    // Try reading current pinned state; fall back to initial value
                     let config = crate::config::load_config();
                     config.floating_pinned
                 };

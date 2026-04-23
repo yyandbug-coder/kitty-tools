@@ -223,13 +223,11 @@ fn register_floating_window_handlers<R: Runtime>(
     let app_handle = app.clone();
     let window_handle = window.clone();
     let had_true_focus = Arc::new(AtomicBool::new(false));
-    let is_dragging = Arc::new(AtomicBool::new(false));
 
     window.on_window_event(move |event| {
         match event {
             WindowEvent::Moved(position) => {
-                is_dragging.store(true, Ordering::SeqCst);
-                // 窗口正在移动，说明拖拽已实际发生，清除前端设置的交互标记
+                // 拖拽已实际发生，清除交互标记
                 let app_state = app_handle.state::<crate::app_state::AppState>();
                 app_state.floating_interacting.store(false, Ordering::SeqCst);
                 let _ = app_handle.emit(
@@ -238,23 +236,17 @@ fn register_floating_window_handlers<R: Runtime>(
                 );
             }
             WindowEvent::Focused(true) => {
-                is_dragging.store(false, Ordering::SeqCst);
-                // 拖拽结束（窗口重新获得焦点），清除所有交互标记
+                // 拖拽结束（窗口重新获得焦点），清除交互标记
                 let app_state = app_handle.state::<crate::app_state::AppState>();
                 app_state.floating_interacting.store(false, Ordering::SeqCst);
                 had_true_focus.store(true, Ordering::SeqCst);
             }
             WindowEvent::Focused(false) => {
-                // Skip auto-hide if the window is being dragged
-                if is_dragging.swap(false, Ordering::SeqCst) {
-                    return;
-                }
-                // Also skip if the frontend explicitly set interacting flag (e.g. via start_floating_drag)
+                // 拖拽开始时前端通过 start_floating_drag 设置的标记，用于跳过拖拽瞬间的失焦自动隐藏
                 let app_state = app_handle.state::<crate::app_state::AppState>();
                 if app_state.floating_interacting.swap(false, Ordering::SeqCst) {
                     return;
                 }
-                // 从内存中读取 pinned 状态（与前端一致），避免 SQLite 读取延迟或缓存不一致
                 let pinned = {
                     let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
                     let pinned = cfg_state.lock().unwrap().floating_pinned;

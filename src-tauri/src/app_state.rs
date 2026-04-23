@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
 use screenshots::image::RgbaImage;
 
@@ -15,6 +15,8 @@ pub struct AppState {
     pub region_capture: Mutex<Option<RgbaImage>>,
     #[allow(dead_code)]
     pub tray_click_generation: Arc<AtomicU64>,
+    /// 浮动窗口正在交互（拖拽等），短暂抑制失焦自动隐藏。
+    pub floating_interacting: Arc<AtomicBool>,
 }
 
 /// Holds the current in-progress translation result for the floating window.

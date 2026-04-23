@@ -243,6 +243,11 @@ fn register_floating_window_handlers<R: Runtime>(
                 if is_dragging.swap(false, Ordering::SeqCst) {
                     return;
                 }
+                // Also skip if the frontend explicitly set interacting flag (e.g. via start_floating_drag)
+                let app_state = app_handle.state::<crate::app_state::AppState>();
+                if app_state.floating_interacting.swap(false, Ordering::SeqCst) {
+                    return;
+                }
                 let pinned = {
                     let config = crate::config::load_config();
                     config.floating_pinned

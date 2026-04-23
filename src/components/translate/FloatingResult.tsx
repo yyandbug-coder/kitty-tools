@@ -181,8 +181,11 @@ export default function FloatingResult() {
     const target = event.target as HTMLElement
     if (target.closest('[data-no-drag="true"]')) return
     if (event.button !== 0) return
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    await getCurrentWindow().startDragging()
+    try {
+      await invoke('start_floating_drag')
+    } catch {
+      // 非 Tauri 环境忽略
+    }
   }
 
   const handleSourceKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {

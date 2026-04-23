@@ -33,7 +33,19 @@ fn hide_window(window: tauri::Window) {
 
 #[tauri::command]
 fn open_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    // 先隐藏浮动窗口，避免 always-on-top 的浮动窗遮挡设置窗口
+    window::hide_floating_window(&app);
     window::show_settings_window(&app).map_err(|e| e.to_string())
+}
+
+/// 前端拖拽前调用：设置交互标记并启动原生拖拽，避免 startDragging 导致的短暂失焦触发自动隐藏。
+#[tauri::command]
+fn start_floating_drag<R: Runtime>(app: tauri::AppHandle<R>, state: tauri::State<'_, app_state::AppState>) -> Result<(), String> {
+    state.floating_interacting.store(true, Ordering::SeqCst);
+    if let Some(w) = app.get_webview_window(window::WINDOW_FLOATING) {
+        w.start_dragging().map_err(|e| format!("start_dragging: {}", e))?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -200,14 +212,15 @@ fn floating_ready(app: tauri::AppHandle) {
         match pt.state.as_str() {
             "result" => {
                 let _ = app.emit("translate-selection-result", serde_json::json!({
-                    "translatedText": pt.translated_text.unwrap_or_default(),
-                    "sourceText": pt.source_text,
+                    "text": pt.source_text,
+                    "translated": pt.translated_text.unwrap_or_default(),
                     "sourceLang": pt.source_lang.unwrap_or_default(),
-                    "targetLang": pt.target_lang.unwrap_or_default(),
                 }));
             }
             "error" => {
                 let _ = app.emit("translate-selection-result", serde_json::json!({
+                    "text": pt.source_text,
+                    "translated": "",
                     "error": pt.error.unwrap_or_default(),
                 }));
             }
@@ -285,10 +298,9 @@ fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
                     });
                 }
                 let _ = app_clone.emit("translate-selection-result", serde_json::json!({
-                    "translatedText": result.translated_text,
-                    "sourceText": result.source_text,
+                    "text": result.source_text,
+                    "translated": result.translated_text,
                     "sourceLang": result.source_lang,
-                    "targetLang": result.target_lang,
                 }));
             }
             Err(e) => {
@@ -305,6 +317,8 @@ fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
                     });
                 }
                 let _ = app_clone.emit("translate-selection-result", serde_json::json!({
+                    "text": text,
+                    "translated": "",
                     "error": e,
                 }));
             }
@@ -459,23 +473,26 @@ fn emit_translate_result<R: Runtime>(
         });
     }
     let _ = app.emit("translate-selection-result", serde_json::json!({
-        "translatedText": result.translated_text,
-        "sourceText": result.source_text,
+        "text": result.source_text,
+        "translated": result.translated_text,
         "sourceLang": result.source_lang,
-        "targetLang": result.target_lang,
     }));
 }
 
 fn emit_translate_error<R: Runtime>(app: &tauri::AppHandle<R>, error: String) {
     let state = app.state::<app_state::AppState>();
+    let source_text;
     {
         let mut pt = state.pending_translation.lock().unwrap();
+        source_text = pt.as_ref().map(|p| p.source_text.clone()).unwrap_or_default();
         if let Some(ref mut p) = *pt {
             p.state = "error".to_string();
             p.error = Some(error.clone());
         }
     }
     let _ = app.emit("translate-selection-result", serde_json::json!({
+        "text": source_text,
+        "translated": "",
         "error": error,
     }));
 }
@@ -524,6 +541,7 @@ pub fn run() {
             region_pending: Mutex::new(None),
             region_capture: Mutex::new(None),
             tray_click_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            floating_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
             // Clipboard commands
@@ -550,6 +568,7 @@ pub fn run() {
             floating_ready,
             show_settings_window_cmd,
             show_translate_workspace_window,
+            start_floating_drag,
         ])
         .setup(move |app| {
             // Build tray

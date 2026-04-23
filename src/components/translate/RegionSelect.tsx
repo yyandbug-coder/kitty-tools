@@ -93,7 +93,7 @@ export default function RegionSelect() {
           }}
         />
       )}
-      <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs text-white/70 pointer-events-none select-none">
+      <p className="pointer-events-none fixed bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-md bg-black/75 px-3 py-1.5 text-sm text-white shadow-lg">
         按住拖动框选区域 · Esc 取消 · 选区过小将自动取消
       </p>
     </div>

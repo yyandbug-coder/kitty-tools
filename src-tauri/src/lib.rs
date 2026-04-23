@@ -593,10 +593,11 @@ pub fn run() {
             // Sync autostart
             sync_launch_on_startup(&app.handle(), launch_on_startup);
 
-            // Pre-create clipboard, floating and region-select windows
+            // Pre-create clipboard, floating, region-select and settings windows
             let _ = window::get_or_create_clipboard_popup_window(&app.handle());
             let _ = window::get_or_create_floating_window(&app.handle());
             let _ = window::get_or_create_region_select_window(&app.handle());
+            let _ = window::get_or_create_settings_window(&app.handle());
 
             // Handle hotkey events for translate pipelines
             let app_handle = app.handle().clone();

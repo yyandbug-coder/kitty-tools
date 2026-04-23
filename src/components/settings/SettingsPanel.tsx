@@ -1,5 +1,4 @@
-// 设置面板 - 应用全局设置（通用/剪贴板/翻译/双向互译/OCR/交互/外观/关于）
-// 完整迁移自 example/kitty-translate SettingsPanel，保留根应用剪贴板标签页
+// 设置面板 - 应用全局设置（剪贴板/翻译/交互/外观/关于）
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import {
@@ -19,7 +18,7 @@ import {
   CircleHelp,
   Sparkles,
   ArrowRightLeft,
-  Power,
+  Power
 } from 'lucide-react'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useTheme } from '@/hooks/useTheme'
@@ -33,13 +32,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import HotkeyInput from '@/components/shared/HotkeyInput'
@@ -49,14 +42,11 @@ import { formatShortcutForDisplay } from '@/lib/platform'
 
 const SETTINGS_TAB = {
   welcome: 'welcome',
-  general: 'general',
   clipboard: 'clipboard',
   translate: 'translate',
-  bidirectional: 'bidirectional',
-  ocr: 'ocr',
   shortcuts: 'shortcuts',
   appearance: 'appearance',
-  about: 'about',
+  about: 'about'
 } as const
 
 export default function SettingsPanel() {
@@ -82,12 +72,6 @@ export default function SettingsPanel() {
     }
   }, [config.firstRun, activeTab])
 
-  useLayoutEffect(() => {
-    if (config.translateProvider !== 'openai' && activeTab === SETTINGS_TAB.ocr) {
-      setActiveTab(SETTINGS_TAB.translate)
-    }
-  }, [config.translateProvider, activeTab])
-
   const runTranslateConnectionTest = useCallback(async () => {
     setTestFeedback(null)
     const p = config.translateProvider
@@ -111,12 +95,12 @@ export default function SettingsPanel() {
     try {
       const res = await invoke<TranslateResult>('test_translate_connection', {
         provider: config.translateProvider,
-        config,
+        config
       })
       const sample = (res.translatedText ?? '').trim()
       setTestFeedback({
         ok: true,
-        text: sample ? `连接成功，示例译文：${sample}` : '连接成功（未返回译文文本，请检查模型或接口响应）。',
+        text: sample ? `连接成功，示例译文：${sample}` : '连接成功（未返回译文文本，请检查模型或接口响应）。'
       })
     } catch (err) {
       const msg = typeof err === 'string' ? err : String(err)
@@ -130,7 +114,7 @@ export default function SettingsPanel() {
     { value: 'baidu', label: '百度翻译' },
     { value: 'google', label: 'Google' },
     { value: 'youdao', label: '有道翻译' },
-    { value: 'openai', label: 'OpenAI' },
+    { value: 'openai', label: 'OpenAI' }
   ]
 
   const translateProviderTooltip = (() => {
@@ -142,7 +126,9 @@ export default function SettingsPanel() {
           <div className="space-y-2">
             <p>
               <strong className="font-semibold">翻译与百度截图</strong>：使用{' '}
-              <a className={link} href="https://fanyi-api.baidu.com/" target="_blank" rel="noreferrer">百度翻译开放平台</a>{' '}
+              <a className={link} href="https://fanyi-api.baidu.com/" target="_blank" rel="noreferrer">
+                百度翻译开放平台
+              </a>{' '}
               的 App ID 与密钥。截图会直接走图片翻译，请在控制台开通图片翻译额度。
             </p>
           </div>
@@ -151,15 +137,25 @@ export default function SettingsPanel() {
         return (
           <p>
             使用{' '}
-            <a className={link} href="https://cloud.google.com/translate/docs/reference/rest/v2/translate" target="_blank" rel="noreferrer">Google Cloud Translation API v2</a>{' '}
-            ，请求地址<strong className="font-medium">由应用内置</strong>；填写 API Key（文本翻译与截图识字<strong className="font-medium">共用</strong>）。
+            <a
+              className={link}
+              href="https://cloud.google.com/translate/docs/reference/rest/v2/translate"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Google Cloud Translation API v2
+            </a>{' '}
+            ，请求地址<strong className="font-medium">由应用内置</strong>；填写 API Key（文本翻译与截图识字
+            <strong className="font-medium">共用</strong>）。
           </p>
         )
       case 'youdao':
         return (
           <p>
             使用{' '}
-            <a className={link} href="https://ai.youdao.com/" target="_blank" rel="noreferrer">网易有道智云</a>{' '}
+            <a className={link} href="https://ai.youdao.com/" target="_blank" rel="noreferrer">
+              网易有道智云
+            </a>{' '}
             开放能力：填写应用 ID 与应用密钥，并绑定「文本翻译」与「通用文字识别」服务。
           </p>
         )
@@ -181,53 +177,61 @@ export default function SettingsPanel() {
       {/* 标题栏 */}
       <div className="flex items-center gap-3 px-4 py-3 border-b" data-tauri-drag-region>
         <Settings className="size-4 text-primary" />
-        <h1 className="text-sm font-semibold" data-tauri-drag-region>Kitty Tools 设置</h1>
+        <h1 className="text-sm font-semibold" data-tauri-drag-region>
+          Kitty Tools 设置
+        </h1>
       </div>
 
       {/* 标签页 */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-        <div className={cn(
-          'max-w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain',
-          'touch-pan-x [-webkit-overflow-scrolling:touch]',
-        )}>
+        <div
+          className={cn(
+            'max-w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain',
+            'touch-pan-x [-webkit-overflow-scrolling:touch]'
+          )}
+        >
           <TabsList className="inline-flex h-auto min-h-9 w-max max-w-none flex-nowrap justify-start gap-1 p-1 mx-4 mt-3">
             {config.firstRun ? (
-              <TabsTrigger value={SETTINGS_TAB.welcome} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
+              <TabsTrigger
+                value={SETTINGS_TAB.welcome}
+                className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
+              >
                 <Sparkles className="size-4 opacity-80" />
                 入门引导
               </TabsTrigger>
             ) : null}
-            <TabsTrigger value={SETTINGS_TAB.general} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
-              <Zap className="size-4 opacity-80" />
-              通用
-            </TabsTrigger>
-            <TabsTrigger value={SETTINGS_TAB.clipboard} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
+            <TabsTrigger
+              value={SETTINGS_TAB.clipboard}
+              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
+            >
               <ClipboardList className="size-4 opacity-80" />
               剪贴板
             </TabsTrigger>
-            <TabsTrigger value={SETTINGS_TAB.translate} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
+            <TabsTrigger
+              value={SETTINGS_TAB.translate}
+              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
+            >
               <Globe className="size-4 opacity-80" />
-              翻译与密钥
+              翻译
             </TabsTrigger>
-            <TabsTrigger value={SETTINGS_TAB.bidirectional} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
-              <ArrowRightLeft className="size-4 opacity-80" />
-              双向互译
-            </TabsTrigger>
-            {config.translateProvider === 'openai' ? (
-              <TabsTrigger value={SETTINGS_TAB.ocr} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
-                <ScanText className="size-4 opacity-80" />
-                截图 OCR
-              </TabsTrigger>
-            ) : null}
-            <TabsTrigger value={SETTINGS_TAB.shortcuts} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
+            <TabsTrigger
+              value={SETTINGS_TAB.shortcuts}
+              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
+            >
               <Keyboard className="size-4 opacity-80" />
               交互
             </TabsTrigger>
-            <TabsTrigger value={SETTINGS_TAB.appearance} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
+            <TabsTrigger
+              value={SETTINGS_TAB.appearance}
+              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
+            >
               <Palette className="size-4 opacity-80" />
               外观
             </TabsTrigger>
-            <TabsTrigger value={SETTINGS_TAB.about} className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs">
+            <TabsTrigger
+              value={SETTINGS_TAB.about}
+              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
+            >
               <Settings className="size-4 opacity-80" />
               关于
             </TabsTrigger>
@@ -236,7 +240,6 @@ export default function SettingsPanel() {
 
         <ScrollArea className="flex-1 mt-2">
           <div className="p-4 space-y-6">
-
             {/* 入门引导 */}
             {config.firstRun ? (
               <TabsContent value={SETTINGS_TAB.welcome} className="mt-0">
@@ -254,78 +257,26 @@ export default function SettingsPanel() {
                     </p>
                     <p className="text-xs leading-relaxed">
                       当前快捷键：划词{' '}
-                      <span className="font-mono text-foreground/90">{formatShortcutForDisplay(config.hotkeySelection)}</span>
+                      <span className="font-mono text-foreground/90">
+                        {formatShortcutForDisplay(config.hotkeySelection)}
+                      </span>
                       {' · '}截图{' '}
-                      <span className="font-mono text-foreground/90">{formatShortcutForDisplay(config.hotkeyScreenshot)}</span>
+                      <span className="font-mono text-foreground/90">
+                        {formatShortcutForDisplay(config.hotkeyScreenshot)}
+                      </span>
                       {' · '}剪贴板{' '}
-                      <span className="font-mono text-foreground/90">{formatShortcutForDisplay(config.clipboardShortcut)}</span>
+                      <span className="font-mono text-foreground/90">
+                        {formatShortcutForDisplay(config.clipboardShortcut)}
+                      </span>
                     </p>
                     <p>请在下文选择翻译引擎、按需填写密钥，并确认快捷键是否与其他软件冲突。</p>
-                    <div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border/80 bg-background/60 px-3 py-2.5">
-                      <div className="flex min-w-0 flex-1 items-start gap-2.5">
-                        <Power className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                          <span className="text-sm font-medium leading-none text-foreground">开机自启</span>
-                          <span className="text-xs text-muted-foreground leading-relaxed">默认关闭；仅在此处或「交互」页可修改。</span>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={config.launchOnStartup}
-                        onCheckedChange={(v) => void updateConfig({ launchOnStartup: v })}
-                        aria-label="开机自启"
-                      />
-                    </div>
-                    <Button
-                      size="sm"
-                      className="w-fit"
-                      onClick={() => void updateConfig({ firstRun: false })}
-                    >
+                    <Button size="sm" className="w-fit" onClick={() => void updateConfig({ firstRun: false })}>
                       完成初次设置
                     </Button>
                   </CardContent>
                 </Card>
               </TabsContent>
             ) : null}
-
-            {/* 通用 */}
-            <TabsContent value={SETTINGS_TAB.general} className="mt-0 space-y-5">
-              <Card>
-                <CardContent className="space-y-5 pt-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">外观</label>
-                    <div className="flex gap-2">
-                      {([
-                        { value: 'system', icon: Monitor, label: '跟随系统' },
-                        { value: 'light', icon: Sun, label: '浅色' },
-                        { value: 'dark', icon: Moon, label: '深色' },
-                      ] as const).map(({ value, icon: Icon, label }) => (
-                        <Button
-                          key={value}
-                          variant={config.theme === value ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => void updateConfig({ theme: value })}
-                          className="text-xs gap-1.5"
-                        >
-                          <Icon className="size-3.5" />
-                          {label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <label className="text-sm font-medium">开机自启动</label>
-                      <p className="text-xs text-muted-foreground">登录后自动在托盘运行</p>
-                    </div>
-                    <Switch
-                      checked={config.launchOnStartup}
-                      onCheckedChange={(v) => void updateConfig({ launchOnStartup: v })}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
 
             {/* 剪贴板 */}
             <TabsContent value={SETTINGS_TAB.clipboard} className="mt-0 space-y-5">
@@ -424,8 +375,9 @@ export default function SettingsPanel() {
               </Card>
             </TabsContent>
 
-            {/* 翻译与密钥 */}
-            <TabsContent value={SETTINGS_TAB.translate} className="mt-0">
+            {/* 翻译（引擎 + 双向互译 + OCR） */}
+            <TabsContent value={SETTINGS_TAB.translate} className="mt-0 space-y-5">
+              {/* 翻译引擎 */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -444,13 +396,20 @@ export default function SettingsPanel() {
                       </SelectTrigger>
                       <SelectContent>
                         {providers.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                          <SelectItem key={p.value} value={p.value}>
+                            {p.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8 shrink-0 text-muted-foreground" aria-label="当前引擎说明">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 shrink-0 text-muted-foreground"
+                          aria-label="当前引擎说明"
+                        >
                           <CircleHelp className="size-4" />
                         </Button>
                       </TooltipTrigger>
@@ -463,7 +422,9 @@ export default function SettingsPanel() {
                   {config.translateProvider === 'baidu' && (
                     <div className="mt-4 flex flex-col gap-3">
                       <div className="flex flex-col gap-1.5">
-                        <label htmlFor="baidu-app-id" className="text-xs font-medium text-foreground">App ID</label>
+                        <label htmlFor="baidu-app-id" className="text-xs font-medium text-foreground">
+                          App ID
+                        </label>
                         <Input
                           id="baidu-app-id"
                           autoComplete="off"
@@ -495,12 +456,16 @@ export default function SettingsPanel() {
                   {config.translateProvider === 'openai' && (
                     <div className="mt-4 flex flex-col gap-3">
                       <div className="flex flex-col gap-1.5">
-                        <label htmlFor="openai-base" className="text-xs font-medium text-foreground">API 根路径</label>
+                        <label htmlFor="openai-base" className="text-xs font-medium text-foreground">
+                          API 根路径
+                        </label>
                         <Input
                           id="openai-base"
                           autoComplete="off"
                           value={config.openai.apiBaseUrl}
-                          onChange={(e) => void updateConfig({ openai: { ...config.openai, apiBaseUrl: e.target.value } })}
+                          onChange={(e) =>
+                            void updateConfig({ openai: { ...config.openai, apiBaseUrl: e.target.value } })
+                          }
                           placeholder="https://api.openai.com/v1"
                         />
                       </div>
@@ -512,7 +477,9 @@ export default function SettingsPanel() {
                         placeholder="sk-…"
                       />
                       <div className="flex flex-col gap-1.5">
-                        <label htmlFor="openai-model" className="text-xs font-medium text-foreground">模型</label>
+                        <label htmlFor="openai-model" className="text-xs font-medium text-foreground">
+                          模型
+                        </label>
                         <Input
                           id="openai-model"
                           autoComplete="off"
@@ -526,7 +493,9 @@ export default function SettingsPanel() {
                   {config.translateProvider === 'youdao' && (
                     <div className="mt-4 flex flex-col gap-3">
                       <div className="flex flex-col gap-1.5">
-                        <label htmlFor="youdao-app-key" className="text-xs font-medium text-foreground">应用 ID（appKey）</label>
+                        <label htmlFor="youdao-app-key" className="text-xs font-medium text-foreground">
+                          应用 ID（appKey）
+                        </label>
                         <Input
                           id="youdao-app-key"
                           autoComplete="off"
@@ -549,11 +518,18 @@ export default function SettingsPanel() {
                     <div className="flex gap-3">
                       <div className="space-y-1.5 flex-1">
                         <label className="text-xs text-muted-foreground">源语言</label>
-                        <LanguageSelector value={config.sourceLang} onChange={(v) => void updateConfig({ sourceLang: v })} />
+                        <LanguageSelector
+                          value={config.sourceLang}
+                          onChange={(v) => void updateConfig({ sourceLang: v })}
+                        />
                       </div>
                       <div className="space-y-1.5 flex-1">
                         <label className="text-xs text-muted-foreground">目标语言</label>
-                        <LanguageSelector value={config.targetLang} onChange={(v) => void updateConfig({ targetLang: v })} excludeCodes={['auto']} />
+                        <LanguageSelector
+                          value={config.targetLang}
+                          onChange={(v) => void updateConfig({ targetLang: v })}
+                          excludeCodes={['auto']}
+                        />
                       </div>
                     </div>
                   </div>
@@ -575,18 +551,17 @@ export default function SettingsPanel() {
                         'text-xs leading-relaxed',
                         testFeedback == null && 'text-muted-foreground',
                         testFeedback?.ok === true && 'text-emerald-600 dark:text-emerald-400',
-                        testFeedback?.ok === false && 'text-destructive',
+                        testFeedback?.ok === false && 'text-destructive'
                       )}
                     >
-                      {testFeedback?.text ?? '使用当前所选引擎与上方已填参数，发送短句「Hello」英→简中试译；不依赖是否已点击保存。'}
+                      {testFeedback?.text ??
+                        '使用当前所选引擎与上方已填参数，发送短句「Hello」英→简中试译；不依赖是否已点击保存。'}
                     </p>
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
 
-            {/* 双向互译 */}
-            <TabsContent value={SETTINGS_TAB.bidirectional} className="mt-0">
+              {/* 双向自动互译 */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -607,13 +582,17 @@ export default function SettingsPanel() {
                     />
                     <span className="min-w-0 text-sm leading-snug">
                       <span className="font-medium text-foreground">启用</span>
-                      <span className="text-muted-foreground">：识别为语言甲则译向乙，识别为乙则译向甲（例如简中 ↔ 英语）。</span>
+                      <span className="text-muted-foreground">
+                        ：识别为语言甲则译向乙，识别为乙则译向甲（例如简中 ↔ 英语）。
+                      </span>
                     </span>
                   </label>
-                  <div className={cn(
-                    'flex flex-col gap-3 transition-opacity',
-                    !config.bidirectionalAuto && 'pointer-events-none opacity-45',
-                  )}>
+                  <div
+                    className={cn(
+                      'flex flex-col gap-3 transition-opacity',
+                      !config.bidirectionalAuto && 'pointer-events-none opacity-45'
+                    )}
+                  >
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="flex min-w-0 flex-col gap-1.5">
                         <span className="text-xs font-medium text-foreground">互译语言甲</span>
@@ -633,16 +612,15 @@ export default function SettingsPanel() {
                       </div>
                     </div>
                     <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      划词与截图（OCR 后文本翻译）均会应用；选择百度「图片翻译」直出时无本地原文识别，仍以当前源/目标语言为准。
+                      划词与截图（OCR
+                      后文本翻译）均会应用；选择百度「图片翻译」直出时无本地原文识别，仍以当前源/目标语言为准。
                     </p>
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
 
-            {/* 截图 OCR（仅 OpenAI） */}
-            {config.translateProvider === 'openai' ? (
-              <TabsContent value={SETTINGS_TAB.ocr} className="mt-0">
+              {/* 截图 OCR（仅 OpenAI） */}
+              {config.translateProvider === 'openai' ? (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -658,20 +636,33 @@ export default function SettingsPanel() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       OpenAI 路线仅做<strong className="font-medium text-foreground">文本</strong>
                       翻译；截图需单独配置云端 OCR。可优先使用百度「
-                      <a className="text-primary underline-offset-2 hover:underline" href="https://cloud.baidu.com/doc/OCR/s/zk3h7xz52" target="_blank" rel="noreferrer">通用文字识别（标准版）</a>
+                      <a
+                        className="text-primary underline-offset-2 hover:underline"
+                        href="https://cloud.baidu.com/doc/OCR/s/zk3h7xz52"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        通用文字识别（标准版）
+                      </a>
                       」；未配置或失败时可走 Google Cloud Vision（请求地址内置，下方填写 API Key）。
                     </p>
                     <div className="flex flex-col gap-1.5">
                       <span className="text-xs font-medium text-foreground">百度智能云 · 通用文字识别</span>
-                      <label htmlFor="baidu-ocr-base" className="text-xs text-muted-foreground">AIP 根地址（可选）</label>
+                      <label htmlFor="baidu-ocr-base" className="text-xs text-muted-foreground">
+                        AIP 根地址（可选）
+                      </label>
                       <Input
                         id="baidu-ocr-base"
                         autoComplete="off"
                         value={config.baidu.ocrAipBaseUrl}
-                        onChange={(e) => void updateConfig({ baidu: { ...config.baidu, ocrAipBaseUrl: e.target.value } })}
+                        onChange={(e) =>
+                          void updateConfig({ baidu: { ...config.baidu, ocrAipBaseUrl: e.target.value } })
+                        }
                         placeholder="留空则 https://aip.baidubce.com"
                       />
-                      <label htmlFor="baidu-ocr-key" className="text-xs text-muted-foreground">API Key</label>
+                      <label htmlFor="baidu-ocr-key" className="text-xs text-muted-foreground">
+                        API Key
+                      </label>
                       <Input
                         id="baidu-ocr-key"
                         autoComplete="off"
@@ -701,10 +692,10 @@ export default function SettingsPanel() {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
-            ) : null}
+              ) : null}
+            </TabsContent>
 
-            {/* 交互（快捷键） */}
+            {/* 交互（快捷键 + 开机自启） */}
             <TabsContent value={SETTINGS_TAB.shortcuts} className="mt-0">
               <Card>
                 <CardHeader className="pb-2">
@@ -765,11 +756,13 @@ export default function SettingsPanel() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">深浅模式</label>
                     <div className="flex gap-1">
-                      {([
-                        { value: 'light', icon: Sun, label: '浅色' },
-                        { value: 'dark', icon: Moon, label: '深色' },
-                        { value: 'system', icon: Monitor, label: '跟随系统' },
-                      ] as const).map(({ value, label, icon: Icon }) => (
+                      {(
+                        [
+                          { value: 'light', icon: Sun, label: '浅色' },
+                          { value: 'dark', icon: Moon, label: '深色' },
+                          { value: 'system', icon: Monitor, label: '跟随系统' }
+                        ] as const
+                      ).map(({ value, label, icon: Icon }) => (
                         <Tooltip key={value}>
                           <TooltipTrigger asChild>
                             <Button
@@ -777,7 +770,8 @@ export default function SettingsPanel() {
                               size="icon"
                               className={cn(
                                 'size-9',
-                                config.theme === value && 'bg-accent text-accent-foreground shadow-sm hover:bg-accent hover:text-accent-foreground',
+                                config.theme === value &&
+                                  'bg-accent text-accent-foreground shadow-sm hover:bg-accent hover:text-accent-foreground'
                               )}
                               aria-label={label}
                               aria-pressed={config.theme === value}
@@ -827,9 +821,7 @@ export default function SettingsPanel() {
 
                   {config.appThemePreset === 'custom' && (
                     <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">
-                        色相值（0-360）：{config.customHue}
-                      </label>
+                      <label className="text-xs text-muted-foreground">色相值（0-360）：{config.customHue}</label>
                       <Slider
                         min={0}
                         max={360}
@@ -875,7 +867,12 @@ export default function SettingsPanel() {
                     size="sm"
                     className="w-fit gap-1.5"
                     onClick={() => {
-                      if (!window.confirm('将语言、翻译引擎、主题、自动复制、开机自启、快捷键等恢复为安装默认；已填写的各厂商密钥会保留。确定？')) return
+                      if (
+                        !window.confirm(
+                          '将语言、翻译引擎、主题、自动复制、开机自启、快捷键等恢复为安装默认；已填写的各厂商密钥会保留。确定？'
+                        )
+                      )
+                        return
                       void (async () => {
                         try {
                           await updateConfig({
@@ -897,7 +894,7 @@ export default function SettingsPanel() {
                             google: { ...config.google },
                             openai: { ...config.openai },
                             youdao: { ...config.youdao },
-                            firstRun: false,
+                            firstRun: false
                           })
                         } catch (e) {
                           window.alert(typeof e === 'string' ? e : String(e))
@@ -911,7 +908,6 @@ export default function SettingsPanel() {
                 </CardContent>
               </Card>
             </TabsContent>
-
           </div>
         </ScrollArea>
       </Tabs>

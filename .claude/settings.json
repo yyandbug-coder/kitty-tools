@@ -12,7 +12,11 @@
       "Bash(npx tsc *)",
       "Bash(npx vite *)",
       "Bash(mkdir -p d:/Yy/yy/App/kitty-tools/src/assets/images/icons)",
-      "Bash(cp d:/Yy/yy/App/kitty-tools/example/kitty-clipboard-history/src/assets/images/icons/*.svg d:/Yy/yy/App/kitty-tools/src/assets/images/icons/)"
+      "Bash(cp d:/Yy/yy/App/kitty-tools/example/kitty-clipboard-history/src/assets/images/icons/*.svg d:/Yy/yy/App/kitty-tools/src/assets/images/icons/)",
+      "Read(//d/Yy/yy/App/**)"
+    ],
+    "additionalDirectories": [
+      "d:\\Yy\\yy\\App\\kitty-tools\\src\\components\\shared"
     ]
   }
 }

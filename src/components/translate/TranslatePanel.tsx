@@ -31,7 +31,7 @@ export default function TranslatePanel() {
 
   const handleTranslate = async () => {
     if (!inputText.trim()) return
-    const res = await translate(inputText.trim(), config.sourceLang, config.targetLang)
+    const res = await translate({ text: inputText.trim(), source_lang: config.sourceLang, target_lang: config.targetLang })
     if (res?.translatedText) await autoCopyResult(res.translatedText)
   }
 

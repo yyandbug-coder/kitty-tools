@@ -26,6 +26,7 @@ pub struct PendingTranslation {
     pub source_text: String,
     pub translated_text: Option<String>,
     pub source_lang: Option<String>,
+    #[allow(dead_code)]
     pub target_lang: Option<String>,
     pub error: Option<String>,
 }

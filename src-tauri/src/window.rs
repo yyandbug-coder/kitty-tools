@@ -229,6 +229,9 @@ fn register_floating_window_handlers<R: Runtime>(
         match event {
             WindowEvent::Moved(position) => {
                 is_dragging.store(true, Ordering::SeqCst);
+                // 窗口正在移动，说明拖拽已实际发生，清除前端设置的交互标记
+                let app_state = app_handle.state::<crate::app_state::AppState>();
+                app_state.floating_interacting.store(false, Ordering::SeqCst);
                 let _ = app_handle.emit(
                     "floating-window-moved",
                     serde_json::json!({"x": position.x, "y": position.y}),
@@ -236,6 +239,9 @@ fn register_floating_window_handlers<R: Runtime>(
             }
             WindowEvent::Focused(true) => {
                 is_dragging.store(false, Ordering::SeqCst);
+                // 拖拽结束（窗口重新获得焦点），清除所有交互标记
+                let app_state = app_handle.state::<crate::app_state::AppState>();
+                app_state.floating_interacting.store(false, Ordering::SeqCst);
                 had_true_focus.store(true, Ordering::SeqCst);
             }
             WindowEvent::Focused(false) => {
@@ -248,9 +254,11 @@ fn register_floating_window_handlers<R: Runtime>(
                 if app_state.floating_interacting.swap(false, Ordering::SeqCst) {
                     return;
                 }
+                // 从内存中读取 pinned 状态（与前端一致），避免 SQLite 读取延迟或缓存不一致
                 let pinned = {
-                    let config = crate::config::load_config();
-                    config.floating_pinned
+                    let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
+                    let pinned = cfg_state.lock().unwrap().floating_pinned;
+                    pinned
                 };
 
                 if !pinned && had_true_focus.load(Ordering::SeqCst) {

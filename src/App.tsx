@@ -1,7 +1,7 @@
 // 剪贴板历史浮层 - Alfred 风格弹出式剪贴板管理器
 // 双栏布局：左侧列表（分页）+ 右侧预览面板
 // 参考 example/kitty-clipboard-history 的完整 UI 和交互
-import type { CSSProperties } from 'react'
+import type { CSSProperties, PointerEvent } from 'react'
 import type { AppTheme } from '@/types'
 import { lazy, Suspense, useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import toast, { Toaster } from 'react-hot-toast'
@@ -17,7 +17,7 @@ import ClipboardItemCard from '@/components/clipboard/ClipboardItemCard'
 import ClipboardHistoryListSkeleton from '@/components/clipboard/ClipboardHistoryListSkeleton'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Pin, Star } from 'lucide-react'
+import { Pin, Settings, Star } from 'lucide-react'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +26,7 @@ const ClipboardPreview = lazy(() => import('@/components/clipboard/ClipboardPrev
 export default function App() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const keyboardRootRef = useRef<HTMLDivElement>(null)
+  const isDraggingRef = useRef(false)
   const { config, updateConfig } = useAppConfig()
   const [systemPrefersDark, setSystemPrefersDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -83,7 +84,7 @@ export default function App() {
     let blurTimer = 0
     const clearTimer = () => { window.clearTimeout(blurTimer); blurTimer = 0 }
     const scheduleHide = () => {
-      if (!config.clipboardHideOnUnfocus) return
+      if (!config.clipboardHideOnUnfocus || isDraggingRef.current) return
       clearTimer()
       blurTimer = window.setTimeout(() => {
         blurTimer = 0
@@ -166,6 +167,24 @@ export default function App() {
     toast.success('已删除该条记录。')
   }, [removeHistoryItem])
 
+  const handleDragPointerDown = useCallback(async (event: PointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    if (target.closest('[data-no-drag="true"]')) return
+    if (event.button !== 0) return
+    isDraggingRef.current = true
+    try {
+      await getCurrentWindow().startDragging()
+    } catch { /* 非 Tauri 环境忽略 */ }
+    isDraggingRef.current = false
+  }, [])
+
+  const handleOpenSettings = useCallback(async () => {
+    try {
+      await invoke('open_settings_window')
+      await invoke('hide_window')
+    } catch { /* ignore */ }
+  }, [])
+
   return (
     <div
       ref={keyboardRootRef}
@@ -204,12 +223,13 @@ export default function App() {
                   'flex h-full min-h-0 flex-col rounded-[22px] p-2'
                 )}
               >
-                {/* 搜索栏 */}
+                {/* 搜索栏（可拖动区域） */}
                 <div
                   className={cn(
                     'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
                     'flex flex-wrap items-center gap-2 border-b px-2.5 py-2 sm:gap-2.5 sm:px-3'
                   )}
+                  onPointerDown={handleDragPointerDown}
                 >
                   <div className="flex min-w-0 shrink-0 items-center gap-2">
                     <AppLogoIcon className="size-6" alt="" aria-hidden />
@@ -221,6 +241,7 @@ export default function App() {
                       'flex min-w-0 flex-1 items-center gap-2 rounded-[16px] px-2.5 sm:gap-2.5 sm:px-3'
                     )}
                     style={searchShellStyle}
+                    data-no-drag="true"
                   >
                     <input
                       value={search}
@@ -244,7 +265,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="flex shrink-0 items-center gap-1.5" data-no-drag="true">
                     <Button
                       variant={showFavoritesOnly ? 'default' : 'ghost'}
                       size="icon-sm"
@@ -262,6 +283,15 @@ export default function App() {
                       title={config.clipboardHideOnUnfocus ? '固定面板（不自动隐藏）' : '取消固定（失焦自动隐藏）'}
                     >
                       <Pin className={cn('size-4', !config.clipboardHideOnUnfocus && 'fill-current')} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => void handleOpenSettings()}
+                      aria-label="打开设置"
+                      title="打开设置"
+                    >
+                      <Settings className="size-4" />
                     </Button>
                   </div>
                 </div>

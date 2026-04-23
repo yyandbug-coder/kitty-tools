@@ -18,6 +18,7 @@ import ClipboardHistoryListSkeleton from '@/components/clipboard/ClipboardHistor
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Pin, Star } from 'lucide-react'
+import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { cn } from '@/lib/utils'
 
 const ClipboardPreview = lazy(() => import('@/components/clipboard/ClipboardPreview'))
@@ -211,6 +212,7 @@ export default function App() {
                   )}
                 >
                   <div className="flex min-w-0 shrink-0 items-center gap-2">
+                    <AppLogoIcon className="size-6" alt="" aria-hidden />
                     <span className="text-sm font-semibold tracking-tight">{APP_DISPLAY_NAME}</span>
                   </div>
                   <div

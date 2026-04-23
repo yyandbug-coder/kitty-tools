@@ -36,6 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import HotkeyInput from '@/components/shared/HotkeyInput'
+import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import SecretField from '@/components/shared/SecretField'
 import { cn } from '@/lib/utils'
 import { formatShortcutForDisplay } from '@/lib/platform'
@@ -176,7 +177,7 @@ export default function SettingsPanel() {
     <div className="h-screen flex flex-col bg-background text-foreground">
       {/* 标题栏 */}
       <div className="flex items-center gap-3 px-4 py-3 border-b" data-tauri-drag-region>
-        <Settings className="size-4 text-primary" />
+        <AppLogoIcon className="size-5" />
         <h1 className="text-sm font-semibold" data-tauri-drag-region>
           Kitty Tools 设置
         </h1>
@@ -851,9 +852,12 @@ export default function SettingsPanel() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                    <span>Kitty Tools v0.1.0</span>
-                    <span>基于 Tauri v2 与 React 构建的桌面工具集（翻译 + 剪贴板历史）</span>
+                  <div className="flex items-center gap-3">
+                    <AppLogoIcon className="size-12" />
+                    <div className="flex flex-col gap-0.5 text-sm text-muted-foreground">
+                      <span className="text-foreground font-medium">Kitty Tools v0.1.0</span>
+                      <span>基于 Tauri v2 与 React 构建的桌面工具集（翻译 + 剪贴板历史）</span>
+                    </div>
                   </div>
                   <Button
                     variant="outline"

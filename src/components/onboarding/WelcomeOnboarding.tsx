@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAppConfig } from '@/hooks/useAppConfig';
 import { Button } from '@/components/ui/button';
 import { ClipboardList, Languages, Camera, Sparkles } from 'lucide-react';
+import AppLogoIcon from '@/components/shared/AppLogoIcon';
 
 export default function WelcomeOnboarding() {
   const { updateConfig } = useAppConfig();
@@ -44,7 +45,8 @@ export default function WelcomeOnboarding() {
 
   return (
     <div className="h-screen flex flex-col items-center justify-center bg-background text-foreground p-8">
-      <Sparkles className="size-8 text-primary mb-4" />
+      <AppLogoIcon className="size-16 mb-4" />
+      <Sparkles className="size-6 text-primary mb-2" />
       <h1 className="text-2xl font-bold mb-2">欢迎使用 Kitty Tools</h1>
       <p className="text-sm text-muted-foreground text-center mb-8 max-w-md">
         集剪贴板管理与翻译于一体的桌面工具箱。

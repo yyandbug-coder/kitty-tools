@@ -338,7 +338,6 @@ pub fn get_or_create_settings_window<R: Runtime>(
             .decorations(true)
             .resizable(true)
             .center()
-            .skip_taskbar(true)
             .visible(false)
             .build()?;
 
@@ -458,7 +457,6 @@ pub fn ensure_tray_only_app<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
             WINDOW_FLOATING,
             WINDOW_REGION_SELECT,
             WINDOW_TRANSLATE_WORKSPACE,
-            WINDOW_SETTINGS,
             WINDOW_ONBOARDING,
         ] {
             if let Some(window) = app.get_webview_window(label) {

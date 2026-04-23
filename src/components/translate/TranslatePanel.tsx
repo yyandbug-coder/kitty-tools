@@ -1,8 +1,9 @@
 // 翻译工作台面板 - 主翻译界面，支持文本输入、语言选择和截图翻译
-// 原文/译文双栏布局，参考 example/kitty-translate
+// 监听截图/划词翻译事件，将结果回显到面板中
 import { useState, useRef, useEffect } from 'react'
 import { ArrowRightLeft, Copy, Check, Loader2, Scissors, Eraser } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
@@ -13,12 +14,52 @@ import { useAppConfig } from '@/hooks/useAppConfig'
 import { getLanguageDisplayName, getProviderDisplayName } from '@/types'
 import { translateSubmitShortcutLabel } from '@/lib/platform'
 
+interface ScreenshotResultPayload {
+  translatedText?: string
+  sourceText?: string
+  sourceLang?: string
+  targetLang?: string
+  error?: string
+}
+
 export default function TranslatePanel() {
   const { config, updateConfig } = useAppConfig()
-  const { result, loading, error, translate, clearResult, applyError } = useTranslate()
+  const { result, loading, error, translate, clearResult, applyResult, applyError, setLoadingState } = useTranslate()
   const [inputText, setInputText] = useState('')
   const [copied, setCopied] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // 监听截图/划词翻译结果，回显到面板
+  useEffect(() => {
+    let cancelled = false
+    let unlistenResult: UnlistenFn | undefined
+    let unlistenStart: UnlistenFn | undefined
+    ;(async () => {
+      unlistenStart = await listen<string>('translate-selection-start', (event) => {
+        if (event.payload) {
+          setInputText(typeof event.payload === 'string' ? event.payload : '')
+          setLoadingState(true)
+        }
+      })
+      unlistenResult = await listen<ScreenshotResultPayload>('translate-selection-result', (event) => {
+        const p = event.payload
+        if (p?.error) {
+          applyError(p.error)
+        } else if (p?.translatedText) {
+          setInputText(p.sourceText ?? '')
+          applyResult({
+            sourceText: p.sourceText ?? '',
+            translatedText: p.translatedText,
+            sourceLang: p.sourceLang ?? '',
+            targetLang: p.targetLang ?? '',
+            provider: '',
+          })
+        }
+      })
+      if (cancelled) { unlistenResult?.(); unlistenStart?.() }
+    })()
+    return () => { cancelled = true; unlistenResult?.(); unlistenStart?.() }
+  }, [applyResult, applyError, setLoadingState])
 
   useEffect(() => {
     inputRef.current?.focus()

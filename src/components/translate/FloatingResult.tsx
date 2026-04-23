@@ -1,6 +1,6 @@
 // 划词翻译浮窗结果面板 - 显示选中文字的翻译结果
 // 支持原文/译文分栏、语言切换、固定窗口、拖动移动、自动复制
-import { useEffect, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useState, useMemo, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { ArrowRightLeft, Check, Copy, Loader2, Pin, PinOff, Settings, X } from 'lucide-react'
@@ -12,7 +12,8 @@ import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/comp
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { cn } from '@/lib/utils'
 import { translateSubmitShortcutLabel } from '@/lib/platform'
-import { getLanguageDisplayName } from '@/types'
+import { getThemeRuntimeStyle } from '@/lib/theme'
+import { type AppTheme, getLanguageDisplayName } from '@/types'
 
 interface EventPayload {
   text: string
@@ -40,6 +41,12 @@ export default function FloatingResult() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<CopyTarget>(null)
   const [detectedSourceLang, setDetectedSourceLang] = useState<string | null>(null)
+  const [systemPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
+  const appStyle = useMemo(
+    () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
+    [config.appThemePreset, config.customHue, isDarkMode],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -187,7 +194,15 @@ export default function FloatingResult() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground">
+      <div
+        className={cn(
+          'flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
+          isDarkMode && 'dark',
+        )}
+        data-kitty-theme-scope
+        data-theme={config.appThemePreset}
+        style={appStyle}
+      >
         {/* 标题栏 - 可拖动 */}
         <div
           className="flex shrink-0 items-center justify-between border-b border-border/70 px-4 py-3"

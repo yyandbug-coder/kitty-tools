@@ -24,3 +24,10 @@ dist-ssr
 *.sw?
 
 example
+
+.agents
+.claude
+CLAUDE.md
+
+
+pnpm-lock.yaml

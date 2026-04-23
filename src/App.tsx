@@ -26,6 +26,7 @@ const ClipboardPreview = lazy(() => import('@/components/clipboard/ClipboardPrev
 export default function App() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const keyboardRootRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const isDraggingRef = useRef(false)
   const { config, updateConfig } = useAppConfig()
   const [systemPrefersDark, setSystemPrefersDark] = useState(
@@ -74,7 +75,7 @@ export default function App() {
 
   // Focus keyboard root on show
   useEffect(() => {
-    const focus = () => keyboardRootRef.current?.focus({ preventScroll: true })
+    const focus = () => searchInputRef.current?.focus({ preventScroll: true })
     const unlisten = listen('focus-clipboard-panel', () => { focus(); setTimeout(focus, 100) })
     return () => { unlisten.then(fn => fn()) }
   }, [])
@@ -95,7 +96,7 @@ export default function App() {
     }
     const onFocus = () => {
       clearTimer()
-      requestAnimationFrame(() => keyboardRootRef.current?.focus({ preventScroll: true }))
+      requestAnimationFrame(() => searchInputRef.current?.focus({ preventScroll: true }))
     }
     window.addEventListener('blur', scheduleHide)
     window.addEventListener('focus', onFocus)
@@ -243,6 +244,7 @@ export default function App() {
                     data-no-drag="true"
                   >
                     <input
+                      ref={searchInputRef}
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                       placeholder="搜索文本、文件名或路径..."

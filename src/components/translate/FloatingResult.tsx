@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { ArrowRightLeft, Check, Copy, Loader2, Pin, PinOff, Settings, X } from 'lucide-react'
+import { ArrowRightLeft, Check, Copy, Loader2, Pin, PinOff, Settings } from 'lucide-react'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -164,11 +164,6 @@ export default function FloatingResult() {
     if (sourceText.trim()) await runTranslation(sourceText, nextSourceLang, nextTargetLang)
   }
 
-  const handleClose = async () => {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    await getCurrentWindow().hide()
-  }
-
   const handleOpenSettings = async () => {
     try { await invoke('open_settings_window') } catch { /* ignore */ }
   }
@@ -221,14 +216,6 @@ export default function FloatingResult() {
           <div className="flex items-center gap-1" data-no-drag="true">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={() => void handleOpenSettings()} data-no-drag="true">
-                  <Settings className="size-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>打开设置</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon-sm" onClick={handleTogglePin} data-no-drag="true">
                   {config.floatingPinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
                 </Button>
@@ -237,11 +224,11 @@ export default function FloatingResult() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={handleClose} data-no-drag="true">
-                  <X className="size-3.5" />
+                <Button variant="ghost" size="icon-sm" onClick={() => void handleOpenSettings()} data-no-drag="true">
+                  <Settings className="size-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>关闭</TooltipContent>
+              <TooltipContent>打开设置</TooltipContent>
             </Tooltip>
           </div>
         </div>

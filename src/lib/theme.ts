@@ -13,10 +13,10 @@ export interface ThemeOption {
 }
 
 export const PRESET_THEMES: ThemeOption[] = [
-  { id: 'default', label: '默认玫瑰', accent: '#e11d48' },
+  { id: 'default', label: '默认玫瑰', accent: '#e83095' },
   { id: 'ocean', label: '海雾青', accent: '#06b6d4' },
   { id: 'forest', label: '林地绿', accent: '#10b981' },
-  { id: 'sunset', label: '落日橙', accent: '#f97316' },
+  { id: 'sunset', label: '落日橙', accent: '#f97316' }
 ]
 
 interface DerivedPalette {
@@ -27,9 +27,9 @@ interface DerivedPalette {
 
 function derivePaletteFromHue(hue: number): DerivedPalette {
   return {
-    primary: hslToHex(hue, 0.72, 0.40),
+    primary: hslToHex(hue, 0.72, 0.4),
     accent: hslToHex(hue, 0.55, 0.72),
-    surface: hslToHex(hue, 0.18, 0.92),
+    surface: hslToHex(hue, 0.18, 0.92)
   }
 }
 
@@ -38,7 +38,7 @@ export function getThemeOption(theme: AppTheme, customHue = DEFAULT_CUSTOM_HUE):
     const palette = derivePaletteFromHue(customHue)
     return { id: 'custom', label: '自定义颜色', accent: palette.primary }
   }
-  return PRESET_THEMES.find(o => o.id === theme) ?? PRESET_THEMES[0]
+  return PRESET_THEMES.find((o) => o.id === theme) ?? PRESET_THEMES[0]
 }
 
 export function getThemeAccent(theme: AppTheme, customHue = DEFAULT_CUSTOM_HUE): string {
@@ -74,10 +74,10 @@ function buildCustomThemeVariables(hue: number, isDarkMode: boolean) {
       '--destructive-foreground': '#ffffff',
       '--border': border,
       '--input': mixColors(card, '#ffffff', 0.26),
-      '--ring': palette.primary,
+      '--ring': palette.primary
     } as Record<string, string>
   }
-  const background = mixColors(palette.surface, '#0f0f12', 0.90)
+  const background = mixColors(palette.surface, '#0f0f12', 0.9)
   const card = mixColors(palette.surface, '#17171c', 0.84)
   const secondary = mixColors(palette.surface, '#202026', 0.76)
   const muted = mixColors(palette.surface, '#19191e', 0.82)
@@ -97,14 +97,14 @@ function buildCustomThemeVariables(hue: number, isDarkMode: boolean) {
     '--secondary': secondary,
     '--secondary-foreground': foreground,
     '--muted': muted,
-    '--muted-foreground': mixColors(foreground, '#8e8e96', 0.40),
+    '--muted-foreground': mixColors(foreground, '#8e8e96', 0.4),
     '--accent': accent,
     '--accent-foreground': foreground,
     '--destructive': '#f87171',
     '--destructive-foreground': '#ffffff',
     '--border': border,
     '--input': mixColors(card, '#18181c', 0.34),
-    '--ring': primary,
+    '--ring': primary
   } as Record<string, string>
 }
 
@@ -112,7 +112,7 @@ export function getThemeRuntimeStyle(
   themePreset: string,
   customHue: number,
   isDarkMode: boolean,
-  backgroundOpacity = DEFAULT_OPACITY,
+  backgroundOpacity = DEFAULT_OPACITY
 ): Record<string, string> {
   const theme = getThemeOption(themePreset as AppTheme, customHue)
   const normalizedOpacity = Math.min(MAX_BACKGROUND_OPACITY, Math.max(MIN_BACKGROUND_OPACITY, backgroundOpacity))
@@ -122,7 +122,7 @@ export function getThemeRuntimeStyle(
   const vars: Record<string, string> = {
     '--window-alpha': `${normalizedOpacity}%`,
     '--panel-alpha': `${panelAlpha}%`,
-    '--theme-accent': theme.accent,
+    '--theme-accent': theme.accent
   }
   if (themePreset === 'custom') {
     Object.assign(vars, buildCustomThemeVariables(customHue, isDarkMode))
@@ -130,11 +130,7 @@ export function getThemeRuntimeStyle(
   return vars
 }
 
-export function getSearchShellStyle(
-  theme: AppTheme,
-  customHue: number,
-  isDarkMode: boolean,
-): Record<string, string> {
+export function getSearchShellStyle(theme: AppTheme, customHue: number, isDarkMode: boolean): Record<string, string> {
   const currentTheme = getThemeOption(theme, customHue)
   const accent = currentTheme.accent
   const backgroundBlend = isDarkMode
@@ -150,6 +146,6 @@ export function getSearchShellStyle(
   return {
     '--search-shell-bg': backgroundBlend,
     '--search-shell-border': border,
-    '--search-shell-focus-ring': focus,
+    '--search-shell-focus-ring': focus
   }
 }

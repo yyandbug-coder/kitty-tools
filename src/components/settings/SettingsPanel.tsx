@@ -20,7 +20,7 @@ import {
   Sparkles,
   ArrowRightLeft,
   Power,
-  Palette,
+  Palette
 } from 'lucide-react'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useTheme } from '@/hooks/useTheme'
@@ -33,9 +33,14 @@ import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -58,6 +63,22 @@ const SETTINGS_TAB = {
   shortcuts: 'shortcuts',
   about: 'about'
 } as const
+
+interface ITabItem {
+  value: string
+  icon: typeof Settings
+  label: string
+  firstRunOnly?: boolean
+}
+
+const TAB_ITEMS: ITabItem[] = [
+  { value: SETTINGS_TAB.welcome, icon: Sparkles, label: '入门引导', firstRunOnly: true },
+  { value: SETTINGS_TAB.general, icon: Settings, label: '通用' },
+  { value: SETTINGS_TAB.clipboard, icon: ClipboardList, label: '剪贴板' },
+  { value: SETTINGS_TAB.translate, icon: Globe, label: '翻译' },
+  { value: SETTINGS_TAB.shortcuts, icon: Keyboard, label: '交互' },
+  { value: SETTINGS_TAB.about, icon: Info, label: '关于' }
+]
 
 export default function SettingsPanel() {
   const { config, updateConfig, loaded } = useAppConfig()
@@ -201,51 +222,15 @@ export default function SettingsPanel() {
             'touch-pan-x [-webkit-overflow-scrolling:touch]'
           )}
         >
-          <TabsList className="inline-flex h-auto min-h-9 w-max max-w-none flex-nowrap justify-start gap-1 p-1 mx-4 mt-3">
-            {config.firstRun ? (
-              <TabsTrigger
-                value={SETTINGS_TAB.welcome}
-                className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
-              >
-                <Sparkles className="size-4 opacity-80" />
-                入门引导
-              </TabsTrigger>
-            ) : null}
-            <TabsTrigger
-              value={SETTINGS_TAB.general}
-              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
-            >
-              <Settings className="size-4 opacity-80" />
-              通用
-            </TabsTrigger>
-            <TabsTrigger
-              value={SETTINGS_TAB.clipboard}
-              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
-            >
-              <ClipboardList className="size-4 opacity-80" />
-              剪贴板
-            </TabsTrigger>
-            <TabsTrigger
-              value={SETTINGS_TAB.translate}
-              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
-            >
-              <Globe className="size-4 opacity-80" />
-              翻译
-            </TabsTrigger>
-            <TabsTrigger
-              value={SETTINGS_TAB.shortcuts}
-              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
-            >
-              <Keyboard className="size-4 opacity-80" />
-              交互
-            </TabsTrigger>
-            <TabsTrigger
-              value={SETTINGS_TAB.about}
-              className="shrink-0 grow-0 gap-1.5 px-2.5 py-2 sm:px-3 max-sm:text-xs"
-            >
-              <Info className="size-4 opacity-80" />
-              关于
-            </TabsTrigger>
+          <TabsList className="inline-flex h-auto w-max max-w-none flex-nowrap justify-start gap-1 p-1 mx-4 mt-3">
+            {TAB_ITEMS.map((tab) =>
+              tab.firstRunOnly && !config.firstRun ? null : (
+                <TabsTrigger key={tab.value} value={tab.value}>
+                  <tab.icon className="size-4 opacity-80" />
+                  {tab.label}
+                </TabsTrigger>
+              )
+            )}
           </TabsList>
         </div>
 
@@ -801,11 +786,13 @@ export default function SettingsPanel() {
                             type="button"
                             className={cn(
                               'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                              active
-                                ? 'text-white shadow-sm'
-                                : 'bg-background hover:bg-accent/50'
+                              active ? 'text-white shadow-sm' : 'bg-background hover:bg-accent/50'
                             )}
-                            style={active ? { backgroundColor: t.accent, borderColor: t.accent } : { borderColor: t.accent, color: t.accent }}
+                            style={
+                              active
+                                ? { backgroundColor: t.accent, borderColor: t.accent }
+                                : { borderColor: t.accent, color: t.accent }
+                            }
                             onClick={() => void updateConfig({ appThemePreset: t.id })}
                           >
                             {t.label}
@@ -823,13 +810,12 @@ export default function SettingsPanel() {
                                 type="button"
                                 className={cn(
                                   'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                                  customActive
-                                    ? 'text-white shadow-sm'
-                                    : 'bg-background hover:bg-accent/50'
+                                  customActive ? 'text-white shadow-sm' : 'bg-background hover:bg-accent/50'
                                 )}
-                                style={customActive
-                                  ? { backgroundColor: customColor, borderColor: customColor }
-                                  : { borderColor: customColor, color: customColor }
+                                style={
+                                  customActive
+                                    ? { backgroundColor: customColor, borderColor: customColor }
+                                    : { borderColor: customColor, color: customColor }
                                 }
                               >
                                 {!customActive && <Palette className="size-3 shrink-0" />}
@@ -929,7 +915,7 @@ export default function SettingsPanel() {
                     google: { ...config.google },
                     openai: { ...config.openai },
                     youdao: { ...config.youdao },
-                    firstRun: false,
+                    firstRun: false
                   })
                   toast.success('已恢复默认设置')
                 } catch (e) {

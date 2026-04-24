@@ -45,6 +45,7 @@ import HotkeyInput from '@/components/shared/HotkeyInput'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import SecretField from '@/components/shared/SecretField'
 import { cn } from '@/lib/utils'
+import { hexToHue, hueToHex } from '@/lib/color'
 import { formatShortcutForDisplay } from '@/lib/platform'
 
 const SETTINGS_TAB = {
@@ -822,14 +823,18 @@ export default function SettingsPanel() {
 
                   {config.appThemePreset === 'custom' && (
                     <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">色相值（0-360）：{config.customHue}</label>
-                      <Slider
-                        min={0}
-                        max={360}
-                        step={1}
-                        value={[config.customHue]}
-                        onValueChange={([v]) => void updateConfig({ customHue: v })}
-                      />
+                      <label className="text-xs text-muted-foreground">自定义颜色</label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={hueToHex(config.customHue)}
+                          onChange={(e) => void updateConfig({ customHue: hexToHue(e.target.value) })}
+                          className="size-10 shrink-0 cursor-pointer rounded-md border border-border bg-transparent p-0.5 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch]:border-none"
+                        />
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {hueToHex(config.customHue)}
+                        </span>
+                      </div>
                     </div>
                   )}
 

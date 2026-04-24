@@ -119,7 +119,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   launchOnStartup: false,
   firstRun: true,
   appThemePreset: 'default',
-  customHue: 0,
+  customHue: 160,
   backgroundOpacity: 72,
   clipboardShortcut: 'CommandOrControl+Shift+V',
   clipboardHideOnUnfocus: true,

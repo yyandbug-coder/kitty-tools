@@ -85,3 +85,21 @@ export function hslToHex(h: number, s: number, l: number): string {
     b: Math.round((b + m) * 255),
   })
 }
+
+export function hueToHex(hue: number): string {
+  return hslToHex(((hue % 360) + 360) % 360, 1, 0.5)
+}
+
+export function hexToHue(hex: string): number {
+  const { r, g, b } = hexToRgb(hex)
+  const rn = r / 255, gn = g / 255, bn = b / 255
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn)
+  const d = max - min
+  if (d === 0) return 0
+  let h: number
+  if (max === rn) h = ((gn - bn) / d) % 6
+  else if (max === gn) h = (bn - rn) / d + 2
+  else h = (rn - gn) / d + 4
+  h = Math.round(h * 60)
+  return ((h % 360) + 360) % 360
+}

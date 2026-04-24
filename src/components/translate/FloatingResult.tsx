@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useMemo, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { ArrowRightLeft, Check, Copy, Loader2, Pin, PinOff, RotateCcw, Settings } from 'lucide-react'
+import { ArrowRightLeft, Check, Copy, Loader2, Pin, RotateCcw, Settings } from 'lucide-react'
+import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -223,7 +224,7 @@ export default function FloatingResult() {
           onPointerDown={handleDragPointerDown}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium tracking-tight">
-            <ArrowRightLeft className="size-4 text-primary shrink-0" />
+            <AppLogoIcon className="size-5 shrink-0" aria-hidden />
             <span className="shrink-0">快速翻译</span>
             <span className="truncate text-xs font-normal text-muted-foreground">
               {translateSubmitShortcutLabel()} 翻译
@@ -232,8 +233,8 @@ export default function FloatingResult() {
           <div className="flex items-center gap-1" data-no-drag="true">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={handleTogglePin} data-no-drag="true">
-                  {config.floatingPinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
+                <Button variant={config.floatingPinned ? 'default' : 'ghost'} size="icon-sm" onClick={handleTogglePin} data-no-drag="true">
+                  <Pin className={cn('size-4', config.floatingPinned && 'fill-current')} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{config.floatingPinned ? '已固定窗口' : '失焦后自动关闭'}</TooltipContent>

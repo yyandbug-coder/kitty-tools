@@ -3,7 +3,7 @@
 import React from 'react'
 import type { CSSProperties } from 'react'
 import ReactDOM from 'react-dom/client'
-import { Languages } from 'lucide-react'
+import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { useState, useMemo } from 'react'
 import { ConfigProvider, useAppConfig } from '@/hooks/useAppConfig'
 import { formatShortcutForDisplay } from '@/lib/platform'
@@ -41,7 +41,7 @@ function TranslateWorkspaceApp() {
         data-tauri-drag-region
       >
         <div className="flex items-center gap-2" data-tauri-drag-region>
-          <Languages className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <AppLogoIcon className="size-5 shrink-0" aria-hidden />
           <h1 className="text-sm font-semibold tracking-tight">翻译工作台</h1>
         </div>
         <p className="truncate pl-6 text-[11px] leading-tight text-muted-foreground" data-tauri-drag-region>

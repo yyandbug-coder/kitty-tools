@@ -218,7 +218,7 @@ export default function App() {
                   onPointerDown={handleDragPointerDown}
                 >
                   <div className="flex min-w-0 shrink-0 items-center gap-2">
-                    <AppLogoIcon className="size-6" alt="" aria-hidden />
+                    <AppLogoIcon className="size-8" alt="" aria-hidden />
                     <span className="text-sm font-semibold tracking-tight">{APP_DISPLAY_NAME}</span>
                   </div>
                   <div

@@ -213,7 +213,7 @@ export default function SettingsPanel() {
       {/* 标题栏 */}
       <div className="flex items-center gap-3 px-4 py-3 border-b" data-tauri-drag-region>
         <AppLogoIcon className="size-5" />
-        <h1 className="text-sm font-semibold" data-tauri-drag-region>
+        <h1 className="text-sm font-semibold tracking-tight" data-tauri-drag-region>
           Kitty Tools 设置
         </h1>
       </div>

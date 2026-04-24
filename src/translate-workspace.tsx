@@ -4,22 +4,29 @@ import React from 'react'
 import type { CSSProperties } from 'react'
 import ReactDOM from 'react-dom/client'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ConfigProvider, useAppConfig } from '@/hooks/useAppConfig'
 import { formatShortcutForDisplay } from '@/lib/platform'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import type { AppTheme } from '@/types'
 import TranslatePanel from '@/components/translate/TranslatePanel'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import '@/assets/styles/tailwind/index.css'
 
 function TranslateWorkspaceApp() {
   const { config } = useAppConfig()
-  const [systemPrefersDark] = useState(
+  const [systemPrefersDark, setSystemPrefersDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
   const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode, config.backgroundOpacity) as CSSProperties,
@@ -62,6 +69,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ConfigProvider>
         <TooltipProvider>
           <TranslateWorkspaceApp />
+          <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
         </TooltipProvider>
       </ConfigProvider>
     </ErrorBoundary>

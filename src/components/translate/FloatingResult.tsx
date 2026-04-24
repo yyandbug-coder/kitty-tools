@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Toaster } from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { cn } from '@/lib/utils'
 import { translateSubmitShortcutLabel } from '@/lib/platform'
@@ -42,7 +43,13 @@ export default function FloatingResult() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<CopyTarget>(null)
   const [detectedSourceLang, setDetectedSourceLang] = useState<string | null>(null)
-  const [systemPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
   const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
   const translateSeqRef = useRef(0)
   const appStyle = useMemo(
@@ -223,7 +230,7 @@ export default function FloatingResult() {
           className="flex shrink-0 items-center justify-between border-b border-border/70 px-4 py-3"
           onPointerDown={handleDragPointerDown}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium tracking-tight">
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold tracking-tight">
             <AppLogoIcon className="size-5 shrink-0" aria-hidden />
             <span className="shrink-0">快速翻译</span>
             <span className="truncate text-xs font-normal text-muted-foreground">
@@ -242,7 +249,7 @@ export default function FloatingResult() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon-sm" onClick={() => void handleOpenSettings()} data-no-drag="true">
-                  <Settings className="size-3.5" />
+                  <Settings className="size-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>打开设置</TooltipContent>
@@ -418,6 +425,7 @@ export default function FloatingResult() {
           <span>拖动顶栏移动窗口</span>
         </div>
       </div>
+      <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
     </TooltipProvider>
   )
 }

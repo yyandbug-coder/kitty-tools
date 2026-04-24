@@ -129,7 +129,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   clipboardPasteOnEnter: true,
   clipboardDisableTextSelection: true,
   sourceLang: 'auto',
-  targetLang: 'en',
+  targetLang: 'auto',
   translateProvider: 'youdao',
   baidu: { appId: '', secret: '', ocrApiKey: '', ocrSecretKey: '', ocrAipBaseUrl: '' },
   google: { apiKey: '', visionApiUrl: '', translateApiUrl: '' },
@@ -141,7 +141,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   floatingPinned: false,
   floatingWindowX: null,
   floatingWindowY: null,
-  bidirectionalAuto: false,
+  bidirectionalAuto: true,
   bidirectionalLangA: 'zh-CN',
   bidirectionalLangB: 'en',
 };

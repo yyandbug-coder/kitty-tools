@@ -142,7 +142,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             source_lang: "auto".to_string(),
-            target_lang: "en".to_string(),
+            target_lang: "auto".to_string(),
             translate_provider: "youdao".to_string(),
             baidu: BaiduConfig::default(),
             google: GoogleConfig {
@@ -166,7 +166,7 @@ impl Default for AppConfig {
             floating_window_x: None,
             floating_window_y: None,
             first_run: true,
-            bidirectional_auto: false,
+            bidirectional_auto: true,
             bidirectional_lang_a: "zh-CN".to_string(),
             bidirectional_lang_b: "en".to_string(),
 
@@ -225,7 +225,7 @@ impl Default for AppConfigLegacy {
     fn default() -> Self {
         Self {
             source_lang: "auto".to_string(),
-            target_lang: "en".to_string(),
+            target_lang: "auto".to_string(),
             translate_provider: "youdao".to_string(),
             baidu_app_id: String::new(),
             baidu_secret: String::new(),
@@ -249,7 +249,7 @@ impl Default for AppConfigLegacy {
             floating_window_x: None,
             floating_window_y: None,
             first_run: true,
-            bidirectional_auto: false,
+            bidirectional_auto: true,
             bidirectional_lang_a: default_bidirectional_lang_a(),
             bidirectional_lang_b: default_bidirectional_lang_b(),
         }

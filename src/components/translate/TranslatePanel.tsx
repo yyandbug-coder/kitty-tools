@@ -84,8 +84,10 @@ export default function TranslatePanel() {
   }
 
   const handleSwapLanguages = () => {
-    if (config.sourceLang === 'auto') return
-    void updateConfig({ sourceLang: config.targetLang, targetLang: config.sourceLang })
+    if (config.sourceLang === 'auto' && config.targetLang === 'auto') return
+    const nextSource = config.targetLang === 'auto' ? config.sourceLang : config.targetLang
+    const nextTarget = config.sourceLang === 'auto' ? config.targetLang : config.sourceLang
+    void updateConfig({ sourceLang: nextSource, targetLang: nextTarget })
     if (result) {
       setInputText(result.translatedText)
       clearResult()
@@ -134,7 +136,7 @@ export default function TranslatePanel() {
               variant="ghost"
               size="icon"
               onClick={handleSwapLanguages}
-              disabled={config.sourceLang === 'auto'}
+              disabled={config.sourceLang === 'auto' && config.targetLang === 'auto'}
               className="shrink-0"
             >
               <ArrowRightLeft className="size-4" />
@@ -146,7 +148,6 @@ export default function TranslatePanel() {
           <LanguageSelector
             value={config.targetLang}
             onChange={(v) => void updateConfig({ targetLang: v })}
-            excludeCodes={['auto']}
           />
         </div>
       </div>

@@ -117,7 +117,9 @@ export default function FloatingResult() {
 
     try {
       const result = await invoke<RawTranslateResult>('translate_text', {
-        request: { text, source_lang: sourceLang, target_lang: targetLang },
+        text,
+        sourceLang,
+        targetLang,
       })
       setSourceText(result.sourceText ?? result.source_text ?? text)
       setTranslatedText(result.translatedText ?? result.translated_text ?? '')
@@ -157,9 +159,9 @@ export default function FloatingResult() {
   }
 
   const handleSwapLanguages = async () => {
-    if (config.sourceLang === 'auto') return
-    const nextSourceLang = config.targetLang
-    const nextTargetLang = config.sourceLang
+    if (config.sourceLang === 'auto' && config.targetLang === 'auto') return
+    const nextSourceLang = config.targetLang === 'auto' ? config.sourceLang : config.targetLang
+    const nextTargetLang = config.sourceLang === 'auto' ? config.targetLang : config.sourceLang
     await updateConfig({ sourceLang: nextSourceLang, targetLang: nextTargetLang })
     if (sourceText.trim()) await runTranslation(sourceText, nextSourceLang, nextTargetLang)
   }
@@ -244,7 +246,7 @@ export default function FloatingResult() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={handleSwapLanguages}
-                disabled={config.sourceLang === 'auto'}
+                disabled={config.sourceLang === 'auto' && config.targetLang === 'auto'}
               >
                 <ArrowRightLeft className="size-3.5" />
               </Button>
@@ -252,7 +254,7 @@ export default function FloatingResult() {
             <TooltipContent>交换语言</TooltipContent>
           </Tooltip>
           <div className="min-w-0 flex-1">
-            <LanguageSelector value={config.targetLang} onChange={(v) => void handleTargetLangChange(v)} excludeCodes={['auto']} />
+            <LanguageSelector value={config.targetLang} onChange={(v) => void handleTargetLangChange(v)}  />
           </div>
         </div>
 

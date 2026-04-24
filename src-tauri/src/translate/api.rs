@@ -132,13 +132,14 @@ fn lang_slots_match(detected_canon: &str, slot_canon: &str) -> bool {
     lang_family_key(detected_canon) == lang_family_key(slot_canon)
 }
 
-/// 开启双向互译且源语言为 `auto` 时：根据本地 Lingua 结果在两种语言间选定 `source_lang` / `target_lang`。
+/// 当源语言或目标语言为 `auto` 时：根据本地 Lingua 结果在 `bidirectional_lang_a` / `bidirectional_lang_b` 间自动选向。
 /// 识别不确定或与甲、乙均不匹配时，保持原请求（仍由在线引擎处理 `auto`）。
 pub fn resolve_translate_request(
     request: &TranslateRequest,
     cfg: &crate::config::AppConfig,
 ) -> TranslateRequest {
-    if !cfg.bidirectional_auto || request.source_lang != "auto" {
+    let need_resolve = request.source_lang == "auto" || request.target_lang == "auto";
+    if !need_resolve {
         return request.clone();
     }
     let a = canonicalize_app_lang(&cfg.bidirectional_lang_a);
@@ -151,21 +152,35 @@ pub fn resolve_translate_request(
         return request.clone();
     }
     let eff_c = canonicalize_app_lang(&eff);
-    let source_lang = eff_c.clone();
-    if lang_slots_match(&eff_c, &a) {
-        TranslateRequest {
-            text: request.text.clone(),
-            source_lang,
-            target_lang: b,
+
+    if request.source_lang == "auto" && request.target_lang == "auto" {
+        // auto → auto：完全根据检测结果选向
+        if lang_slots_match(&eff_c, &a) {
+            TranslateRequest { text: request.text.clone(), source_lang: eff_c.clone(), target_lang: b }
+        } else if lang_slots_match(&eff_c, &b) {
+            TranslateRequest { text: request.text.clone(), source_lang: eff_c.clone(), target_lang: a }
+        } else {
+            TranslateRequest { text: request.text.clone(), source_lang: eff_c.clone(), target_lang: a }
         }
-    } else if lang_slots_match(&eff_c, &b) {
-        TranslateRequest {
-            text: request.text.clone(),
-            source_lang,
-            target_lang: a,
+    } else if request.source_lang == "auto" {
+        // source=auto, target=fixed：检测到的源与目标相同时，切换目标
+        let target_c = canonicalize_app_lang(&request.target_lang);
+        if lang_slots_match(&eff_c, &target_c) {
+            let resolved_target = if lang_slots_match(&target_c, &a) { b.clone() } else { a.clone() };
+            TranslateRequest { text: request.text.clone(), source_lang: eff_c.clone(), target_lang: resolved_target }
+        } else {
+            TranslateRequest { text: request.text.clone(), source_lang: eff_c.clone(), target_lang: request.target_lang.clone() }
         }
     } else {
-        request.clone()
+        // source=fixed, target=auto：根据源语言选目标
+        let source_c = canonicalize_app_lang(&request.source_lang);
+        if lang_slots_match(&source_c, &a) {
+            TranslateRequest { text: request.text.clone(), source_lang: source_c, target_lang: b }
+        } else if lang_slots_match(&source_c, &b) {
+            TranslateRequest { text: request.text.clone(), source_lang: source_c, target_lang: a }
+        } else {
+            TranslateRequest { text: request.text.clone(), source_lang: source_c, target_lang: a }
+        }
     }
 }
 

@@ -24,7 +24,6 @@ const TRAY_SELECTION_ID: &str = "tray-selection";
 const TRAY_SCREENSHOT_ID: &str = "tray-screenshot";
 const TRAY_WORKSPACE_ID: &str = "tray-workspace";
 const TRAY_SETTINGS_ID: &str = "tray-settings";
-const TRAY_ONBOARDING_ID: &str = "tray-onboarding";
 const TRAY_QUIT_ID: &str = "tray-quit";
 
 /// Frontend has acknowledged the exit flush; used by the 15-second deadline.
@@ -69,7 +68,6 @@ fn hotkey_display_for_tray(h: &str) -> String {
 /// ├── ────────────
 /// ├── 翻译工作台
 /// ├── 打开设置...
-/// ├── 欢迎页面
 /// ├── ────────────
 /// └── 退出
 /// ```
@@ -84,7 +82,7 @@ pub fn build_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             return Ok(());
         }
     };
-    let tray_builder = TrayIconBuilder::with_id(TRAY_ID)
+    let mut tray_builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("Kitty Tools · 右键打开菜单")
         .icon(icon)
         .menu(&menu)
@@ -107,11 +105,6 @@ pub fn build_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
             TRAY_SETTINGS_ID => {
                 if let Err(e) = window::show_settings_window(app) {
                     eprintln!("[kitty-tools] 打开设置窗口失败: {}", e);
-                }
-            }
-            TRAY_ONBOARDING_ID => {
-                if let Err(e) = window::show_onboarding_window(app) {
-                    eprintln!("[kitty-tools] 打开欢迎页面失败: {}", e);
                 }
             }
             TRAY_QUIT_ID => {
@@ -187,13 +180,6 @@ fn build_tray_menu<R: Runtime>(
         true,
         None::<&str>,
     )?;
-    let tray_onboarding = MenuItem::with_id(
-        app,
-        TRAY_ONBOARDING_ID,
-        "欢迎页面",
-        true,
-        None::<&str>,
-    )?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let tray_quit = MenuItem::with_id(app, TRAY_QUIT_ID, "退出", true, None::<&str>)?;
 
@@ -206,7 +192,6 @@ fn build_tray_menu<R: Runtime>(
             &sep1,
             &tray_workspace,
             &tray_settings,
-            &tray_onboarding,
             &sep2,
             &tray_quit,
         ],

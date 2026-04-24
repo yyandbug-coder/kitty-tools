@@ -6,6 +6,8 @@ use super::watcher::ClipboardEvent;
 use super::image_cache;
 
 #[cfg(target_os = "macos")]
+use objc2::ClassType;
+#[cfg(target_os = "macos")]
 use objc2::runtime::ProtocolObject;
 #[cfg(target_os = "macos")]
 use objc2_foundation::{NSArray, NSString, NSURL};
@@ -117,7 +119,7 @@ fn simulate_macos_paste() -> Result<(), ()> {
 }
 
 #[cfg(target_os = "macos")]
-fn read_macos_clipboard_files() -> Option<Vec<String>> {
+pub(crate) fn read_macos_clipboard_files() -> Option<Vec<String>> {
     unsafe {
         let pasteboard = NSPasteboard::generalPasteboard();
         let url_class = {

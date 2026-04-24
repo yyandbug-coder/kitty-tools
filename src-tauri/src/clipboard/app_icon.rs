@@ -26,7 +26,6 @@ fn app_icon_cache_put(path: String, data_url: String) {
 unsafe fn macos_app_icon_data_url_on_main(path: &str) -> Option<String> {
     use image::codecs::png::PngEncoder;
     use image::{imageops, ImageEncoder, ImageFormat};
-    use objc2::rc::Retained;
     use objc2_foundation::NSString;
     use objc2_app_kit::NSWorkspace;
     use std::ffi::c_void;

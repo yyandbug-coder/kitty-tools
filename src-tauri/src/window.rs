@@ -108,6 +108,7 @@ pub fn get_or_create_clipboard_popup_window<R: Runtime>(
         .shadow(false)
         .center()
         .build()?;
+    register_clipboard_popup_handlers(&window, app);
     Ok(window)
 }
 
@@ -158,6 +159,45 @@ pub fn hide_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
         let _ = app.hide();
         restore_previous_application();
     }
+}
+
+/// Register focus/blur handlers for the clipboard popup window.
+///
+/// Mirrors the floating translate window's auto-hide logic:
+/// - `Focused(true)` marks that the window has received genuine focus.
+/// - `Focused(false)` hides the window if `clipboard_hide_on_unfocus` is enabled,
+///   the window isn't being dragged, and it has previously had real focus.
+fn register_clipboard_popup_handlers<R: Runtime>(
+    window: &WebviewWindow<R>,
+    app: &tauri::AppHandle<R>,
+) {
+    let app_handle = app.clone();
+    let had_true_focus = Arc::new(AtomicBool::new(false));
+
+    window.on_window_event(move |event| {
+        match event {
+            WindowEvent::Focused(true) => {
+                let app_state = app_handle.state::<crate::app_state::AppState>();
+                app_state.clipboard_interacting.store(false, Ordering::SeqCst);
+                had_true_focus.store(true, Ordering::SeqCst);
+            }
+            WindowEvent::Focused(false) => {
+                let app_state = app_handle.state::<crate::app_state::AppState>();
+                if app_state.clipboard_interacting.swap(false, Ordering::SeqCst) {
+                    return;
+                }
+                let hide_on_unfocus = {
+                    let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
+                    let hide = cfg_state.lock().unwrap().clipboard_hide_on_unfocus;
+                    hide
+                };
+                if hide_on_unfocus && had_true_focus.load(Ordering::SeqCst) {
+                    hide_clipboard_popup(&app_handle);
+                }
+            }
+            _ => {}
+        }
+    });
 }
 
 /// Toggle clipboard popup based on visible + focused state.

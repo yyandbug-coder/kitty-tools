@@ -27,7 +27,6 @@ export default function App() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const keyboardRootRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const isDraggingRef = useRef(false)
   const { config, updateConfig } = useAppConfig()
   const [systemPrefersDark, setSystemPrefersDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -73,52 +72,28 @@ export default function App() {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  // Focus keyboard root on show
+  // Focus search input when panel is shown via hotkey/tray
   useEffect(() => {
     const focus = () => searchInputRef.current?.focus({ preventScroll: true })
     const unlisten = listen('focus-clipboard-panel', () => { focus(); setTimeout(focus, 100) })
     return () => { unlisten.then(fn => fn()) }
   }, [])
 
-  // Blur/focus auto-hide
+  // 失焦自动隐藏已由 Rust 原生 WindowEvent::Focused(false) 驱动（与浮动翻译窗口一致）
+  // 此处仅负责窗口获焦时的焦点管理
   useEffect(() => {
-    let blurTimer = 0
-    const clearTimer = () => { window.clearTimeout(blurTimer); blurTimer = 0 }
-    const scheduleHide = () => {
-      if (!config.clipboardHideOnUnfocus || isDraggingRef.current) return
-      clearTimer()
-      blurTimer = window.setTimeout(() => {
-        blurTimer = 0
-        getCurrentWindow().isFocused().then(focused => {
-          if (!focused) invoke('hide_window')
-        }).catch(() => {})
-      }, 360)
-    }
     const onFocus = () => {
-      clearTimer()
       requestAnimationFrame(() => searchInputRef.current?.focus({ preventScroll: true }))
     }
-    window.addEventListener('blur', scheduleHide)
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') scheduleHide()
-      else onFocus()
-    })
     const focusChanged = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
       if (focused) onFocus()
-      else scheduleHide()
     })
-    const tauriBlur = getCurrentWindow().listen('tauri://blur', scheduleHide)
     const tauriFocus = getCurrentWindow().listen('tauri://focus', onFocus)
     return () => {
-      clearTimer()
-      window.removeEventListener('blur', scheduleHide)
-      window.removeEventListener('focus', onFocus)
       focusChanged.then(fn => fn()).catch(() => {})
-      tauriBlur.then(fn => fn()).catch(() => {})
       tauriFocus.then(fn => fn()).catch(() => {})
     }
-  }, [config.clipboardHideOnUnfocus])
+  }, [])
 
   // Scroll-triggered loadMore
   useEffect(() => {
@@ -172,11 +147,9 @@ export default function App() {
     const target = event.target as HTMLElement
     if (target.closest('[data-no-drag="true"]')) return
     if (event.button !== 0) return
-    isDraggingRef.current = true
     try {
-      await getCurrentWindow().startDragging()
+      await invoke('start_clipboard_drag')
     } catch { /* 非 Tauri 环境忽略 */ }
-    isDraggingRef.current = false
   }, [])
 
   const handleOpenSettings = useCallback(async () => {

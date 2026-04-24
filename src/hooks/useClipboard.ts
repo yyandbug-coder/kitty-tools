@@ -225,7 +225,7 @@ export function useClipboard(config: AppConfig) {
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const target = e.target
     if (
-      target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLTextAreaElement ||
       (target instanceof HTMLElement && target.isContentEditable)
     ) {
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') return

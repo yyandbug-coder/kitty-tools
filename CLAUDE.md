@@ -76,3 +76,5 @@ src/components/ui/  → shadcn/ui components
 7、系统导出文件的功能需要同步支持 windows、macos
 
 8、components 目录下除了 ui，其他组件格式必须为xxx/index.tsx
+
+9、example中的代码不要修改，那是代码示例，需要修改的是根目录的代码

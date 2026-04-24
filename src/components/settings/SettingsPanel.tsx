@@ -63,6 +63,7 @@ export default function SettingsPanel() {
   const [testFeedback, setTestFeedback] = useState<{ ok: boolean; text: string } | null>(null)
   const [activeTab, setActiveTab] = useState<string>(SETTINGS_TAB.general)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+  const customColorRef = useRef<HTMLInputElement>(null)
   const hasShownFirstRunTabRef = useRef(false)
   useTheme(config.theme)
 
@@ -806,37 +807,28 @@ export default function SettingsPanel() {
                           {t.label}
                         </Button>
                       ))}
-                      <Button
-                        variant={config.appThemePreset === 'custom' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => void updateConfig({ appThemePreset: 'custom' })}
-                        className="text-xs gap-1.5"
-                      >
-                        <span
-                          className="inline-block size-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: getThemeOption('custom', config.customHue).accent }}
-                        />
-                        自定义
-                      </Button>
-                    </div>
-                  </div>
-
-                  {config.appThemePreset === 'custom' && (
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">自定义颜色</label>
-                      <div className="flex items-center gap-3">
+                      <div className="relative inline-flex">
+                        <Button
+                          variant={config.appThemePreset === 'custom' ? 'default' : 'outline'}
+                          size="sm"
+                          className="pointer-events-none text-xs gap-1.5"
+                        >
+                          <span
+                            className="inline-block size-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: getThemeOption('custom', config.customHue).accent }}
+                          />
+                          自定义
+                        </Button>
                         <input
+                          ref={customColorRef}
                           type="color"
                           value={hueToHex(config.customHue)}
-                          onChange={(e) => void updateConfig({ customHue: hexToHue(e.target.value) })}
-                          className="size-10 shrink-0 cursor-pointer rounded-md border border-border bg-transparent p-0.5 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch]:border-none"
+                          onChange={(e) => void updateConfig({ appThemePreset: 'custom', customHue: hexToHue(e.target.value) })}
+                          className="absolute inset-0 cursor-pointer opacity-0"
                         />
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {hueToHex(config.customHue)}
-                        </span>
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">

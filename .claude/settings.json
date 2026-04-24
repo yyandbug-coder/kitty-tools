@@ -15,7 +15,8 @@
       "Bash(cp d:/Yy/yy/App/kitty-tools/example/kitty-clipboard-history/src/assets/images/icons/*.svg d:/Yy/yy/App/kitty-tools/src/assets/images/icons/)",
       "Read(//d/Yy/yy/App/**)",
       "Bash(npx shadcn@latest add alert-dialog context-menu popover slider skeleton input --overwrite)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(pnpm dev *)"
     ],
     "additionalDirectories": [
       "d:\\Yy\\yy\\App\\kitty-tools\\src\\components\\shared"

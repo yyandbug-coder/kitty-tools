@@ -45,7 +45,7 @@ import HotkeyInput from '@/components/shared/HotkeyInput'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import SecretField from '@/components/shared/SecretField'
 import { cn } from '@/lib/utils'
-import { hexToHue, hueToHex } from '@/lib/color'
+import { hexToHue, hueToHex, getContrastColor } from '@/lib/color'
 import { formatShortcutForDisplay } from '@/lib/platform'
 
 const SETTINGS_TAB = {
@@ -809,14 +809,14 @@ export default function SettingsPanel() {
                       ))}
                       <div className="relative inline-flex">
                         <Button
-                          variant={config.appThemePreset === 'custom' ? 'default' : 'outline'}
                           size="sm"
-                          className="pointer-events-none text-xs gap-1.5"
+                          className="pointer-events-none text-xs font-medium border-2"
+                          style={{
+                            backgroundColor: config.appThemePreset === 'custom' ? getThemeOption('custom', config.customHue).accent : 'transparent',
+                            borderColor: getThemeOption('custom', config.customHue).accent,
+                            color: config.appThemePreset === 'custom' ? getContrastColor(getThemeOption('custom', config.customHue).accent) : 'inherit',
+                          }}
                         >
-                          <span
-                            className="inline-block size-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: getThemeOption('custom', config.customHue).accent }}
-                          />
                           自定义
                         </Button>
                         <input

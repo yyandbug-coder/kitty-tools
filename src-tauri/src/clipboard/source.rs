@@ -107,8 +107,9 @@ fn resolve_clipboard_source_windows() -> ClipboardSource {
             .or_else(|| full.rsplit('/').next())
             .unwrap_or(&full);
         let base = base
-            .trim_end_matches(".exe")
-            .trim_end_matches(".EXE")
+            .strip_suffix(".exe")
+            .or_else(|| base.strip_suffix(".EXE"))
+            .unwrap_or(base)
             .trim();
         let app_name = if base.is_empty() {
             None

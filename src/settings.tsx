@@ -7,6 +7,7 @@ import { ConfigProvider, useAppConfig } from '@/hooks/useAppConfig'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import type { AppTheme } from '@/types'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from 'react-hot-toast'
 import SettingsPanel from '@/components/settings/SettingsPanel'
 import { cn } from '@/lib/utils'
 import '@/assets/styles/tailwind/index.css'
@@ -18,8 +19,8 @@ function SettingsApp() {
   )
   const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
   const appStyle = useMemo(
-    () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
-    [config.appThemePreset, config.customHue, isDarkMode],
+    () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode, config.backgroundOpacity) as CSSProperties,
+    [config.appThemePreset, config.customHue, isDarkMode, config.backgroundOpacity],
   )
 
   return (
@@ -42,6 +43,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ConfigProvider>
       <TooltipProvider>
         <SettingsApp />
+        <Toaster />
       </TooltipProvider>
     </ConfigProvider>
   </React.StrictMode>,

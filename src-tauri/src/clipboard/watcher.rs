@@ -50,12 +50,13 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
         loop {
             std::thread::sleep(Duration::from_millis(300));
 
+            let src = resolve_clipboard_source();
+
             #[cfg(target_os = "macos")]
             if let Some(file_paths) = super::paste::read_macos_clipboard_files() {
                 let content_hash = image_cache::hash_file_paths(&file_paths);
                 if last_content != content_hash {
                     last_content = content_hash;
-                    let src = resolve_clipboard_source();
                     let file_byte_sizes = image_cache::byte_sizes_for_file_paths(&file_paths);
                     let event = ClipboardEvent {
                         id: uuid::Uuid::new_v4().to_string(),
@@ -79,11 +80,7 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
             }
 
             #[cfg(target_os = "windows")]
-            if let Some(file_paths) = {
-                let src = resolve_clipboard_source();
-                super::paste::read_windows_clipboard_files().map(|p| (p, src))
-            } {
-                let (file_paths, src) = file_paths;
+            if let Some(file_paths) = super::paste::read_windows_clipboard_files() {
                 let content_hash = image_cache::hash_file_paths(&file_paths);
                 if last_content != content_hash {
                     last_content = content_hash;
@@ -109,7 +106,6 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
                 continue;
             }
 
-            let src_text = resolve_clipboard_source();
             if let Ok(text) = clipboard.get_text() {
                 if text.trim().is_empty() {
                     continue;
@@ -130,15 +126,14 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
                     image_width: None,
                     image_height: None,
                     timestamp: chrono::Utc::now().timestamp_millis(),
-                    source_app: src_text.app_name.clone(),
-                    source_app_path: src_text.app_path.clone(),
+                    source_app: src.app_name.clone(),
+                    source_app_path: src.app_path.clone(),
                     favorited: None,
                 };
                 let _ = app_handle.emit("clipboard-change", &event);
                 continue;
             }
 
-            let src_image = resolve_clipboard_source();
             if let Ok(image) = clipboard.get_image() {
                 let rgba = image.bytes.into_owned();
                 let content_hash = image_cache::hash_image(&rgba, image.width, image.height);
@@ -161,8 +156,8 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
                     image_width: Some(image.width),
                     image_height: Some(image.height),
                     timestamp: chrono::Utc::now().timestamp_millis(),
-                    source_app: src_image.app_name.clone(),
-                    source_app_path: src_image.app_path.clone(),
+                    source_app: src.app_name.clone(),
+                    source_app_path: src.app_path.clone(),
                     favorited: None,
                 };
                 let _ = app_handle.emit("clipboard-change", &event);

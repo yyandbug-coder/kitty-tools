@@ -44,8 +44,8 @@ export default function FloatingResult() {
   const [systemPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
   const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
   const appStyle = useMemo(
-    () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
-    [config.appThemePreset, config.customHue, isDarkMode],
+    () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode, config.backgroundOpacity) as CSSProperties,
+    [config.appThemePreset, config.customHue, isDarkMode, config.backgroundOpacity],
   )
 
   useEffect(() => {

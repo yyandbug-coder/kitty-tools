@@ -12,7 +12,6 @@ export default function RegionSelect() {
   const startRef = useRef<Point | null>(null)
   const currentRef = useRef<Point>({ x: 0, y: 0 })
   const [, forceUpdate] = useState(0)
-  const overlayRef = useRef<HTMLDivElement>(null)
 
   const finish = useCallback((end: Point) => {
     setDragging(false)
@@ -76,7 +75,6 @@ export default function RegionSelect() {
 
   return (
     <div
-      ref={overlayRef}
       className="fixed inset-0 select-none cursor-crosshair"
       style={{ background: 'transparent' }}
       onMouseDown={handleMouseDown}

@@ -1,6 +1,7 @@
 // 设置面板 - 应用全局设置（剪贴板/翻译/交互/外观/关于）
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import toast from 'react-hot-toast'
 import {
   Settings,
   ClipboardList,
@@ -30,6 +31,11 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -55,6 +61,7 @@ export default function SettingsPanel() {
   const [testing, setTesting] = useState(false)
   const [testFeedback, setTestFeedback] = useState<{ ok: boolean; text: string } | null>(null)
   const [activeTab, setActiveTab] = useState<string>(SETTINGS_TAB.general)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const hasShownFirstRunTabRef = useRef(false)
   useTheme(config.theme)
 
@@ -863,41 +870,7 @@ export default function SettingsPanel() {
                     variant="outline"
                     size="sm"
                     className="w-fit gap-1.5"
-                    onClick={() => {
-                      if (
-                        !window.confirm(
-                          '将语言、翻译引擎、主题、自动复制、开机自启、快捷键等恢复为安装默认；已填写的各厂商密钥会保留。确定？'
-                        )
-                      )
-                        return
-                      void (async () => {
-                        try {
-                          await updateConfig({
-                            sourceLang: DEFAULT_CONFIG.sourceLang,
-                            targetLang: DEFAULT_CONFIG.targetLang,
-                            translateProvider: DEFAULT_CONFIG.translateProvider,
-                            theme: DEFAULT_CONFIG.theme,
-                            autoCopy: DEFAULT_CONFIG.autoCopy,
-                            launchOnStartup: DEFAULT_CONFIG.launchOnStartup,
-                            floatingPinned: DEFAULT_CONFIG.floatingPinned,
-                            floatingWindowX: DEFAULT_CONFIG.floatingWindowX,
-                            floatingWindowY: DEFAULT_CONFIG.floatingWindowY,
-                            hotkeySelection: DEFAULT_CONFIG.hotkeySelection,
-                            hotkeyScreenshot: DEFAULT_CONFIG.hotkeyScreenshot,
-                            bidirectionalAuto: DEFAULT_CONFIG.bidirectionalAuto,
-                            bidirectionalLangA: DEFAULT_CONFIG.bidirectionalLangA,
-                            bidirectionalLangB: DEFAULT_CONFIG.bidirectionalLangB,
-                            baidu: { ...config.baidu },
-                            google: { ...config.google },
-                            openai: { ...config.openai },
-                            youdao: { ...config.youdao },
-                            firstRun: false
-                          })
-                        } catch (e) {
-                          window.alert(typeof e === 'string' ? e : String(e))
-                        }
-                      })()
-                    }}
+                    onClick={() => setResetConfirmOpen(true)}
                   >
                     <RotateCcw className="size-3.5" />
                     恢复默认设置（保留密钥）
@@ -908,6 +881,52 @@ export default function SettingsPanel() {
           </div>
         </ScrollArea>
       </Tabs>
+
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>恢复默认设置</AlertDialogTitle>
+            <AlertDialogDescription>
+              将语言、翻译引擎、主题、自动复制、开机自启、快捷键等恢复为安装默认；已填写的各厂商密钥会保留。确定？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  await updateConfig({
+                    sourceLang: DEFAULT_CONFIG.sourceLang,
+                    targetLang: DEFAULT_CONFIG.targetLang,
+                    translateProvider: DEFAULT_CONFIG.translateProvider,
+                    theme: DEFAULT_CONFIG.theme,
+                    autoCopy: DEFAULT_CONFIG.autoCopy,
+                    launchOnStartup: DEFAULT_CONFIG.launchOnStartup,
+                    floatingPinned: DEFAULT_CONFIG.floatingPinned,
+                    floatingWindowX: DEFAULT_CONFIG.floatingWindowX,
+                    floatingWindowY: DEFAULT_CONFIG.floatingWindowY,
+                    hotkeySelection: DEFAULT_CONFIG.hotkeySelection,
+                    hotkeyScreenshot: DEFAULT_CONFIG.hotkeyScreenshot,
+                    bidirectionalAuto: DEFAULT_CONFIG.bidirectionalAuto,
+                    bidirectionalLangA: DEFAULT_CONFIG.bidirectionalLangA,
+                    bidirectionalLangB: DEFAULT_CONFIG.bidirectionalLangB,
+                    baidu: { ...config.baidu },
+                    google: { ...config.google },
+                    openai: { ...config.openai },
+                    youdao: { ...config.youdao },
+                    firstRun: false,
+                  })
+                  toast.success('已恢复默认设置')
+                } catch (e) {
+                  toast.error(typeof e === 'string' ? e : String(e))
+                }
+              }}
+            >
+              确定恢复
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

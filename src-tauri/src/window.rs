@@ -7,6 +7,8 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+#[cfg(target_os = "macos")]
+use std::sync::Mutex;
 use tauri::window::Color;
 use tauri::{Emitter, Manager, Runtime, WebviewUrl, WebviewWindow, WindowEvent};
 

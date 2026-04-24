@@ -38,16 +38,19 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateConfig = useCallback(async (updates: Partial<AppConfig>) => {
-    const merged = { ...config, ...updates };
-    setConfig(merged);
+    let merged: AppConfig | undefined;
+    setConfig(prev => {
+      merged = { ...prev, ...updates };
+      return merged;
+    });
     try {
-      const saved = await invoke<AppConfig>('save_config_cmd', { config: merged });
+      const saved = await invoke<AppConfig>('save_config_cmd', { config: merged! });
       setConfig(saved);
     } catch (e) {
       console.error('保存配置失败:', e);
-      setConfig(config);
+      setConfig(prev => ({ ...prev, ...updates }));
     }
-  }, [config]);
+  }, []);
 
   return (
     <ConfigContext.Provider value={{ config, loaded, updateConfig }}>

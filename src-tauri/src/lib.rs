@@ -119,16 +119,17 @@ async fn translate_text(
         &cfg,
     );
     let creds = TranslateCreds::from_config(&cfg);
-    let client = reqwest::Client::new();
+    let client = app.state::<app_state::AppState>().client.clone();
     translate::api::translate(&client, &request, &cfg.translate_provider, &creds).await
 }
 
 #[tauri::command]
 async fn test_translate_connection(
+    app: tauri::AppHandle,
     provider: String,
     config: config::AppConfig,
 ) -> Result<translate::api::TranslateResult, String> {
-    let client = reqwest::Client::new();
+    let client = app.state::<app_state::AppState>().client.clone();
     let creds = TranslateCreds::from_config(&config);
     let request = TranslateRequest {
         text: "Hello".to_string(),
@@ -287,9 +288,9 @@ fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
     let target_lang = resolved.target_lang;
     let provider = cfg.translate_provider.clone();
     let creds = TranslateCreds::from_config(&cfg);
+    let client = app.state::<app_state::AppState>().client.clone();
 
     tauri::async_runtime::spawn(async move {
-        let client = reqwest::Client::new();
         let request = TranslateRequest {
             text: text_to_translate,
             source_lang,
@@ -344,6 +345,14 @@ fn prepare_and_show_region_overlay<R: Runtime + 'static>(app: tauri::AppHandle<R
             Ok(c) => c,
             Err(e) => {
                 eprintln!("[kitty-tools] 截屏失败: {}", e);
+                let app_state = app.state::<app_state::AppState>();
+                {
+                    let mut rp = app_state.region_pending.lock().unwrap();
+                    *rp = None;
+                }
+                let _ = app.emit("region-capture-failed", serde_json::json!({
+                    "error": format!("截屏失败: {}", e),
+                }));
                 return;
             }
         };
@@ -386,11 +395,15 @@ fn spawn_screenshot_translate_pipeline<R: Runtime>(
     let creds = TranslateCreds::from_config(cfg);
     let baidu_app_id = cfg.baidu.app_id.clone();
     let baidu_secret = cfg.baidu.secret.clone();
+    let baidu_ocr_api_key = cfg.baidu.ocr_api_key.clone();
+    let baidu_ocr_secret_key = cfg.baidu.ocr_secret_key.clone();
+    let baidu_ocr_aip_base_url = cfg.baidu.ocr_aip_base_url.clone();
+    let client = app.state::<app_state::AppState>().client.clone();
 
     tauri::async_runtime::spawn(async move {
         if provider == "baidu" {
             match translate::api::baidu_translate_screenshot_image(
-                &reqwest::Client::new(),
+                &client,
                 &image_data,
                 &source_lang,
                 &target_lang,
@@ -411,14 +424,14 @@ fn spawn_screenshot_translate_pipeline<R: Runtime>(
 
         // For other providers: OCR first, then translate
         let ocr_result = ocr::recognize_text(
-            &reqwest::Client::new(),
+            &client,
             &image_data,
             &provider,
             &creds.google_cloud_api_key,
             &creds.google_translate_api_url,
-            &cfg_from_app(&app_clone).baidu.ocr_api_key,
-            &cfg_from_app(&app_clone).baidu.ocr_secret_key,
-            &cfg_from_app(&app_clone).baidu.ocr_aip_base_url,
+            &baidu_ocr_api_key,
+            &baidu_ocr_secret_key,
+            &baidu_ocr_aip_base_url,
             &creds.youdao_app_key,
             &creds.youdao_app_secret,
         )
@@ -438,7 +451,7 @@ fn spawn_screenshot_translate_pipeline<R: Runtime>(
                     target_lang: target_lang.clone(),
                 };
                 match translate::api::translate(
-                    &reqwest::Client::new(),
+                    &client,
                     &request,
                     &provider,
                     &creds,
@@ -458,13 +471,6 @@ fn spawn_screenshot_translate_pipeline<R: Runtime>(
             }
         }
     });
-}
-
-fn cfg_from_app<R: Runtime>(app: &tauri::AppHandle<R>) -> config::AppConfig {
-    app.state::<Mutex<config::AppConfig>>()
-        .lock()
-        .unwrap()
-        .clone()
 }
 
 fn emit_translate_result<R: Runtime>(
@@ -548,11 +554,9 @@ pub fn run() {
         .manage(Mutex::new(config))
         .manage(app_state::AppState {
             client: reqwest::Client::new(),
-            config: Mutex::new(config::AppConfig::default()),
             pending_translation: Arc::new(Mutex::new(None)),
             region_pending: Mutex::new(None),
             region_capture: Mutex::new(None),
-            tray_click_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             floating_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             clipboard_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })

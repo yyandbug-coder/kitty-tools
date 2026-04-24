@@ -20,20 +20,6 @@ export interface ClipboardItem {
   favorited?: boolean;
 }
 
-export interface AppSettings {
-  showPreview: boolean;
-  pasteOnEnter: boolean;
-  hideWhenUnfocused: boolean;
-  historyMaxItems: number;
-  historyRetentionDays: number;
-  backgroundOpacity: number;
-  theme: AppTheme;
-  customHue: number;
-  colorMode: ColorMode;
-  globalShortcut: string;
-  disableTextSelection: boolean;
-}
-
 // Translate types
 export interface Language {
   code: string;

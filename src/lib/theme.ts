@@ -2,6 +2,7 @@ import type { AppTheme } from '@/types'
 import { getContrastColor, hslToHex, mixColors, withAlpha } from '@/lib/color'
 
 export const DEFAULT_CUSTOM_HUE = 160
+export const DEFAULT_OPACITY = 72
 export const MIN_BACKGROUND_OPACITY = 35
 export const MAX_BACKGROUND_OPACITY = 95
 
@@ -111,9 +112,10 @@ export function getThemeRuntimeStyle(
   themePreset: string,
   customHue: number,
   isDarkMode: boolean,
+  backgroundOpacity = DEFAULT_OPACITY,
 ): Record<string, string> {
   const theme = getThemeOption(themePreset as AppTheme, customHue)
-  const normalizedOpacity = Math.min(MAX_BACKGROUND_OPACITY, Math.max(MIN_BACKGROUND_OPACITY, 72))
+  const normalizedOpacity = Math.min(MAX_BACKGROUND_OPACITY, Math.max(MIN_BACKGROUND_OPACITY, backgroundOpacity))
   const lowOpacityHeadroom = MAX_BACKGROUND_OPACITY - normalizedOpacity
   const panelAlpha = Math.min(97, Math.round(normalizedOpacity + 12 + lowOpacityHeadroom * 0.22))
 

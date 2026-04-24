@@ -19,7 +19,8 @@ import {
   CircleHelp,
   Sparkles,
   ArrowRightLeft,
-  Power
+  Power,
+  Palette,
 } from 'lucide-react'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useTheme } from '@/hooks/useTheme'
@@ -40,12 +41,13 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import HotkeyInput from '@/components/shared/HotkeyInput'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import SecretField from '@/components/shared/SecretField'
+import CustomColorPicker from '@/components/CustomColorPicker'
 import { cn } from '@/lib/utils'
-import { hexToHue, hueToHex, getContrastColor } from '@/lib/color'
 import { formatShortcutForDisplay } from '@/lib/platform'
 
 const SETTINGS_TAB = {
@@ -63,7 +65,6 @@ export default function SettingsPanel() {
   const [testFeedback, setTestFeedback] = useState<{ ok: boolean; text: string } | null>(null)
   const [activeTab, setActiveTab] = useState<string>(SETTINGS_TAB.general)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
-  const customColorRef = useRef<HTMLInputElement>(null)
   const hasShownFirstRunTabRef = useRef(false)
   useTheme(config.theme)
 
@@ -792,41 +793,58 @@ export default function SettingsPanel() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">主题色</label>
                     <div className="flex flex-wrap gap-2">
-                      {PRESET_THEMES.map((t) => (
-                        <Button
-                          key={t.id}
-                          variant={config.appThemePreset === t.id ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => void updateConfig({ appThemePreset: t.id })}
-                          className="text-xs gap-1.5"
-                        >
-                          <span
-                            className="inline-block size-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: t.accent }}
+                      {PRESET_THEMES.map((t) => {
+                        const active = config.appThemePreset === t.id
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                              active
+                                ? 'text-white shadow-sm'
+                                : 'bg-background hover:bg-accent/50'
+                            )}
+                            style={active ? { backgroundColor: t.accent, borderColor: t.accent } : { borderColor: t.accent, color: t.accent }}
+                            onClick={() => void updateConfig({ appThemePreset: t.id })}
+                          >
+                            {t.label}
+                          </button>
+                        )
+                      })}
+
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          {(() => {
+                            const customActive = config.appThemePreset === 'custom'
+                            const customColor = getThemeOption('custom', config.customHue).accent
+                            return (
+                              <button
+                                type="button"
+                                className={cn(
+                                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                                  customActive
+                                    ? 'text-white shadow-sm'
+                                    : 'bg-background hover:bg-accent/50'
+                                )}
+                                style={customActive
+                                  ? { backgroundColor: customColor, borderColor: customColor }
+                                  : { borderColor: customColor, color: customColor }
+                                }
+                              >
+                                {!customActive && <Palette className="size-3 shrink-0" />}
+                                自定义
+                              </button>
+                            )
+                          })()}
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-3" side="bottom" align="end">
+                          <CustomColorPicker
+                            value={config.customHue}
+                            onChange={(hue) => void updateConfig({ appThemePreset: 'custom', customHue: hue })}
                           />
-                          {t.label}
-                        </Button>
-                      ))}
-                      <div className="relative inline-flex">
-                        <Button
-                          size="sm"
-                          className="pointer-events-none text-xs font-medium border-2"
-                          style={{
-                            backgroundColor: config.appThemePreset === 'custom' ? getThemeOption('custom', config.customHue).accent : 'transparent',
-                            borderColor: getThemeOption('custom', config.customHue).accent,
-                            color: config.appThemePreset === 'custom' ? getContrastColor(getThemeOption('custom', config.customHue).accent) : 'inherit',
-                          }}
-                        >
-                          自定义
-                        </Button>
-                        <input
-                          ref={customColorRef}
-                          type="color"
-                          value={hueToHex(config.customHue)}
-                          onChange={(e) => void updateConfig({ appThemePreset: 'custom', customHue: hexToHue(e.target.value) })}
-                          className="absolute inset-0 cursor-pointer opacity-0"
-                        />
-                      </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
 

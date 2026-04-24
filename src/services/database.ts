@@ -8,20 +8,25 @@ const DB_PATH = 'sqlite:kitty-settings.db'
 const SETTINGS_KEY = 'app-settings'
 const HISTORY_KEY = 'clipboard-history'
 
-let dbInstance: Database | null = null
+let dbPromise: Promise<Database> | null = null
 
-async function getDb(): Promise<Database> {
-  if (!dbInstance) {
-    dbInstance = await Database.load(DB_PATH)
-    await dbInstance.execute(`
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-    `)
+function getDb(): Promise<Database> {
+  if (!dbPromise) {
+    dbPromise = Database.load(DB_PATH).then(async (db) => {
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      `)
+      return db
+    }).catch((err) => {
+      dbPromise = null
+      throw err
+    })
   }
-  return dbInstance
+  return dbPromise
 }
 
 interface SettingsRow {

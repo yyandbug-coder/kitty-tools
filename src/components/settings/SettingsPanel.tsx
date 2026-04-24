@@ -319,17 +319,6 @@ export default function SettingsPanel() {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-sm font-medium">失焦自动隐藏</label>
-                      <p className="text-xs text-muted-foreground">失去焦点后自动隐藏面板</p>
-                    </div>
-                    <Switch
-                      checked={config.clipboardHideOnUnfocus}
-                      onCheckedChange={(v) => void updateConfig({ clipboardHideOnUnfocus: v })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
                       <label className="text-sm font-medium">回车粘贴</label>
                       <p className="text-xs text-muted-foreground">按回车键直接粘贴选中项</p>
                     </div>

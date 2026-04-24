@@ -227,9 +227,11 @@ pub fn cache_image<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str, width
 
 pub fn resolve_image_entry<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str) -> Option<CachedImage> {
     {
-        let cache = IMAGE_CACHE.lock().unwrap();
-        if let Some(e) = cache.iter().find(|e| e.id == id) {
-            return Some(e.clone());
+        let mut cache = IMAGE_CACHE.lock().unwrap();
+        if let Some(idx) = cache.iter().position(|e| e.id == id) {
+            let entry = cache.remove(idx);
+            cache.push(entry.clone());
+            return Some(entry);
         }
     }
     let loaded = load_clipboard_image_from_disk(app, id)?;

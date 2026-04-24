@@ -129,7 +129,7 @@ export default function HotkeyInput({
 
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [recording, disabled, onChange, stopRecording])
+  }, [recording, disabled, onChange, stopRecording, otherHotkeys])
 
   const busy = disabled || savingDefault
 

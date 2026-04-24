@@ -209,7 +209,7 @@ export function useClipboard(config: AppConfig) {
   const hasMore = visibleCount < filtered.length
   const loadMore = useCallback(() => { setVisibleCount((prev) => prev + PAGE_SIZE) }, [])
 
-  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [search])
+  useEffect(() => { setVisibleCount(PAGE_SIZE); userBrowsingRef.current = false }, [search])
   useEffect(() => { setVisibleCount(PAGE_SIZE); setSelectedIndex(0) }, [showFavoritesOnly])
 
   const selectedItem = filtered[selectedIndex] ?? null
@@ -247,6 +247,7 @@ export function useClipboard(config: AppConfig) {
       setSelectedIndex((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter' && pasteOnEnter && currentFiltered[currentIdx]) {
       e.preventDefault()
+      userBrowsingRef.current = false
       handlePaste(currentFiltered[currentIdx])
     } else if (e.key === 'Escape') {
       e.preventDefault()

@@ -202,12 +202,11 @@ fn register_clipboard_popup_handlers<R: Runtime>(
     });
 }
 
-/// Toggle clipboard popup based on visible + focused state.
+/// Toggle clipboard popup based on visible state (regardless of focus).
 pub fn toggle_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window(WINDOW_CLIPBOARD_POPUP) {
         let visible = window.is_visible().unwrap_or(false);
-        let focused = window.is_focused().unwrap_or(false);
-        if visible && focused {
+        if visible {
             hide_clipboard_popup(app);
         } else {
             show_clipboard_popup(app);

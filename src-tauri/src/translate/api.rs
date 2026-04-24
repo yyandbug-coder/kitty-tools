@@ -266,7 +266,7 @@ async fn baidu_translate(
         return Err("请先在设置中填写百度翻译 App ID 与密钥".to_string());
     }
 
-    if request.text.len() > 6000 {
+    if request.text.chars().count() > 6000 {
         return Err("百度翻译单次最多 6000 字符，请缩短文本".to_string());
     }
 

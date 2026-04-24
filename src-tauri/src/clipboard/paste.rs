@@ -68,25 +68,24 @@ fn trigger_paste_shortcut() {
             SendInput, INPUT, INPUT_TYPE, KEYBD_EVENT_FLAGS, VIRTUAL_KEY, VK_CONTROL,
         };
         const KEYEVENTF_KEYUP: u32 = 0x0002;
-        const KEYEVENTF_EXTENDEDKEY: u32 = 0x0001;
         unsafe {
             let mut inputs: [INPUT; 4] = std::mem::zeroed();
             // Ctrl down
             inputs[0].r#type = INPUT_TYPE(1);
             inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0 as u16);
-            inputs[0].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_EXTENDEDKEY);
+            inputs[0].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(0);
             // V down
             inputs[1].r#type = INPUT_TYPE(1);
             inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(0x56);
-            inputs[1].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_EXTENDEDKEY);
+            inputs[1].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(0);
             // V up
             inputs[2].r#type = INPUT_TYPE(1);
             inputs[2].Anonymous.ki.wVk = VIRTUAL_KEY(0x56);
-            inputs[2].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP);
+            inputs[2].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
             // Ctrl up
             inputs[3].r#type = INPUT_TYPE(1);
             inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0 as u16);
-            inputs[3].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP);
+            inputs[3].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
             SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
         }
     }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { AppConfig } from '@/types';
@@ -19,6 +19,8 @@ const ConfigContext = createContext<ConfigContextType>({
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [loaded, setLoaded] = useState(false);
+  const configRef = useRef(config);
+  configRef.current = config;
 
   useEffect(() => {
     invoke<AppConfig>('get_config').then(cfg => {
@@ -38,18 +40,12 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateConfig = useCallback(async (updates: Partial<AppConfig>) => {
-    let merged: AppConfig | undefined;
-    setConfig(prev => {
-      merged = { ...prev, ...updates };
-      return merged;
-    });
-    try {
-      const saved = await invoke<AppConfig>('save_config_cmd', { config: merged! });
-      setConfig(saved);
-    } catch (e) {
-      console.error('保存配置失败:', e);
-      setConfig(prev => ({ ...prev, ...updates }));
-    }
+    const merged: AppConfig = { ...configRef.current, ...updates };
+    setConfig(merged);
+    configRef.current = merged;
+    invoke<AppConfig>('save_config_cmd', { config: merged })
+      .then(saved => setConfig(saved))
+      .catch(e => console.error('保存配置失败:', e));
   }, []);
 
   return (

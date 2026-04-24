@@ -36,62 +36,81 @@
   --sidebar-accent-foreground: oklch(0.5638 0.2213 355.0313);
   --sidebar-border: oklch(0.9385 0.0186 343.0976);
   --sidebar-ring: oklch(0.6297 0.2311 352.8044);
-  --font-sans: Inter, system-ui, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: JetBrains Mono, monospace;
+  --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace;
   --radius: 0.75rem;
-  --shadow-2xs: 0px 4px 12px 0px hsl(327 40% 10% / 0.04);
-  --shadow-xs: 0px 4px 12px 0px hsl(327 40% 10% / 0.04);
-  --shadow-sm: 0px 4px 12px 0px hsl(327 40% 10% / 0.08), 0px 1px 2px -1px hsl(327 40% 10% / 0.08);
-  --shadow: 0px 4px 12px 0px hsl(327 40% 10% / 0.08), 0px 1px 2px -1px hsl(327 40% 10% / 0.08);
-  --shadow-md: 0px 4px 12px 0px hsl(327 40% 10% / 0.08), 0px 2px 4px -1px hsl(327 40% 10% / 0.08);
-  --shadow-lg: 0px 4px 12px 0px hsl(327 40% 10% / 0.08), 0px 4px 6px -1px hsl(327 40% 10% / 0.08);
-  --shadow-xl: 0px 4px 12px 0px hsl(327 40% 10% / 0.08), 0px 8px 10px -1px hsl(327 40% 10% / 0.08);
-  --shadow-2xl: 0px 4px 12px 0px hsl(327 40% 10% / 0.2);
+
+  /* 多层阴影系统 — 更自然的深度层次 */
+  --shadow-2xs: 0 1px 2px 0 oklch(0 0 0 / 0.03);
+  --shadow-xs: 0 1px 3px 0 oklch(0 0 0 / 0.04), 0 1px 2px -1px oklch(0 0 0 / 0.03);
+  --shadow-sm: 0 2px 4px -1px oklch(0 0 0 / 0.06), 0 1px 2px -1px oklch(0 0 0 / 0.04);
+  --shadow: 0 4px 6px -1px oklch(0 0 0 / 0.07), 0 2px 4px -2px oklch(0 0 0 / 0.05);
+  --shadow-md: 0 8px 12px -2px oklch(0 0 0 / 0.08), 0 4px 6px -2px oklch(0 0 0 / 0.05);
+  --shadow-lg: 0 12px 24px -4px oklch(0 0 0 / 0.10), 0 6px 8px -2px oklch(0 0 0 / 0.05);
+  --shadow-xl: 0 20px 40px -8px oklch(0 0 0 / 0.12), 0 8px 12px -4px oklch(0 0 0 / 0.06);
+  --shadow-2xl: 0 32px 64px -16px oklch(0 0 0 / 0.18);
+
   --tracking-normal: -0.01em;
+
+  /* 动画缓动曲线 */
+  --ease-default: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* 动画时长 */
+  --duration-instant: 75ms;
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
 }
 
 .dark {
-  --background: oklch(0.1349 0.0296 344.8141);
-  --foreground: oklch(0.9583 0.0265 343.2824);
-  --card: oklch(0.1608 0.0314 346.7555);
-  --card-foreground: oklch(0.9583 0.0265 343.2824);
-  --popover: oklch(0.1608 0.0314 346.7555);
-  --popover-foreground: oklch(0.9583 0.0265 343.2824);
+  --background: oklch(0.135 0.014 350);
+  --foreground: oklch(0.958 0.012 0);
+  --card: oklch(0.175 0.016 350);
+  --card-foreground: oklch(0.958 0.012 0);
+  --popover: oklch(0.175 0.016 350);
+  --popover-foreground: oklch(0.958 0.012 0);
   --primary: oklch(0.6882 0.1934 349.2798);
-  --primary-foreground: oklch(0.1538 0.0105 344.2247);
-  --secondary: oklch(0.257 0.0415 346.2882);
-  --secondary-foreground: oklch(0.8977 0.0677 344.3766);
-  --muted: oklch(0.2268 0.0343 346.0586);
-  --muted-foreground: oklch(0.705 0.0503 344.286);
-  --accent: oklch(0.285 0.0637 347.7392);
-  --accent-foreground: oklch(0.8977 0.0677 344.3766);
+  --primary-foreground: oklch(0.12 0.010 350);
+  --secondary: oklch(0.215 0.016 350);
+  --secondary-foreground: oklch(0.92 0.020 350);
+  --muted: oklch(0.195 0.014 350);
+  --muted-foreground: oklch(0.65 0.018 0);
+  --accent: oklch(0.22 0.020 350);
+  --accent-foreground: oklch(0.92 0.020 350);
   --destructive: oklch(0.3901 0.1297 25.5736);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.2864 0.0484 346.4592);
-  --input: oklch(0.2864 0.0484 346.4592);
+  --border: oklch(0.235 0.018 350);
+  --input: oklch(0.235 0.018 350);
   --ring: oklch(0.6882 0.1934 349.2798);
   --chart-1: oklch(0.6882 0.1934 349.2798);
   --chart-2: oklch(0.7183 0.1369 359.8787);
   --chart-3: oklch(0.7852 0.1124 326.5813);
   --chart-4: oklch(0.6595 0.1987 338.6493);
   --chart-5: oklch(0.7611 0.1325 354.2554);
-  --sidebar: oklch(0.1484 0.0306 346.1268);
-  --sidebar-foreground: oklch(0.9176 0.0133 342.9716);
+  --sidebar: oklch(0.15 0.014 350);
+  --sidebar-foreground: oklch(0.93 0.010 0);
   --sidebar-primary: oklch(0.6882 0.1934 349.2798);
-  --sidebar-primary-foreground: oklch(0.1538 0.0105 344.2247);
-  --sidebar-accent: oklch(0.2268 0.0343 346.0586);
-  --sidebar-accent-foreground: oklch(0.8977 0.0677 344.3766);
-  --sidebar-border: oklch(0.257 0.0415 346.2882);
+  --sidebar-primary-foreground: oklch(0.12 0.010 350);
+  --sidebar-accent: oklch(0.195 0.014 350);
+  --sidebar-accent-foreground: oklch(0.92 0.020 350);
+  --sidebar-border: oklch(0.205 0.016 350);
   --sidebar-ring: oklch(0.6882 0.1934 349.2798);
-  --shadow-2xs: 0px 8px 16px 0px hsl(0 0% 0% / 0.2);
-  --shadow-xs: 0px 8px 16px 0px hsl(0 0% 0% / 0.2);
-  --shadow-sm: 0px 8px 16px 0px hsl(0 0% 0% / 0.4), 0px 1px 2px -1px hsl(0 0% 0% / 0.4);
-  --shadow: 0px 8px 16px 0px hsl(0 0% 0% / 0.4), 0px 1px 2px -1px hsl(0 0% 0% / 0.4);
-  --shadow-md: 0px 8px 16px 0px hsl(0 0% 0% / 0.4), 0px 2px 4px -1px hsl(0 0% 0% / 0.4);
-  --shadow-lg: 0px 8px 16px 0px hsl(0 0% 0% / 0.4), 0px 4px 6px -1px hsl(0 0% 0% / 0.4);
-  --shadow-xl: 0px 8px 16px 0px hsl(0 0% 0% / 0.4), 0px 8px 10px -1px hsl(0 0% 0% / 0.4);
-  --shadow-2xl: 0px 8px 16px 0px hsl(0 0% 0% / 1);
+
+  /* 暗色模式阴影 — 更柔和，避免纯黑 */
+  --shadow-2xs: 0 1px 2px 0 oklch(0 0 0 / 0.2);
+  --shadow-xs: 0 1px 3px 0 oklch(0 0 0 / 0.24), 0 1px 2px -1px oklch(0 0 0 / 0.16);
+  --shadow-sm: 0 2px 4px -1px oklch(0 0 0 / 0.28), 0 1px 2px -1px oklch(0 0 0 / 0.2);
+  --shadow: 0 4px 6px -1px oklch(0 0 0 / 0.32), 0 2px 4px -2px oklch(0 0 0 / 0.24);
+  --shadow-md: 0 8px 12px -2px oklch(0 0 0 / 0.36), 0 4px 6px -2px oklch(0 0 0 / 0.24);
+  --shadow-lg: 0 12px 24px -4px oklch(0 0 0 / 0.4), 0 6px 8px -2px oklch(0 0 0 / 0.28);
+  --shadow-xl: 0 20px 40px -8px oklch(0 0 0 / 0.48), 0 8px 12px -4px oklch(0 0 0 / 0.32);
+  --shadow-2xl: 0 32px 64px -16px oklch(0 0 0 / 0.56);
 }
 
 @theme inline {
@@ -155,12 +174,18 @@
 }
 
 @layer base {
+  /* 字体渲染优化 — macOS 子像素平滑 + Windows ClearType */
   * {
     @apply border-border outline-ring/50;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    line-height: 1.6;
   }
   html, body, #root {
     height: 100%;
@@ -176,5 +201,111 @@
   }
   button {
     @apply cursor-pointer;
+  }
+
+  /* 焦点环系统 — 键盘导航时可见 */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* 选中文字的主题色 */
+  ::selection {
+    background: oklch(from var(--primary) l c h / 0.2);
+  }
+}
+
+/* 全局过渡动画基础层 */
+@layer utilities {
+  /* 统一交互过渡 */
+  .transition-default {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-duration: var(--duration-normal);
+    transition-timing-function: var(--ease-default);
+  }
+
+  /* 内容淡入 */
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* 从下方滑入淡入 */
+  @keyframes slide-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* 从上方滑入（Toast 通知） */
+  @keyframes slide-in-down {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* 缩放淡入 */
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* 微脉冲（骨架屏） */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .animate-fade-in {
+    animation: fade-in var(--duration-normal) var(--ease-out) both;
+  }
+  .animate-slide-in-up {
+    animation: slide-in-up var(--duration-slow) var(--ease-out) both;
+  }
+  .animate-slide-in-down {
+    animation: slide-in-down var(--duration-slow) var(--ease-out) both;
+  }
+  .animate-scale-in {
+    animation: scale-in var(--duration-normal) var(--ease-spring) both;
+  }
+  .animate-shimmer {
+    animation: shimmer 2s var(--ease-in-out) infinite;
+    background-size: 200% 100%;
+  }
+
+  /* 交错动画延迟 */
+  .stagger-1 { animation-delay: 50ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 150ms; }
+  .stagger-4 { animation-delay: 200ms; }
+  .stagger-5 { animation-delay: 250ms; }
+}
+
+/* 无障碍：尊重用户减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -77,14 +77,14 @@ function buildCustomThemeVariables(hue: number, isDarkMode: boolean) {
       '--ring': palette.primary,
     } as Record<string, string>
   }
-  const background = mixColors(palette.surface, '#07130f', 0.9)
-  const card = mixColors(palette.surface, '#10201a', 0.82)
-  const secondary = mixColors(palette.surface, '#163127', 0.74)
-  const muted = mixColors(palette.surface, '#11231d', 0.78)
-  const accent = mixColors(palette.accent, '#14241d', 0.68)
+  const background = mixColors(palette.surface, '#0f0f12', 0.90)
+  const card = mixColors(palette.surface, '#17171c', 0.84)
+  const secondary = mixColors(palette.surface, '#202026', 0.76)
+  const muted = mixColors(palette.surface, '#19191e', 0.82)
+  const accent = mixColors(palette.accent, '#19191e', 0.72)
   const primary = mixColors(palette.primary, '#f8fafc', 0.08)
-  const border = mixColors(palette.surface, '#385247', 0.7)
-  const foreground = '#f3fff8'
+  const border = mixColors(palette.surface, '#292930', 0.72)
+  const foreground = '#f5f5f7'
   return {
     '--background': background,
     '--foreground': foreground,
@@ -97,13 +97,13 @@ function buildCustomThemeVariables(hue: number, isDarkMode: boolean) {
     '--secondary': secondary,
     '--secondary-foreground': foreground,
     '--muted': muted,
-    '--muted-foreground': mixColors(foreground, '#8eb7a4', 0.36),
+    '--muted-foreground': mixColors(foreground, '#8e8e96', 0.40),
     '--accent': accent,
     '--accent-foreground': foreground,
     '--destructive': '#f87171',
     '--destructive-foreground': '#ffffff',
     '--border': border,
-    '--input': mixColors(card, '#1b3028', 0.34),
+    '--input': mixColors(card, '#18181c', 0.34),
     '--ring': primary,
   } as Record<string, string>
 }

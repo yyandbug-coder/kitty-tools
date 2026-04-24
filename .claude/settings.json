@@ -16,7 +16,11 @@
       "Read(//d/Yy/yy/App/**)",
       "Bash(npx shadcn@latest add alert-dialog context-menu popover slider skeleton input --overwrite)",
       "Bash(git checkout *)",
-      "Bash(pnpm dev *)"
+      "Bash(pnpm dev *)",
+      "Bash(python scripts/search.py \"desktop tool clipboard utility glassmorphism dark-mode elegant minimal\" --design-system -p \"Kitty Tools\")",
+      "Bash(python scripts/search.py \"animation accessibility focus reduced-motion\" --domain ux -n 10)",
+      "Bash(python scripts/search.py \"glassmorphism dark translucent blur\" --domain style -n 8)",
+      "Bash(python scripts/search.py \"shadcn theming tailwind dark mode\" --stack shadcn)"
     ],
     "additionalDirectories": [
       "d:\\Yy\\yy\\App\\kitty-tools\\src\\components\\shared"

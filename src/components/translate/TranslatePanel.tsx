@@ -1,7 +1,7 @@
 // 翻译工作台面板 - 主翻译界面，支持文本输入、语言选择和截图翻译
 // 监听截图/划词翻译事件，将结果回显到面板中
 import { useState, useRef, useEffect } from 'react'
-import { ArrowRightLeft, Copy, Check, Loader2, Scissors, Eraser } from 'lucide-react'
+import { ArrowRightLeft, Copy, Check, Loader2, Scissors, Eraser, RotateCcw } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,9 +24,10 @@ interface ScreenshotResultPayload {
 
 export default function TranslatePanel() {
   const { config, updateConfig } = useAppConfig()
-  const { result, loading, error, translate, clearResult, applyResult, applyError, setLoadingState } = useTranslate()
+  const { result, loading, error, translate, retry, clearResult, applyResult, applyError, setLoadingState } = useTranslate()
   const [inputText, setInputText] = useState('')
   const [copied, setCopied] = useState(false)
+  const MAX_INPUT_LENGTH = 5000
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // 监听截图/划词翻译结果，回显到面板
@@ -196,11 +197,17 @@ export default function TranslatePanel() {
           <Textarea
             ref={inputRef}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={(e) => setInputText(e.target.value.slice(0, MAX_INPUT_LENGTH))}
             onKeyDown={handleKeyDown}
             placeholder={`输入要翻译的文本…（${translateSubmitShortcutLabel()} 翻译）`}
+            maxLength={MAX_INPUT_LENGTH}
             className="min-h-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-3 py-2 text-base shadow-none focus-visible:ring-0"
           />
+          {inputText.length > MAX_INPUT_LENGTH * 0.9 && (
+            <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
+              {inputText.length} / {MAX_INPUT_LENGTH}
+            </div>
+          )}
         </div>
 
         {/* 译文区 */}
@@ -239,7 +246,12 @@ export default function TranslatePanel() {
           <ScrollArea className="min-h-0 flex-1">
             <div className="px-3 py-2">
               {error ? (
-                <p className="text-sm leading-relaxed text-destructive">{error}</p>
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm leading-relaxed text-destructive">{error}</p>
+                  <Button variant="outline" size="sm" onClick={() => void retry()} className="w-fit">
+                    <RotateCcw className="mr-1.5 size-3.5" />重试
+                  </Button>
+                </div>
               ) : loading ? (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="size-4 shrink-0 animate-spin" />

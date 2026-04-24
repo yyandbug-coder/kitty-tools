@@ -1,6 +1,7 @@
 // 设置面板 - 应用全局设置（剪贴板/翻译/交互/外观/关于）
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
 import toast from 'react-hot-toast'
 import {
   Settings,
@@ -84,10 +85,13 @@ export default function SettingsPanel() {
   const { config, updateConfig, loaded } = useAppConfig()
   const [testing, setTesting] = useState(false)
   const [testFeedback, setTestFeedback] = useState<{ ok: boolean; text: string } | null>(null)
+  const [appVersion, setAppVersion] = useState('')
   const [activeTab, setActiveTab] = useState<string>(SETTINGS_TAB.general)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const hasShownFirstRunTabRef = useRef(false)
   useTheme(config.theme)
+
+  useEffect(() => { getVersion().then(setAppVersion).catch(() => setAppVersion('unknown')) }, [])
 
   useLayoutEffect(() => {
     if (!loaded) return
@@ -456,6 +460,9 @@ export default function SettingsPanel() {
                           }
                           placeholder="https://api.openai.com/v1"
                         />
+                        {config.openai.apiBaseUrl.trim() && !/^https?:\/\/.+/.test(config.openai.apiBaseUrl.trim()) && (
+                          <p className="text-[11px] text-destructive">请输入有效的 URL，以 http:// 或 https:// 开头</p>
+                        )}
                       </div>
                       <SecretField
                         id="openai-key"
@@ -701,6 +708,10 @@ export default function SettingsPanel() {
                       value={config.hotkeySelection}
                       defaultValue={DEFAULT_CONFIG.hotkeySelection}
                       onChange={async (v) => updateConfig({ hotkeySelection: v })}
+                      otherHotkeys={[
+                        { label: '截图翻译', value: config.hotkeyScreenshot },
+                        { label: '剪贴板历史', value: config.clipboardShortcut },
+                      ]}
                     />
                     <HotkeyInput
                       id="hotkey-screenshot"
@@ -708,6 +719,10 @@ export default function SettingsPanel() {
                       value={config.hotkeyScreenshot}
                       defaultValue={DEFAULT_CONFIG.hotkeyScreenshot}
                       onChange={async (v) => updateConfig({ hotkeyScreenshot: v })}
+                      otherHotkeys={[
+                        { label: '划词翻译', value: config.hotkeySelection },
+                        { label: '剪贴板历史', value: config.clipboardShortcut },
+                      ]}
                     />
                     <HotkeyInput
                       id="hotkey-clipboard"
@@ -715,6 +730,10 @@ export default function SettingsPanel() {
                       value={config.clipboardShortcut}
                       defaultValue={DEFAULT_CONFIG.clipboardShortcut}
                       onChange={async (v) => updateConfig({ clipboardShortcut: v })}
+                      otherHotkeys={[
+                        { label: '划词翻译', value: config.hotkeySelection },
+                        { label: '截图翻译', value: config.hotkeyScreenshot },
+                      ]}
                     />
                   </div>
                 </CardContent>
@@ -863,7 +882,7 @@ export default function SettingsPanel() {
                   <div className="flex items-center gap-3">
                     <AppLogoIcon className="size-12" />
                     <div className="flex flex-col gap-0.5 text-sm text-muted-foreground">
-                      <span className="text-foreground font-medium">Kitty Tools v0.1.0</span>
+                      <span className="text-foreground font-medium">Kitty Tools v{appVersion}</span>
                       <span>基于 Tauri v2 与 React 构建的桌面工具集（翻译 + 剪贴板历史）</span>
                     </div>
                   </div>

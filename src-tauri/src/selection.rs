@@ -4,7 +4,7 @@ pub fn get_selected_text() -> Result<String, String> {
     use windows::Win32::System::DataExchange::{
         CloseClipboard, EmptyClipboard, GetClipboardData, OpenClipboard, SetClipboardData,
     };
-    use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+    use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE};
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_TYPE, KEYBD_EVENT_FLAGS, VIRTUAL_KEY, VK_CONTROL, VK_SHIFT,
     };
@@ -84,57 +84,73 @@ pub fn get_selected_text() -> Result<String, String> {
     }
 
     /// Save current clipboard text so we can restore it after reading the selection.
-    unsafe fn save_clipboard() -> Option<Vec<u16>> {
+    /// Save current clipboard data for all known formats so we can restore them later.
+    unsafe fn save_clipboard_all() -> Vec<(u32, Vec<u8>)> {
+        use windows::Win32::System::DataExchange::EnumClipboardFormats;
+
         if OpenClipboard(None).is_err() {
-            return None;
+            return Vec::new();
         }
-        let result = match GetClipboardData(CF_UNICODETEXT) {
-            Ok(handle) if !handle.is_invalid() => {
+        let mut saved = Vec::new();
+        let mut fmt: u32 = 0;
+        loop {
+            fmt = EnumClipboardFormats(fmt);
+            if fmt == 0 {
+                break;
+            }
+            if let Ok(handle) = GetClipboardData(fmt) {
+                if handle.is_invalid() {
+                    continue;
+                }
                 let hglobal = HGLOBAL(handle.0);
                 let ptr = GlobalLock(hglobal);
                 if ptr.is_null() {
-                    None
-                } else {
-                    let mut len = 0usize;
-                    let start = ptr as *const u16;
-                    while *start.add(len) != 0 {
-                        len += 1;
-                    }
-                    let data = std::slice::from_raw_parts(start, len).to_vec();
-                    let _ = GlobalUnlock(hglobal);
-                    Some(data)
+                    continue;
                 }
+                let size = GlobalSize(hglobal);
+                if size == 0 {
+                    let _ = GlobalUnlock(hglobal);
+                    continue;
+                }
+                let data = std::slice::from_raw_parts(ptr as *const u8, size).to_vec();
+                let _ = GlobalUnlock(hglobal);
+                saved.push((fmt, data));
             }
-            _ => None,
-        };
+        }
         let _ = CloseClipboard();
-        result
+        saved
     }
 
-    /// Restore previously saved clipboard text.
-    unsafe fn restore_clipboard(data: &[u16]) {
-        let size = (data.len() + 1) * 2; // +1 for null terminator, 2 bytes per u16
-        let h = match GlobalAlloc(GMEM_MOVEABLE, size) {
-            Ok(h) => h,
-            Err(_) => return,
-        };
-        let ptr = GlobalLock(h);
-        if ptr.is_null() {
+    /// Restore previously saved clipboard data for all formats.
+    unsafe fn restore_clipboard_all(saved: &[(u32, Vec<u8>)]) {
+        use windows::Win32::Foundation::HANDLE;
+
+        if saved.is_empty() {
             return;
         }
-        std::ptr::copy_nonoverlapping(data.as_ptr(), ptr as *mut u16, data.len());
-        *(ptr as *mut u16).add(data.len()) = 0; // null terminator
-        let _ = GlobalUnlock(h);
-
-        if OpenClipboard(None).is_ok() {
-            let _ = EmptyClipboard();
-            SetClipboardData(CF_UNICODETEXT, Some(windows::Win32::Foundation::HANDLE(h.0))).ok();
-            let _ = CloseClipboard();
+        if OpenClipboard(None).is_err() {
+            return;
         }
+        let _ = EmptyClipboard();
+        for (fmt, data) in saved {
+            let size = data.len();
+            let h = match GlobalAlloc(GMEM_MOVEABLE, size) {
+                Ok(h) => h,
+                Err(_) => continue,
+            };
+            let ptr = GlobalLock(h);
+            if ptr.is_null() {
+                continue;
+            }
+            std::ptr::copy_nonoverlapping(data.as_ptr(), ptr as *mut u8, size);
+            let _ = GlobalUnlock(h);
+            let _ = SetClipboardData(*fmt, Some(HANDLE(h.0)));
+        }
+        let _ = CloseClipboard();
     }
 
-    // Step 1: Save the current clipboard content so we can restore it later.
-    let saved_clipboard = unsafe { save_clipboard() };
+    // Step 1: Save the current clipboard content (all formats) so we can restore it later.
+    let saved_clipboard = unsafe { save_clipboard_all() };
 
     // Step 2: Release any modifier keys that may still be held down from the
     // 全局划词/截图快捷键按下后，修饰键可能仍处于按下状态。
@@ -166,10 +182,8 @@ pub fn get_selected_text() -> Result<String, String> {
         }
     }
 
-    // Step 7: Restore the original clipboard content.
-    if let Some(ref data) = saved_clipboard {
-        unsafe { restore_clipboard(data) };
-    }
+    // Step 7: Restore the original clipboard content (all formats).
+    unsafe { restore_clipboard_all(&saved_clipboard) };
 
     match new_text {
         Some(t) => Ok(t.trim().to_string()),

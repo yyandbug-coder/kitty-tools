@@ -12,6 +12,7 @@ import type { AppTheme } from '@/types'
 import TranslatePanel from '@/components/translate/TranslatePanel'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import '@/assets/styles/tailwind/index.css'
 
 function TranslateWorkspaceApp() {
@@ -57,10 +58,12 @@ function TranslateWorkspaceApp() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConfigProvider>
-      <TooltipProvider>
-        <TranslateWorkspaceApp />
-      </TooltipProvider>
-    </ConfigProvider>
+    <ErrorBoundary>
+      <ConfigProvider>
+        <TooltipProvider>
+          <TranslateWorkspaceApp />
+        </TooltipProvider>
+      </ConfigProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

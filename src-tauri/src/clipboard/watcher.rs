@@ -35,6 +35,9 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
         return;
     }
 
+    /// 超过此大小（字节）的文本将被忽略，防止内存暴涨
+    const MAX_TEXT_BYTES: usize = 5 * 1024 * 1024; // 5 MB
+
     let app_handle = app.clone();
     std::thread::spawn(move || {
         let mut last_content = String::new();
@@ -108,6 +111,9 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
 
             if let Ok(text) = clipboard.get_text() {
                 if text.trim().is_empty() {
+                    continue;
+                }
+                if text.len() > MAX_TEXT_BYTES {
                     continue;
                 }
                 if last_content == text {

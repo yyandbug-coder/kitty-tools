@@ -1,9 +1,9 @@
 // 划词翻译浮窗结果面板 - 显示选中文字的翻译结果
 // 支持原文/译文分栏、语言切换、固定窗口、拖动移动、自动复制
-import { useEffect, useState, useMemo, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, useMemo, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { ArrowRightLeft, Check, Copy, Loader2, Pin, PinOff, Settings } from 'lucide-react'
+import { ArrowRightLeft, Check, Copy, Loader2, Pin, PinOff, RotateCcw, Settings } from 'lucide-react'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -43,6 +43,7 @@ export default function FloatingResult() {
   const [detectedSourceLang, setDetectedSourceLang] = useState<string | null>(null)
   const [systemPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
   const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
+  const translateSeqRef = useRef(0)
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode, config.backgroundOpacity) as CSSProperties,
     [config.appThemePreset, config.customHue, isDarkMode, config.backgroundOpacity],
@@ -101,6 +102,16 @@ export default function FloatingResult() {
     }
   }, [config.autoCopy])
 
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape' && !config.floatingPinned) {
+        void invoke('hide_floating_window')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [config.floatingPinned])
+
   const runTranslation = async (
     text: string,
     sourceLang = config.sourceLang,
@@ -111,6 +122,7 @@ export default function FloatingResult() {
       setError(null)
       return
     }
+    const seq = ++translateSeqRef.current
     setLoading(true)
     setError(null)
     setDetectedSourceLang(null)
@@ -121,16 +133,18 @@ export default function FloatingResult() {
         sourceLang,
         targetLang,
       })
+      if (seq !== translateSeqRef.current) return
       setSourceText(result.sourceText ?? result.source_text ?? text)
       setTranslatedText(result.translatedText ?? result.translated_text ?? '')
       const sl = result.sourceLang ?? result.source_lang
       setDetectedSourceLang(sl && sl !== 'auto' ? sl : null)
     } catch (err) {
+      if (seq !== translateSeqRef.current) return
       setTranslatedText('')
       setDetectedSourceLang(null)
       setError(typeof err === 'string' ? err : String(err))
     } finally {
-      setLoading(false)
+      if (seq === translateSeqRef.current) setLoading(false)
     }
   }
 
@@ -331,8 +345,11 @@ export default function FloatingResult() {
               <div className="min-h-0 flex-1 overflow-hidden p-3">
                 {error ? (
                   <ScrollArea className="h-full min-h-0">
-                    <div className="rounded-xl border border-destructive/20 bg-background/75 px-3 py-2 text-sm leading-6 text-destructive">
-                      {error}
+                    <div className="flex flex-col gap-2 rounded-xl border border-destructive/20 bg-background/75 px-3 py-2">
+                      <p className="text-sm leading-6 text-destructive">{error}</p>
+                      <Button variant="outline" size="sm" onClick={() => void runTranslation(sourceText)} className="w-fit">
+                        <RotateCcw className="mr-1.5 size-3.5" />重试
+                      </Button>
                     </div>
                   </ScrollArea>
                 ) : (

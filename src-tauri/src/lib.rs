@@ -553,7 +553,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(config))
         .manage(app_state::AppState {
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("failed to build HTTP client"),
             pending_translation: Arc::new(Mutex::new(None)),
             region_pending: Mutex::new(None),
             region_capture: Mutex::new(None),

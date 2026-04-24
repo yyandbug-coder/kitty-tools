@@ -76,6 +76,8 @@ export interface HotkeyInputProps {
   value: string
   defaultValue: string
   onChange: (next: string) => Promise<void>
+  /** 其他已注册快捷键的列表，用于冲突检测 */
+  otherHotkeys?: { label: string; value: string }[]
   id?: string
   disabled?: boolean
 }
@@ -85,6 +87,7 @@ export default function HotkeyInput({
   value,
   defaultValue,
   onChange,
+  otherHotkeys = [],
   id,
   disabled,
 }: HotkeyInputProps) {
@@ -106,6 +109,12 @@ export default function HotkeyInput({
       }
       const s = buildHotkeyFromEvent(e)
       if (!s) return
+      const conflict = otherHotkeys.find(h => h.value.toLowerCase() === s.toLowerCase())
+      if (conflict) {
+        setErr(`该快捷键已与「${conflict.label}」冲突，请选择其他组合键`)
+        stopRecording()
+        return
+      }
       void (async () => {
         try {
           await onChange(s)

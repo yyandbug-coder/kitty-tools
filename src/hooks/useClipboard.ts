@@ -47,6 +47,7 @@ export function useClipboard(config: AppConfig) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isHistoryLoading, setIsHistoryLoading] = useState(true)
   const isHistoryLoadingRef = useRef(true)
+  const userBrowsingRef = useRef(false)
   const retentionDaysRef = useRef(config.clipboardHistoryRetentionDays)
   const historyMaxRef = useRef(config.clipboardHistoryMax)
   const clipProcessChainRef = useRef(Promise.resolve())
@@ -114,7 +115,9 @@ export function useClipboard(config: AppConfig) {
             pruneClipboardImagePreviewCache(nextHistory.map((item) => item.id))
             return nextHistory
           })
-          setSelectedIndex(0)
+          if (!userBrowsingRef.current) {
+            setSelectedIndex(0)
+          }
           setVisibleCount(PAGE_SIZE)
         })
         .catch((err) => { console.error('clipboard-change 处理失败:', err) })
@@ -234,11 +237,13 @@ export function useClipboard(config: AppConfig) {
     const maxIndex = Math.max(currentFiltered.length - 1, 0)
     if (e.key === 'ArrowDown') {
       e.preventDefault()
+      userBrowsingRef.current = true
       const newIdx = Math.min(currentIdx + 1, maxIndex)
       setSelectedIndex(newIdx)
       if (newIdx >= currentDisplayed.length) loadMoreRef.current()
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
+      userBrowsingRef.current = true
       setSelectedIndex((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter' && pasteOnEnter && currentFiltered[currentIdx]) {
       e.preventDefault()

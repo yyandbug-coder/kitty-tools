@@ -10,6 +10,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from 'react-hot-toast'
 import SettingsPanel from '@/components/settings/SettingsPanel'
 import { cn } from '@/lib/utils'
+import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import '@/assets/styles/tailwind/index.css'
 
 function SettingsApp() {
@@ -40,11 +41,13 @@ function SettingsApp() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConfigProvider>
-      <TooltipProvider>
-        <SettingsApp />
-        <Toaster />
-      </TooltipProvider>
-    </ConfigProvider>
+    <ErrorBoundary>
+      <ConfigProvider>
+        <TooltipProvider>
+          <SettingsApp />
+          <Toaster />
+        </TooltipProvider>
+      </ConfigProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

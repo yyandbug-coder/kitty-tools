@@ -209,9 +209,18 @@ export default function ClipboardPreview({ item, total, onPaste }: Props) {
                   role="img"
                   aria-label={imagePreviewFailed ? '图片预览不可用' : '图片预览加载中'}
                 >
-                  <span className="text-muted-foreground text-center text-xs leading-6">
-                    {imagePreviewFailed ? '图片预览不可用' : '图片预览加载中…'}
-                  </span>
+                  {imagePreviewFailed ? (
+                    <span className="text-muted-foreground text-center text-xs leading-6">
+                      图片预览不可用
+                    </span>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="relative size-8">
+                        <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
+                      </div>
+                      <span className="text-muted-foreground text-xs">图片预览加载中…</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -330,5 +339,8 @@ function labelForType(type: ClipboardItem['type']) {
 }
 
 function formatDateTime(timestamp: number) {
-  return dayjs(timestamp).format('MM/DD HH:mm')
+  const d = dayjs(timestamp)
+  const now = dayjs()
+  if (d.year() !== now.year()) return d.format('YYYY/MM/DD HH:mm')
+  return d.format('MM/DD HH:mm')
 }

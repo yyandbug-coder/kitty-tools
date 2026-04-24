@@ -42,7 +42,15 @@ pub fn register_clipboard_shortcut<R: Runtime>(
         .parse::<Shortcut>()
         .map_err(|error| format!("快捷键格式无效：{error}"))?;
 
-    // Try to unregister the same key first to reduce "already registered" errors
+    // Unregister the old shortcut BEFORE registering the new one to avoid
+    // a window where both shortcuts are active simultaneously.
+    if let Some(ref previous) = previous_shortcut {
+        if let Ok(prev_parsed) = previous.parse::<Shortcut>() {
+            let _ = global_shortcut.unregister(prev_parsed);
+        }
+    }
+
+    // Also try to pre-clear the new shortcut to avoid "already registered" errors
     // caused by stale state from a previous crash.
     let _ = global_shortcut.unregister(parsed_shortcut.clone());
 
@@ -54,13 +62,6 @@ pub fn register_clipboard_shortcut<R: Runtime>(
             window::toggle_clipboard_popup(app);
         })
         .map_err(|error| format!("快捷键注册失败：{error}"))?;
-
-    // Unregister the old shortcut after successfully registering the new one.
-    if let Some(previous) = previous_shortcut {
-        if let Ok(prev_parsed) = previous.parse::<Shortcut>() {
-            let _ = global_shortcut.unregister(prev_parsed);
-        }
-    }
 
     *CURRENT_CLIPBOARD_SHORTCUT.lock().unwrap() = Some(shortcut.to_string());
     Ok(())

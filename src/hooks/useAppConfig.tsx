@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import toast from 'react-hot-toast';
 import type { AppConfig } from '@/types';
 import { DEFAULT_CONFIG } from '@/types';
 
@@ -40,12 +41,19 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateConfig = useCallback(async (updates: Partial<AppConfig>) => {
-    const merged: AppConfig = { ...configRef.current, ...updates };
+    const previous = configRef.current;
+    const merged: AppConfig = { ...previous, ...updates };
     setConfig(merged);
     configRef.current = merged;
-    invoke<AppConfig>('save_config_cmd', { config: merged })
-      .then(saved => setConfig(saved))
-      .catch(e => console.error('保存配置失败:', e));
+    try {
+      const saved = await invoke<AppConfig>('save_config_cmd', { config: merged });
+      setConfig(saved);
+    } catch (e) {
+      setConfig(previous);
+      configRef.current = previous;
+      console.error('保存配置失败:', e);
+      toast.error('保存配置失败，已恢复原设置');
+    }
   }, []);
 
   return (

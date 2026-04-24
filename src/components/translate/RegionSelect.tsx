@@ -11,10 +11,13 @@ export default function RegionSelect() {
   const [dragging, setDragging] = useState(false)
   const startRef = useRef<Point | null>(null)
   const currentRef = useRef<Point>({ x: 0, y: 0 })
-  const [, forceUpdate] = useState(0)
+  const [rect, setRect] = useState<{ left: number; top: number; w: number; h: number } | null>(null)
+  const rafRef = useRef<number>(0)
 
   const finish = useCallback((end: Point) => {
     setDragging(false)
+    setRect(null)
+    cancelAnimationFrame(rafRef.current)
     const start = startRef.current
     if (!start) return
     startRef.current = null
@@ -23,19 +26,21 @@ export default function RegionSelect() {
     const width = Math.abs(end.x - start.x)
     const height = Math.abs(end.y - start.y)
     if (width < MIN_SIZE || height < MIN_SIZE) {
-      void invoke('region_overlay_cancel')
+      void invoke('region_overlay_cancel').catch(() => window.close())
       return
     }
     void invoke('region_overlay_complete', {
       x, y, width, height,
       viewportW: window.innerWidth,
       viewportH: window.innerHeight,
-    })
+    }).catch(() => window.close())
   }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') void invoke('region_overlay_cancel')
+      if (e.key === 'Escape') {
+        void invoke('region_overlay_cancel').catch(() => window.close())
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -46,7 +51,18 @@ export default function RegionSelect() {
 
     const onMouseMove = (e: MouseEvent) => {
       currentRef.current = { x: e.clientX, y: e.clientY }
-      forceUpdate((n) => n + 1)
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        const start = startRef.current
+        const cur = currentRef.current
+        if (!start) return
+        setRect({
+          left: Math.min(start.x, cur.x),
+          top: Math.min(start.y, cur.y),
+          w: Math.abs(cur.x - start.x),
+          h: Math.abs(cur.y - start.y),
+        })
+      })
     }
     const onMouseUp = (e: MouseEvent) => {
       finish({ x: e.clientX, y: e.clientY })
@@ -55,6 +71,7 @@ export default function RegionSelect() {
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
     return () => {
+      cancelAnimationFrame(rafRef.current)
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
@@ -66,30 +83,34 @@ export default function RegionSelect() {
     setDragging(true)
   }
 
-  const start = startRef.current
-  const cur = currentRef.current
-  const left = start ? Math.min(start.x, cur.x) : 0
-  const top_ = start ? Math.min(start.y, cur.y) : 0
-  const w = start ? Math.abs(cur.x - start.x) : 0
-  const h = start ? Math.abs(cur.y - start.y) : 0
-
   return (
     <div
       className="fixed inset-0 select-none cursor-crosshair"
       style={{ background: 'transparent' }}
       onMouseDown={handleMouseDown}
     >
-      {dragging && start && w > 2 && h > 2 && (
-        <div
-          className="absolute border-2 border-dashed border-white"
-          style={{
-            left,
-            top: top_,
-            width: w,
-            height: h,
-            boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
-          }}
-        />
+      {dragging && rect && rect.w > 2 && rect.h > 2 && (
+        <>
+          <div
+            className="absolute border-2 border-dashed border-white"
+            style={{
+              left: rect.left,
+              top: rect.top,
+              width: rect.w,
+              height: rect.h,
+              boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+            }}
+          />
+          <div
+            className="pointer-events-none absolute flex items-center justify-center rounded bg-black/70 px-2 py-0.5 text-xs font-mono text-white"
+            style={{
+              left: rect.left,
+              top: rect.top - 24,
+            }}
+          >
+            {Math.round(rect.w)} × {Math.round(rect.h)}
+          </div>
+        </>
       )}
       <p className="pointer-events-none fixed bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-md bg-black/75 px-3 py-1.5 text-sm text-white shadow-lg">
         按住拖动框选区域 · Esc 取消 · 选区过小将自动取消

@@ -1,13 +1,12 @@
-// 设置 — 通用：自启、深浅色、主题色、背景不透明度
+// 设置 — 通用：自启、深浅色、主题色
 import { Power, Sun, Moon, Monitor, Palette } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Card, CardContent } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import CustomColorPicker from '@/components/CustomColorPicker'
-import { PRESET_THEMES, getThemeOption, MIN_BACKGROUND_OPACITY, MAX_BACKGROUND_OPACITY } from '@/lib/theme'
+import { PRESET_THEMES, getThemeOption } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import type { AppConfig } from '@/types'
 
@@ -127,19 +126,6 @@ export default function SettingsGeneralTab({ config, updateConfig }: SettingsGen
               </PopoverContent>
             </Popover>
           </div>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-xs text-muted-foreground">
-            背景不透明度（{MIN_BACKGROUND_OPACITY}–{MAX_BACKGROUND_OPACITY}）：{config.backgroundOpacity}%
-          </label>
-          <Slider
-            min={MIN_BACKGROUND_OPACITY}
-            max={MAX_BACKGROUND_OPACITY}
-            step={1}
-            value={[config.backgroundOpacity]}
-            onValueChange={([v]) => void updateConfig({ backgroundOpacity: v })}
-          />
         </div>
       </CardContent>
     </Card>

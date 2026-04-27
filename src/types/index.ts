@@ -94,7 +94,6 @@ export interface AppConfig {
   firstRun: boolean;
   appThemePreset: string;
   customHue: number;
-  backgroundOpacity: number;
   clipboardShortcut: string;
   clipboardHideOnUnfocus: boolean;
   clipboardHistoryMax: number;
@@ -164,7 +163,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   firstRun: true,
   appThemePreset: 'default',
   customHue: 160,
-  backgroundOpacity: 72,
   clipboardShortcut: 'CommandOrControl+Shift+V',
   clipboardHideOnUnfocus: true,
   clipboardHistoryMax: 100,

@@ -55,8 +55,8 @@ export default function FloatingResult() {
   const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
   const translateSeqRef = useRef(0)
   const appStyle = useMemo(
-    () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode, config.backgroundOpacity) as CSSProperties,
-    [config.appThemePreset, config.customHue, isDarkMode, config.backgroundOpacity],
+    () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
+    [config.appThemePreset, config.customHue, isDarkMode],
   )
 
   useEffect(() => {

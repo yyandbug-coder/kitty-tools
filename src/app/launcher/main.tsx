@@ -30,9 +30,8 @@ function LauncherApp() {
         config.appThemePreset as AppTheme,
         config.customHue,
         isDarkMode,
-        config.backgroundOpacity,
       ) as CSSProperties,
-    [config.appThemePreset, config.customHue, isDarkMode, config.backgroundOpacity],
+    [config.appThemePreset, config.customHue, isDarkMode],
   )
 
   if (!loaded) {

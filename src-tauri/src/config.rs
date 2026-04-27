@@ -121,9 +121,6 @@ pub struct AppConfig {
     /// 自定义主题色相值（仅 app_theme_preset == "custom" 时生效）。
     #[serde(default)]
     pub custom_hue: u16,
-    /// 背景不透明度（0-100）。
-    #[serde(default = "default_background_opacity")]
-    pub background_opacity: u32,
 
     // ── Launcher (command palette) ─────────────────────────────────
     /// 启动器（命令面板）全局快捷键；空字符串表示不注册快捷键。
@@ -168,10 +165,6 @@ fn default_clipboard_history_max() -> u32 {
 
 fn default_clipboard_history_retention_days() -> u32 {
     7
-}
-
-fn default_background_opacity() -> u32 {
-    72
 }
 
 fn default_launcher_file_search_enabled() -> bool {
@@ -230,7 +223,6 @@ impl Default for AppConfig {
             clipboard_disable_text_selection: true,
             app_theme_preset: "default".to_string(),
             custom_hue: 0,
-            background_opacity: 72,
             launcher_shortcut: "Alt+Space".to_string(),
             launcher_hide_on_unfocus: true,
             launcher_bookmarks_chrome: false,

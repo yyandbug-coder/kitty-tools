@@ -71,8 +71,8 @@ export default function SettingsLauncherTab({
           </CardTitle>
           <p className="text-xs text-muted-foreground leading-relaxed">
             在指定目录内按<strong className="font-medium text-foreground">文件名</strong>
-            包含关键词搜索；无 <span className="font-mono text-foreground/90">find </span>/
-            <span className="font-mono text-foreground/90">open </span>前缀时与启动器里其它项一起出现；在输入框中输入{' '}
+            包含关键词搜索；须先在输入框输入 <span className="font-mono text-foreground/90">find </span>/
+            <span className="font-mono text-foreground/90">open </span>再加关键词才会搜本地文件；在输入框中输入{' '}
             <span className="font-mono text-foreground/90">find </span>+ 关键词为仅文件搜索，选中后
             <strong className="font-medium text-foreground">打开该文件所在目录</strong>；输入{' '}
             <span className="font-mono text-foreground/90">open </span>+ 关键词为仅文件搜索，选中后

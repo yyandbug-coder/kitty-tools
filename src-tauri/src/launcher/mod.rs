@@ -68,33 +68,33 @@ pub struct LauncherItem {
     pub icon_path: Option<String>,
 }
 
-/// 供前端 `invoke` 的查询：返回与关键词匹配的条目（含内置、书签、文件等）。
-/// 在阻塞线程池执行，避免 `walkdir` 长时间占用主路径/拖慢界面。
+/// 供前端 `invoke` 的查询：返回与关键词匹配的条目（内置、书签、应用等）。
+/// 本地文件名遍历仅在输入以 `find ` / `open ` 开头时执行（见 `try_parse_file_command`）。
+/// 在阻塞线程池执行，避免 `walkdir` 长时间占用线程池/拖慢界面。
 #[tauri::command]
 pub async fn launcher_query(
     state: State<'_, Mutex<AppConfig>>,
     query: String,
 ) -> Result<Vec<LauncherItem>, String> {
     let config: AppConfig = lock_poisoned(&*state).clone();
-    tokio::task::spawn_blocking(move || query_with_config(&config, query))
+    tokio::task::spawn_blocking(move || query_with_config_impl(&config, query))
         .await
         .map_err(|e| e.to_string())
 }
 
-/// 不含慢速本地文件名 walk，用于与 `launcher_query` 组合，先出书签/系统/内置等再补全文件。
+/// 与 `launcher_query` 在「非 find/open 前缀」时结果一致；均不含混合关键词下的本地文件名 walk。
 #[tauri::command]
 pub async fn launcher_query_instant(
     state: State<'_, Mutex<AppConfig>>,
     query: String,
 ) -> Result<Vec<LauncherItem>, String> {
     let config: AppConfig = lock_poisoned(&*state).clone();
-    tokio::task::spawn_blocking(move || query_with_config_impl(&config, query, false))
+    tokio::task::spawn_blocking(move || query_with_config_impl(&config, query))
         .await
         .map_err(|e| e.to_string())
 }
 
-/// `include_file_search` 为 false 时略过本地文件名遍历，供「先快后全」的前半段结果。
-fn query_with_config_impl(config: &AppConfig, query: String, include_file_search: bool) -> Vec<LauncherItem> {
+fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem> {
     let q = query.trim();
 
     if let Some((kw, rest)) = try_parse_file_command(q) {
@@ -155,23 +155,11 @@ fn query_with_config_impl(config: &AppConfig, query: String, include_file_search
         config.launcher_bookmarks_edge,
         config.launcher_bookmarks_brave,
     );
-    let file_hits = if include_file_search {
-        files::file_items_for_query(
-            config.launcher_file_search_enabled,
-            &config.launcher_file_search_paths,
-            &config.launcher_file_search_excluded_dir_names,
-            q,
-            FileOpenMode::OpenFile,
-        )
-    } else {
-        vec![]
-    };
     let system_hits = system_apps::items_for_query(&q, &q_lower);
 
     let mut out: Vec<LauncherItem> = Vec::new();
     out.extend(bms);
     out.extend(system_hits);
-    out.extend(file_hits);
     out.extend(builtins_matched);
 
     if is_probable_url(q) {
@@ -204,10 +192,6 @@ fn query_with_config_impl(config: &AppConfig, query: String, include_file_search
     }
 
     out
-}
-
-fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
-    query_with_config_impl(config, query, true)
 }
 
 fn path_exists(s: &str) -> bool {

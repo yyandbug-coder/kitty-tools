@@ -57,7 +57,7 @@ function LauncherPanel() {
     listVirtualizer.scrollToIndex(idx, { align: 'auto' })
   }, [items, selected, listVirtualizer])
 
-  /** 空串 / find·open：仅全量查询；其它混合关键词：先 instant 再防抖全量（含文件 walk）。 */
+  /** 空串 / find·open：防抖后走 launcher_query（文件 walk 仅在此类前缀下由后端执行）；其它关键词：instant + 防抖全量（与 instant 一致，无混合文件 walk）。 */
   useEffect(() => {
     if (!loaded) {
       return

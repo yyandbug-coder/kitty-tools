@@ -18,6 +18,8 @@ mod youdao;
 
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
+#[cfg(target_os = "macos")]
+use std::time::Duration;
 
 use tauri::{Emitter, Listener, Manager, RunEvent, Runtime};
 use translate::api::{TranslateCreds, TranslateRequest};
@@ -206,20 +208,47 @@ async fn region_overlay_complete(
     else {
         return Err("无待处理的选区任务".to_string());
     };
-    let Some(full) = full_capture else {
-        return Err("无截屏缓存".to_string());
-    };
 
-    let cropped = screenshot::crop_from_viewport_mapping(
-        &full, x, y, width, height, viewport_w, viewport_h,
-    )?;
-    let png_bytes = screenshot::rgba_to_png(&cropped)?;
+    #[cfg(target_os = "macos")]
+    {
+        let _ = full_capture;
+        // 先隐藏选区，再短延迟一帧，避免 SCK 采到压暗/选框；然后只截选区，不再事先全屏抓图
+        window::hide_region_overlay(&app);
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        let (vx, vy, vw, vh) = screenshot::virtual_screen_bounds().map_err(|e| e.to_string())?;
+        let image = tauri::async_runtime::spawn_blocking({
+            let params = (vx, vy, vw, vh, x, y, width, height, viewport_w, viewport_h);
+            move || {
+                let (vx, vy, vw, vh, x, y, w, h, vvw, vvh) = params;
+                crate::screenshot_macos_sck::capture_overlay_selection_sck(
+                    vx, vy, vw, vh, x, y, w, h, vvw, vvh,
+                )
+            }
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+        let png_bytes = screenshot::rgba_to_png(&image)?;
+        let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
+        spawn_screenshot_translate_pipeline(&app, png_bytes, source_lang, target_lang, &cfg);
+        return Ok(());
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let Some(full) = full_capture else {
+            return Err("无截屏缓存".to_string());
+        };
 
-    window::hide_region_overlay(&app);
+        let cropped = screenshot::crop_from_viewport_mapping(
+            &full, x, y, width, height, viewport_w, viewport_h,
+        )?;
+        let png_bytes = screenshot::rgba_to_png(&cropped)?;
 
-    let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
-    spawn_screenshot_translate_pipeline(&app, png_bytes, source_lang, target_lang, &cfg);
-    Ok(())
+        window::hide_region_overlay(&app);
+
+        let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
+        spawn_screenshot_translate_pipeline(&app, png_bytes, source_lang, target_lang, &cfg);
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -358,30 +387,38 @@ fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
 }
 
 fn prepare_and_show_region_overlay<R: Runtime + 'static>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    std::thread::spawn(move || {
-        let capture = match screenshot::capture_virtual_desktop_rgba() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("[kitty-tools] 截屏失败: {}", e);
-                let app_state = app.state::<app_state::AppState>();
-                {
-                    let mut rp = app_state::lock_poisoned(&app_state.region_pending);
-                    *rp = None;
+    #[cfg(target_os = "macos")]
+    {
+        // 遮罩透明，无需先全屏截屏；选区在确认后单独 SCK
+        return window::show_region_overlay(&app).map_err(|e| e.to_string());
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        std::thread::spawn(move || {
+            let capture = match screenshot::capture_virtual_desktop_rgba() {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("[kitty-tools] 截屏失败: {}", e);
+                    let app_state = app.state::<app_state::AppState>();
+                    {
+                        let mut rp = app_state::lock_poisoned(&app_state.region_pending);
+                        *rp = None;
+                    }
+                    let _ = app.emit("region-capture-failed", serde_json::json!({
+                        "error": format!("截屏失败: {}", e),
+                    }));
+                    return;
                 }
-                let _ = app.emit("region-capture-failed", serde_json::json!({
-                    "error": format!("截屏失败: {}", e),
-                }));
-                return;
+            };
+            let app_state = app.state::<app_state::AppState>();
+            {
+                let mut rc = app_state::lock_poisoned(&app_state.region_capture);
+                *rc = Some(capture);
             }
-        };
-        let app_state = app.state::<app_state::AppState>();
-        {
-            let mut rc = app_state::lock_poisoned(&app_state.region_capture);
-            *rc = Some(capture);
-        }
-        let _ = window::show_region_overlay(&app);
-    });
-    Ok(())
+            let _ = window::show_region_overlay(&app);
+        });
+        Ok(())
+    }
 }
 
 fn spawn_screenshot_translate_pipeline<R: Runtime>(

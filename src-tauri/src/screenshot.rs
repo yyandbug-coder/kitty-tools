@@ -1,10 +1,15 @@
-use screenshots::image::{
-    imageops::{crop_imm, overlay, resize, FilterType},
-    DynamicImage, ImageFormat, Rgba, RgbaImage,
-};
-use rayon::prelude::*;
+use screenshots::image::{DynamicImage, ImageFormat, RgbaImage};
 use std::io::Cursor;
 
+#[cfg(not(target_os = "macos"))]
+use screenshots::image::{
+    imageops::{crop_imm, overlay, resize, FilterType},
+    Rgba, RgbaImage,
+};
+#[cfg(not(target_os = "macos"))]
+use rayon::prelude::*;
+
+#[cfg(not(target_os = "macos"))]
 const MIN_WH: u32 = 8;
 
 fn bounds_from_screens(screens: &[screenshots::Screen]) -> Result<(i32, i32, u32, u32), String> {
@@ -35,6 +40,9 @@ pub fn virtual_screen_bounds() -> Result<(i32, i32, u32, u32), String> {
     bounds_from_screens(&screens)
 }
 
+// 以下仅 Windows / Linux：先全屏截入内存，再按视口比例裁剪。macOS 在选区确认后单帧 SCK，见 `screenshot_macos_sck`。
+
+#[cfg(not(target_os = "macos"))]
 struct CompositeJob {
     screen: screenshots::Screen,
     local_x: i32,
@@ -45,6 +53,7 @@ struct CompositeJob {
     oy: i32,
 }
 
+#[cfg(not(target_os = "macos"))]
 fn capture_and_normalize_job(job: CompositeJob) -> Result<(i32, i32, RgbaImage), String> {
     let CompositeJob {
         screen,
@@ -58,14 +67,13 @@ fn capture_and_normalize_job(job: CompositeJob) -> Result<(i32, i32, RgbaImage),
     let mut rgba = screen
         .capture_area(local_x, local_y, iw, ih)
         .map_err(|e| format!("截取区域失败: {}", e))?;
-    // macOS Retina：`capture_area` 的宽高按 display_info（点）传入，CG 返回的位图常为物理分辨率；
-    // 不缩放到 (iw,ih) 会无法写入画布，截图为花屏/空白，OCR/图片翻译识别不到文字。
     if rgba.width() != iw || rgba.height() != ih {
         rgba = resize(&rgba, iw, ih, FilterType::Triangle);
     }
     Ok((ox, oy, rgba))
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn composite_virtual_region_rgba(
     gx: i32,
     gy: i32,
@@ -99,10 +107,6 @@ pub fn composite_virtual_region_rgba(
         let iw = (ix2 - ix1) as u32;
         let ih = (iy2 - iy1) as u32;
         let ox = ix1 - gx;
-        // Windows / Linux：display_info 的 y 自上而下增大；macOS CG：y 自下而上增大。
-        #[cfg(target_os = "macos")]
-        let oy = gy + gh - iy2;
-        #[cfg(not(target_os = "macos"))]
         let oy = iy1 - gy;
         jobs.push(CompositeJob {
             screen: *screen,
@@ -119,7 +123,6 @@ pub fn composite_virtual_region_rgba(
         return Err("所选区域不在任何显示器内".to_string());
     }
 
-    // 多显示器时并行截取；macOS CG 单屏截屏本身较慢，多屏并行可缩短等待；单屏则直接跑避免 rayon 调度。
     let mut pieces = Vec::with_capacity(jobs.len());
     if jobs.len() == 1 {
         pieces.push(capture_and_normalize_job(jobs.into_iter().next().unwrap())?);
@@ -142,21 +145,15 @@ pub fn composite_virtual_region_rgba(
     Ok(canvas)
 }
 
+/// 为选区准备：在 Windows / Linux 上先合成虚拟桌面一帧
+#[cfg(not(target_os = "macos"))]
 pub fn capture_virtual_desktop_rgba() -> Result<RgbaImage, String> {
-    #[cfg(target_os = "macos")]
-    {
-        if let Ok((vx, vy, vw, vh)) = virtual_screen_bounds() {
-            if let Ok(img) = crate::screenshot_macos_sck::capture_full_desktop_sck(vx, vy, vw, vh) {
-                return Ok(img);
-            }
-        }
-    }
-
     let screens = screenshots::Screen::all().map_err(|e| format!("枚举显示器失败: {}", e))?;
     let (vx, vy, vw, vh) = bounds_from_screens(&screens)?;
     composite_virtual_region_rgba(vx, vy, vw, vh, &screens)
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn crop_from_viewport_mapping(
     full: &RgbaImage,
     x: f64,

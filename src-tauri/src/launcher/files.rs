@@ -175,7 +175,7 @@ fn walk_one_root(
             continue;
         }
         let name = entry.file_name().to_string_lossy();
-        if !contains_ascii_case_insensitive(&name, q_lower) {
+        if !file_name_matches_query(&name, q_lower) {
             continue;
         }
         matches.push(entry.path().to_path_buf());
@@ -186,35 +186,12 @@ fn walk_one_root(
     matches
 }
 
-/// 对英文查询避免整串 `to_lowercase()` 分配；中文等查询仍用 Unicode。
-fn contains_ascii_case_insensitive(hay: &str, q_lower: &str) -> bool {
+/// 仅按**文件名**（非路径）子串匹配；查词与文件名均作 Unicode 小写化，保证 `Vpn.md` 与 `vpn.md` 可互搜。
+fn file_name_matches_query(file_name: &str, q_lower: &str) -> bool {
     if q_lower.is_empty() {
         return true;
     }
-    if !q_lower.is_ascii() {
-        return hay.to_lowercase().contains(q_lower);
-    }
-    if hay.is_ascii() {
-        return contains_ascii_haystack_case_insensitive(hay, q_lower);
-    }
-    hay.to_lowercase().contains(q_lower)
-}
-
-fn contains_ascii_haystack_case_insensitive(hay: &str, q_lower: &str) -> bool {
-    let h = hay.as_bytes();
-    let q = q_lower.as_bytes();
-    if q.len() > h.len() {
-        return false;
-    }
-    'start: for i in 0..=h.len() - q.len() {
-        for j in 0..q.len() {
-            if h[i + j].to_ascii_lowercase() != q[j] {
-                continue 'start;
-            }
-        }
-        return true;
-    }
-    false
+    file_name.to_lowercase().contains(q_lower)
 }
 
 fn make_item(path: &Path, mode: FileOpenMode) -> Item {

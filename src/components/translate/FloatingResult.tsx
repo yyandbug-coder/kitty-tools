@@ -14,6 +14,7 @@ import { Toaster } from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { cn } from '@/lib/utils'
 import { toastInvokeError } from '@/lib/invoke-helpers'
+import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { translateSubmitShortcutLabel } from '@/lib/platform'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import { type AppTheme, getLanguageDisplayName } from '@/types'
@@ -238,8 +239,9 @@ export default function FloatingResult() {
           <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold tracking-tight">
             <AppLogoIcon className="size-5 shrink-0" aria-hidden />
             <span className="shrink-0">快速翻译</span>
-            <span className="truncate text-xs font-normal text-muted-foreground">
-              {translateSubmitShortcutLabel()} 翻译
+            <span className="flex min-w-0 items-center gap-1.5 text-xs font-normal text-muted-foreground">
+              <ShortcutKbd formatted={translateSubmitShortcutLabel()} className="text-muted-foreground shrink-0" />
+              <span className="truncate">翻译</span>
             </span>
           </div>
           <div className="flex items-center gap-1" data-no-drag="true">

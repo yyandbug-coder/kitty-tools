@@ -2,6 +2,7 @@
 // 窗口级事件监听，选区过小自动取消
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { Kbd } from '@/components/ui/kbd'
 
 const MIN_SIZE = 8
 
@@ -112,8 +113,13 @@ export default function RegionSelect() {
           </div>
         </>
       )}
-      <p className="pointer-events-none fixed bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-md bg-black/75 px-3 py-1.5 text-sm text-white shadow-lg">
-        按住拖动框选区域 · Esc 取消 · 选区过小将自动取消
+      <p className="pointer-events-none fixed bottom-8 left-1/2 z-10 flex -translate-x-1/2 flex-wrap items-center justify-center gap-x-1 gap-y-1 rounded-md bg-black/75 px-3 py-1.5 text-sm text-white shadow-lg">
+        <span>按住拖动框选区域</span>
+        <span aria-hidden>·</span>
+        <Kbd className="border-white/25 bg-white/15 text-white select-none">Esc</Kbd>
+        <span>取消</span>
+        <span aria-hidden>·</span>
+        <span>选区过小将自动取消</span>
       </p>
     </div>
   )

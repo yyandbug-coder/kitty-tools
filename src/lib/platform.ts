@@ -2,8 +2,9 @@ export function isMacOs(): boolean {
   return navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 }
 
+/** 用于界面展示与 ShortcutKbd 拆分（须含「 + 」分隔符） */
 export function translateSubmitShortcutLabel(): string {
-  return isMacOs() ? '⌘+Enter' : 'Ctrl+Enter';
+  return isMacOs() ? '⌘ + Enter' : 'Ctrl + Enter';
 }
 
 export function formatShortcutForDisplay(shortcut: string): string {

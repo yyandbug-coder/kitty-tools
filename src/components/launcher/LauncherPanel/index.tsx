@@ -11,7 +11,9 @@ import toast from 'react-hot-toast'
 import { Pin, Settings } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
+import { isMacOs } from '@/lib/platform'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { toastInvokeError } from '@/lib/invoke-helpers'
 import { isFindOrOpenFileCommandQuery } from '@/lib/launcherFilePrefix'
@@ -356,10 +358,39 @@ function LauncherPanel() {
           </div>
         </div>
         <p className="text-muted-foreground min-w-0 max-w-full shrink-0 wrap-break-word border-t border-border/50 px-3 py-1.5 text-[10px] sm:text-xs leading-relaxed">
-          ↑↓ 选择 · PageUp/PageDown 翻页 · Home/End 至首/尾 · Ctrl/⌘+1～9 打开对应项 · Enter 打开 · Esc 关闭。
-          <span className="block sm:inline sm:before:content-['·_']">
-            输入 <kbd className="rounded border px-1">find </kbd> + 关键词：搜文件并打开所在目录；
-            <kbd className="rounded border px-1">open </kbd> + 关键词：搜文件并打开文件。
+          <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-1 align-middle [&_[data-slot=kbd]]:h-4 [&_[data-slot=kbd]]:min-h-4 [&_[data-slot=kbd]]:px-1 [&_[data-slot=kbd]]:text-[10px] sm:[&_[data-slot=kbd]]:text-xs">
+            <KbdGroup>
+              <Kbd>↑</Kbd>
+              <Kbd>↓</Kbd>
+            </KbdGroup>
+            <span>选择</span>
+            <span aria-hidden>·</span>
+            <Kbd>PageUp</Kbd>
+            <span>/</span>
+            <Kbd>PageDown</Kbd>
+            <span>翻页</span>
+            <span aria-hidden>·</span>
+            <Kbd>Home</Kbd>
+            <span>/</span>
+            <Kbd>End</Kbd>
+            <span>至首/尾</span>
+            <span aria-hidden>·</span>
+            {isMacOs() ? <Kbd>⌘</Kbd> : <Kbd>Ctrl</Kbd>}
+            <span>+</span>
+            <Kbd>1</Kbd>
+            <span>～</span>
+            <Kbd>9</Kbd>
+            <span>打开对应项</span>
+            <span aria-hidden>·</span>
+            <Kbd>Enter</Kbd>
+            <span>打开</span>
+            <span aria-hidden>·</span>
+            <Kbd>Esc</Kbd>
+            <span>关闭。</span>
+          </span>
+          <span className="block sm:inline sm:before:content-['·_'] [&_[data-slot=kbd]]:h-4 [&_[data-slot=kbd]]:min-h-4 [&_[data-slot=kbd]]:px-1 [&_[data-slot=kbd]]:text-[10px] sm:[&_[data-slot=kbd]]:text-xs">
+            输入 <Kbd>find</Kbd> + 关键词：搜文件并打开所在目录；
+            <Kbd>open</Kbd> + 关键词：搜文件并打开文件。
           </span>
         </p>
       </div>

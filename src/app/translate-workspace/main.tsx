@@ -7,6 +7,7 @@ import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { useState, useEffect, useMemo } from 'react'
 import { ConfigProvider } from '@/hooks/ConfigProvider'
 import { useAppConfig } from '@/hooks/useAppConfig'
+import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { formatShortcutForDisplay } from '@/lib/platform'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import type { AppTheme } from '@/types'
@@ -68,9 +69,15 @@ function TranslateWorkspaceApp() {
           <AppLogoIcon className="size-5 shrink-0" aria-hidden />
           <h1 className="text-sm font-semibold tracking-tight">翻译工作台</h1>
         </div>
-        <p className="truncate pl-6 text-[11px] leading-tight text-muted-foreground" data-tauri-drag-region>
-          划词 {formatShortcutForDisplay(config.hotkeySelection)} · 截图{' '}
-          {formatShortcutForDisplay(config.hotkeyScreenshot)}
+        <p
+          className="flex min-w-0 max-w-full flex-wrap items-center gap-x-1 gap-y-0.5 pl-6 text-[11px] leading-tight text-muted-foreground"
+          data-tauri-drag-region
+        >
+          <span>划词</span>
+          <ShortcutKbd formatted={formatShortcutForDisplay(config.hotkeySelection)} />
+          <span aria-hidden>·</span>
+          <span>截图</span>
+          <ShortcutKbd formatted={formatShortcutForDisplay(config.hotkeyScreenshot)} />
         </p>
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4 pt-3">

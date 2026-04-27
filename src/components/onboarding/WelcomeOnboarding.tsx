@@ -156,7 +156,7 @@ export default function WelcomeOnboarding() {
               中按习惯修改；本页展示的是你当前的配置键位。
             </p>
             <p className="text-xs text-muted-foreground/90">
-              小提示：使用键盘上的左右方向键也可切换步骤（在输入框外）。
+              小提示：使用键盘上的 <Kbd>←</Kbd> <Kbd>→</Kbd> 也可切换步骤（在输入框外）。
             </p>
           </div>
         )
@@ -175,8 +175,8 @@ export default function WelcomeOnboarding() {
             </div>
             <ul className="list-inside list-disc space-y-1.5 pl-0.5 text-sm text-muted-foreground marker:text-primary">
               <li>
-                输入关键词筛选，<strong className="text-foreground/90">Enter</strong>{' '}
-                执行当前高亮项；用方向键在列表中移动。
+                输入关键词筛选，<Kbd className="text-foreground">Enter</Kbd> 执行当前高亮项；用 <Kbd className="text-foreground">↑</Kbd>{' '}
+                <Kbd className="text-foreground">↓</Kbd> 在列表中移动。
               </li>
               <li>
                 点击标题栏图钉，可让窗口<strong className="text-foreground/90">失焦不自动关闭</strong>
@@ -196,7 +196,7 @@ export default function WelcomeOnboarding() {
           <ul className="list-inside list-disc space-y-1.5 pl-0.5 text-sm text-muted-foreground marker:text-primary">
             <li>
               使用 <ShortcutKbd formatted={clipboardKeys} className="text-foreground" /> 呼出历史面板；选中条目后按{' '}
-              <strong className="text-foreground/90">Enter</strong> 可粘贴到当前光标处（视设置项而定）。
+              <Kbd className="text-foreground">Enter</Kbd> 可粘贴到当前光标处（视设置项而定）。
             </li>
             <li>可搜索、可预览；历史条数与保留天数在设置里可调（减轻隐私与空间顾虑）。</li>
           </ul>

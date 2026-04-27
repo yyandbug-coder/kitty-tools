@@ -12,7 +12,8 @@ import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import { useTranslate } from '@/hooks/useTranslate'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { getLanguageDisplayName, getProviderDisplayName } from '@/types'
-import { translateSubmitShortcutLabel } from '@/lib/platform'
+import ShortcutKbd from '@/components/shared/ShortcutKbd'
+import { formatShortcutForDisplay, translateSubmitShortcutLabel } from '@/lib/platform'
 
 interface ScreenshotResultPayload {
   translatedText?: string
@@ -193,7 +194,11 @@ export default function TranslatePanel() {
                     <Scissors className="size-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>截图翻译（{config.hotkeyScreenshot}）</TooltipContent>
+                <TooltipContent className="flex flex-wrap items-center gap-1">
+                  <span>截图翻译（</span>
+                  <ShortcutKbd formatted={formatShortcutForDisplay(config.hotkeyScreenshot)} />
+                  <span>）</span>
+                </TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>

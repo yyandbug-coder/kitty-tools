@@ -1,6 +1,7 @@
 // 设置 — 剪贴板：条数、保留天数、回车粘贴与预览等
 import { Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent } from '@/components/ui/card'
 import { HISTORY_MAX_ITEMS_OPTIONS, HISTORY_RETENTION_OPTIONS } from '@/app/clipboard/lib/history-settings'
@@ -53,7 +54,9 @@ export default function SettingsClipboardTab({ config, updateConfig }: SettingsC
         <div className="flex items-center justify-between">
           <div>
             <label className="text-sm font-medium">回车粘贴</label>
-            <p className="text-xs text-muted-foreground">按回车键直接粘贴选中项</p>
+            <p className="text-xs text-muted-foreground">
+              按 <Kbd>Enter</Kbd> 直接粘贴选中项
+            </p>
           </div>
           <Switch
             checked={config.clipboardPasteOnEnter}

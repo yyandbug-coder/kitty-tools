@@ -1,4 +1,4 @@
-// 设置主界面 - 由 index.html 挂载，开发预览与 Tauri 设置窗口共用；应用主题与 SettingsPanel
+// 设置主界面 - 由 html/index.html 挂载，开发预览与 Tauri 设置窗口共用；应用主题与 SettingsPanel
 import { useState, useEffect, useMemo, type CSSProperties } from 'react'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { getThemeRuntimeStyle } from '@/lib/theme'

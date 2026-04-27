@@ -1,5 +1,5 @@
 // 剪贴板历史浮层 - Alfred 风格弹出式剪贴板管理器
-// 双栏布局：左侧列表（分页）+ 右侧预览面板；仅由剪贴板弹窗窗口（clipboard-popup.html）挂载
+// 双栏布局：左侧列表（分页）+ 右侧预览面板；仅由剪贴板弹窗（html/clipboard-popup.html）挂载
 import type { CSSProperties, PointerEvent } from 'react'
 import type { AppTheme } from '@/types'
 import { lazy, Suspense, useRef, useEffect, useState, useCallback, useMemo } from 'react'

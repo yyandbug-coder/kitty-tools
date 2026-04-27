@@ -5,7 +5,7 @@ import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import App from '@/App'
 import '@/assets/styles/tailwind/index.css'
 
-// 默认入口：设置主应用（index.html；剪贴板弹窗见 clipboard-popup.html）
+// 默认入口：设置主应用（html/index.html；剪贴板弹窗见 html/clipboard-popup.html）
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>

@@ -30,6 +30,7 @@ export default defineConfig(async ({ command }) => ({
   server: {
     port: 1420,
     strictPort: true,
+    open: '/html/index.html',
     host: host || false,
     hmr: host
       ? {
@@ -47,12 +48,12 @@ export default defineConfig(async ({ command }) => ({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       input: {
-        main: resolve(rootDir, 'index.html'),
-        'clipboard-popup': resolve(rootDir, 'clipboard-popup.html'),
-        floating: resolve(rootDir, 'floating.html'),
-        'region-select': resolve(rootDir, 'region-select.html'),
-        'translate-workspace': resolve(rootDir, 'translate-workspace.html'),
-        onboarding: resolve(rootDir, 'onboarding.html'),
+        main: resolve(rootDir, 'html/index.html'),
+        'clipboard-popup': resolve(rootDir, 'html/clipboard-popup.html'),
+        floating: resolve(rootDir, 'html/floating.html'),
+        'region-select': resolve(rootDir, 'html/region-select.html'),
+        'translate-workspace': resolve(rootDir, 'html/translate-workspace.html'),
+        onboarding: resolve(rootDir, 'html/onboarding.html'),
       },
       output: {
         manualChunks(id) {

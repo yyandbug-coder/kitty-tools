@@ -98,7 +98,7 @@ pub fn get_or_create_clipboard_popup_window<R: Runtime>(
     if let Some(w) = app.get_webview_window(WINDOW_CLIPBOARD_POPUP) {
         return Ok(w);
     }
-    let window = WebviewWindow::builder(app, WINDOW_CLIPBOARD_POPUP, webview_url("clipboard-popup.html"))
+    let window = WebviewWindow::builder(app, WINDOW_CLIPBOARD_POPUP, webview_url("html/clipboard-popup.html"))
         .title("Kitty Tools · 剪贴板")
         .inner_size(1080.0, 720.0)
         .decorations(false)
@@ -234,7 +234,7 @@ pub fn get_or_create_floating_window<R: Runtime>(
     };
 
     let mut builder =
-        WebviewWindow::builder(app, WINDOW_FLOATING, webview_url("floating.html"))
+        WebviewWindow::builder(app, WINDOW_FLOATING, webview_url("html/floating.html"))
             .title("Kitty 翻译 · 划词")
             .inner_size(680.0, 460.0)
             .min_inner_size(520.0, 360.0)
@@ -333,7 +333,7 @@ pub fn get_or_create_region_select_window<R: Runtime>(
     if let Some(w) = app.get_webview_window(WINDOW_REGION_SELECT) {
         return Ok(w);
     }
-    WebviewWindow::builder(app, WINDOW_REGION_SELECT, webview_url("region-select.html"))
+    WebviewWindow::builder(app, WINDOW_REGION_SELECT, webview_url("html/region-select.html"))
         .title("")
         .inner_size(400.0, 300.0)
         .position(0.0, 0.0)
@@ -383,7 +383,7 @@ pub fn get_or_create_settings_window<R: Runtime>(
     }
 
     let window =
-        WebviewWindow::builder(app, WINDOW_SETTINGS, webview_url("index.html"))
+        WebviewWindow::builder(app, WINDOW_SETTINGS, webview_url("html/index.html"))
             .title("Kitty Tools · 设置")
             .inner_size(680.0, 720.0)
             .min_inner_size(560.0, 600.0)
@@ -428,7 +428,7 @@ pub fn get_or_create_translate_workspace_window<R: Runtime>(
     let window = WebviewWindow::builder(
         app,
         WINDOW_TRANSLATE_WORKSPACE,
-        webview_url("translate-workspace.html"),
+        webview_url("html/translate-workspace.html"),
     )
     .title("Kitty 翻译 · 工作台")
     .inner_size(800.0, 600.0)
@@ -465,7 +465,7 @@ pub fn show_onboarding_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::R
     let window = if let Some(w) = app.get_webview_window(WINDOW_ONBOARDING) {
         w
     } else {
-        WebviewWindow::builder(app, WINDOW_ONBOARDING, webview_url("onboarding.html"))
+        WebviewWindow::builder(app, WINDOW_ONBOARDING, webview_url("html/onboarding.html"))
             .title("Kitty Tools · 欢迎使用")
             .inner_size(560.0, 480.0)
             .decorations(true)

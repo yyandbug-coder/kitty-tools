@@ -196,11 +196,6 @@ fn is_windows_drive_root(p: &Path) -> bool {
     }
 }
 
-#[cfg(not(windows))]
-fn is_windows_drive_root(_: &Path) -> bool {
-    false
-}
-
 fn walk_one_root(
     root: &Path,
     q_lower: &str,

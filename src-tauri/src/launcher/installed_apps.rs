@@ -6,6 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
+#[cfg(target_os = "windows")]
 use walkdir::WalkDir;
 
 use super::files;

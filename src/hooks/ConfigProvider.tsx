@@ -5,12 +5,16 @@ import toast from 'react-hot-toast'
 import type { AppConfig } from '@/types'
 import { DEFAULT_CONFIG } from '@/types'
 import { AppConfigContext } from './config-context'
+import { useTheme } from '@/hooks/useTheme'
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG)
   const [loaded, setLoaded] = useState(false)
   const configRef = useRef(config)
   configRef.current = config
+
+  /** 在 document.documentElement 上同步 light/dark（含「跟随系统」），使 Radix Portal 与系统/应用外观一致；独立窗口不能只依赖内层 div 的 .dark。 */
+  useTheme(config.theme)
 
   useEffect(() => {
     invoke<AppConfig>('get_config')

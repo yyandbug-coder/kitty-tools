@@ -1,10 +1,12 @@
 // 设置 — 启动器：浏览器书签来源与本地文件搜索
 import { open } from '@tauri-apps/plugin-dialog'
-import { FolderOpen, Search, X } from 'lucide-react'
+import { FolderOpen, Keyboard, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { isMacOs } from '@/lib/platform'
 import { DEFAULT_LAUNCHER_FILE_SEARCH_EXCLUDED_DIR_NAMES, type AppConfig } from '@/types'
 
 export interface SettingsLauncherTabProps {
@@ -24,6 +26,39 @@ export default function SettingsLauncherTab({
 }: SettingsLauncherTabProps) {
   return (
     <>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <Keyboard className="size-4" />
+            启动器快捷键与操作
+          </CardTitle>
+          <div className="text-xs text-muted-foreground leading-relaxed space-y-2 [&_[data-slot=kbd]]:text-[10px]">
+            <p>
+              <span className="font-medium text-foreground">导航：</span>
+              <KbdGroup>
+                <Kbd>↑</Kbd>
+                <Kbd>↓</Kbd>
+              </KbdGroup>
+              移动选择；<Kbd>PageUp</Kbd> / <Kbd>PageDown</Kbd> 翻页；<Kbd>Home</Kbd> / <Kbd>End</Kbd> 跳到首条或末条。
+            </p>
+            <p>
+              <span className="font-medium text-foreground">打开：</span>
+              <Kbd>Enter</Kbd> 打开当前选中项；{isMacOs() ? <Kbd>⌘</Kbd> : <Kbd>Ctrl</Kbd>}
+              <Kbd>1</Kbd>～<Kbd>9</Kbd> 打开列表第 1～9 项；<Kbd>Esc</Kbd> 关闭启动器窗口。
+            </p>
+            <p>
+              <span className="font-medium text-foreground">搜本地文件：</span>
+              输入 <span className="font-mono text-foreground/90">find </span>+ 关键词可在资源管理器/访达中揭示命中文件所在文件夹；输入{' '}
+              <span className="font-mono text-foreground/90">open </span>+ 关键词可打开匹配文件（须启用下方「本地文件搜索」）。
+            </p>
+            <p className="text-[11px] text-muted-foreground/90">
+              启动器窗口标题栏左侧 <span className="font-medium text-foreground/80">帮助</span>
+              图标悬停可快速查看摘要。
+            </p>
+          </div>
+        </CardHeader>
+      </Card>
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">

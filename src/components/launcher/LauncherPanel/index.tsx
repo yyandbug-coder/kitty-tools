@@ -1,7 +1,7 @@
 /**
  * 启动器面板：不透明窗口 + 与划词翻译浮窗一致的实心背景与分区样式；
  * 输入关键词筛选内置动作、系统快捷项、已安装应用（Windows 开始菜单 / macOS 应用程序）、URL、路径、书签等；find/open 前缀按 Alfred 习惯搜文件（揭示目录 / 打开文件）；
- * 标题栏可固定（失焦不自动隐藏）与打开应用设置。
+ * 标题栏左侧帮助图标（悬停说明快捷键与 find/open）、可固定（失焦不自动隐藏）与打开应用设置。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -9,10 +9,11 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import toast from 'react-hot-toast'
-import { Loader2, Pin, Settings } from 'lucide-react'
+import { CircleHelp, Loader2, Pin, Settings } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { isMacOs } from '@/lib/platform'
 import { useAppConfig } from '@/hooks/useAppConfig'
@@ -269,13 +270,63 @@ function LauncherPanel() {
   const totalListSize = listVirtualizer.getTotalSize()
 
   return (
-    <div
-      className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden bg-background"
-      onKeyDown={onKeyDown}
-    >
-      <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-4 py-3">
-        <p className="text-sm font-semibold tracking-tight">启动器</p>
-        <div className="flex shrink-0 items-center gap-1" data-no-drag="true">
+    <TooltipProvider delayDuration={280}>
+      <div
+        className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden bg-background"
+        onKeyDown={onKeyDown}
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-3 py-2.5 sm:px-4 sm:py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-1.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+                  aria-label="快捷键与 find/open 说明"
+                  data-no-drag="true"
+                >
+                  <CircleHelp className="size-4" aria-hidden />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                variant="rich"
+                side="bottom"
+                align="start"
+                sideOffset={8}
+                className="max-w-[min(calc(100vw-1.5rem),22rem)] space-y-2.5 text-[11px] leading-relaxed sm:max-w-sm sm:text-xs"
+              >
+                <div>
+                  <p className="mb-1 font-semibold text-popover-foreground">导航与打开</p>
+                  <p className="text-muted-foreground [&_[data-slot=kbd]]:text-[10px]">
+                    <KbdGroup>
+                      <Kbd>↑</Kbd>
+                      <Kbd>↓</Kbd>
+                    </KbdGroup>
+                    选择 · <Kbd>PageUp</Kbd>/<Kbd>PageDown</Kbd> 翻页 · <Kbd>Home</Kbd>/<Kbd>End</Kbd> 至首条/末条 ·{' '}
+                    {isMacOs() ? <Kbd>⌘</Kbd> : <Kbd>Ctrl</Kbd>}
+                    <Kbd>1</Kbd>～<Kbd>9</Kbd> 打开列表第 1～9 项 · <Kbd>Enter</Kbd> 打开当前项 · <Kbd>Esc</Kbd> 关闭窗口。
+                  </p>
+                </div>
+                <div className="border-t border-border/60 pt-2">
+                  <p className="mb-1 font-semibold text-popover-foreground">搜本地文件（find / open）</p>
+                  <p className="text-muted-foreground [&_[data-slot=kbd]]:text-[10px]">
+                    输入 <Kbd>find</Kbd> + 空格 + 关键词：在资源管理器/访达中<strong className="font-medium text-popover-foreground">揭示</strong>
+                    命中文件所在文件夹。
+                    <span className="mt-1 block">
+                      输入 <Kbd>open</Kbd> + 空格 + 关键词：<strong className="font-medium text-popover-foreground">打开</strong>匹配文件。
+                    </span>
+                  </p>
+                </div>
+                <p className="border-t border-border/60 pt-2 text-[10px] text-muted-foreground sm:text-[11px]">
+                  更完整的说明见<strong className="font-medium text-popover-foreground">设置 → 启动器</strong>。
+                </p>
+              </TooltipContent>
+            </Tooltip>
+            <p className="min-w-0 truncate text-sm font-semibold tracking-tight">启动器</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1" data-no-drag="true">
           <Button
             type="button"
             variant={config.launcherHideOnUnfocus ? 'ghost' : 'default'}
@@ -296,9 +347,9 @@ function LauncherPanel() {
           >
             <Settings className="size-4" />
           </Button>
+          </div>
         </div>
-      </div>
-      <div className="flex shrink-0 border-b border-border/70 bg-muted/35 px-4 py-3">
+        <div className="flex shrink-0 border-b border-border/70 bg-muted/35 px-4 py-3">
         <div
           className={cn(
             'flex w-full min-w-0 items-center rounded-lg border border-input bg-background px-2.5 py-1.5 shadow-sm',
@@ -413,45 +464,10 @@ function LauncherPanel() {
               )}
             </div>
           </div>
-          <p className="text-muted-foreground min-w-0 max-w-full shrink-0 wrap-break-word border-t border-border/50 px-3 py-1.5 text-[10px] sm:text-xs leading-relaxed">
-            <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-1 align-middle [&_[data-slot=kbd]]:h-4 [&_[data-slot=kbd]]:min-h-4 [&_[data-slot=kbd]]:px-1 [&_[data-slot=kbd]]:text-[10px] sm:[&_[data-slot=kbd]]:text-xs">
-              <KbdGroup>
-                <Kbd>↑</Kbd>
-                <Kbd>↓</Kbd>
-              </KbdGroup>
-              <span>选择</span>
-              <span aria-hidden>·</span>
-              <Kbd>PageUp</Kbd>
-              <span>/</span>
-              <Kbd>PageDown</Kbd>
-              <span>翻页</span>
-              <span aria-hidden>·</span>
-              <Kbd>Home</Kbd>
-              <span>/</span>
-              <Kbd>End</Kbd>
-              <span>至首/尾</span>
-              <span aria-hidden>·</span>
-              {isMacOs() ? <Kbd>⌘</Kbd> : <Kbd>Ctrl</Kbd>}
-              <span>+</span>
-              <Kbd>1</Kbd>
-              <span>～</span>
-              <Kbd>9</Kbd>
-              <span>打开对应项</span>
-              <span aria-hidden>·</span>
-              <Kbd>Enter</Kbd>
-              <span>打开</span>
-              <span aria-hidden>·</span>
-              <Kbd>Esc</Kbd>
-              <span>关闭。</span>
-            </span>
-            <span className="block sm:inline sm:before:content-['·_'] [&_[data-slot=kbd]]:h-4 [&_[data-slot=kbd]]:min-h-4 [&_[data-slot=kbd]]:px-1 [&_[data-slot=kbd]]:text-[10px] sm:[&_[data-slot=kbd]]:text-xs">
-              输入 <Kbd>find</Kbd> + 关键词：在资源管理器/访达中揭示命中项所在文件夹（类似 Alfred Reveal）；
-              <Kbd>open</Kbd> + 关键词：打开匹配文件。
-            </span>
-          </p>
         </div>
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
 

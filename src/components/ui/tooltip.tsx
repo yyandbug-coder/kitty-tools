@@ -54,7 +54,12 @@ function TooltipContent({
           variant === "default" &&
             "inline-flex w-fit max-w-xs items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-background has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm",
           variant === "rich" &&
-            "block max-w-sm rounded-lg border border-border bg-popover px-3 py-2.5 text-left leading-relaxed text-popover-foreground shadow-md",
+            cn(
+              "block max-w-sm rounded-lg border border-border bg-popover px-3 py-2.5 text-left leading-relaxed text-popover-foreground shadow-md",
+              // 覆盖 Kbd 在「默认 tooltip」下的反色，避免浅色 popover 上出现白字
+              "[&_[data-slot=kbd]]:bg-muted [&_[data-slot=kbd]]:!text-popover-foreground",
+              "[&_[data-slot=kbd]]:ring-1 [&_[data-slot=kbd]]:ring-border/70 [&_[data-slot=kbd]]:shadow-none",
+            ),
           className
         )}
         {...props}

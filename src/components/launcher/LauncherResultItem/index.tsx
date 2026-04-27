@@ -55,12 +55,18 @@ export default function LauncherResultItem({
       role="option"
       aria-selected={selected}
       className={cn(
-        'box-border flex w-full min-w-0 max-w-full items-start gap-2.5 overflow-hidden rounded-lg border border-transparent bg-transparent px-2.5 py-1.5 text-start',
-        'transition-colors select-none',
-        'hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
-        'dark:hover:bg-muted/50',
+        'box-border flex w-full min-w-0 max-w-full items-start gap-2.5 overflow-hidden rounded-lg border px-2.5 py-1.5 text-start',
+        'transition-[background-color,border-color,box-shadow,color] duration-150 select-none',
+        'border-transparent bg-transparent',
+        'hover:bg-muted/80 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/55 focus-visible:outline-none',
+        'dark:hover:bg-muted/40',
         'min-h-9 sm:min-h-10',
-        selected && 'bg-accent text-accent-foreground',
+        selected &&
+          cn(
+            'border-primary/55 bg-primary/16 text-foreground shadow-[inset_4px_0_0_0_hsl(var(--primary))]',
+            'ring-2 ring-primary/50 ring-offset-2 ring-offset-background',
+            'hover:bg-primary/20 dark:bg-primary/22 dark:hover:bg-primary/26',
+          ),
       )}
       onClick={onActivate}
       onMouseEnter={onMouseEnter}
@@ -82,7 +88,7 @@ export default function LauncherResultItem({
         <span
           className={cn(
             'block w-full min-w-0 max-w-full truncate text-[11px] leading-snug sm:text-xs',
-            selected ? 'text-accent-foreground/80' : 'text-muted-foreground',
+            selected ? 'text-foreground/75' : 'text-muted-foreground',
           )}
           title={item.subtitle}
         >

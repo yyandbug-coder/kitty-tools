@@ -4,7 +4,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import toast from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
-import { useTheme } from '@/hooks/useTheme'
 import { DEFAULT_CONFIG, type TranslateResult } from '@/types'
 import { cn } from '@/lib/utils'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -82,7 +81,6 @@ export default function SettingsPanel() {
   const [visitedTabs, setVisitedTabs] = useState<Set<SettingsTabId>>(
     () => new Set<SettingsTabId>([SETTINGS_TAB.general]),
   )
-  useTheme(config.theme)
 
   const handleTabChange = useCallback((value: string) => {
     const id = value as SettingsTabId

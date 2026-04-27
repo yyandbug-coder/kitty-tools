@@ -111,7 +111,9 @@ export default function HotkeyInput({
       }
       const s = buildHotkeyFromEvent(e)
       if (!s) return
-      const conflict = otherHotkeys.find(h => h.value.toLowerCase() === s.toLowerCase())
+      const conflict = otherHotkeys.find(
+        (h) => h.value.trim() !== '' && h.value.toLowerCase() === s.toLowerCase()
+      )
       if (conflict) {
         setErr(`该快捷键已与「${conflict.label}」冲突，请选择其他组合键`)
         stopRecording()
@@ -134,6 +136,21 @@ export default function HotkeyInput({
   }, [recording, disabled, onChange, stopRecording, otherHotkeys])
 
   const busy = disabled || savingDefault
+  const isEmpty = !value.trim()
+
+  const handleClear = () => {
+    if (busy || isEmpty) return
+    setErr(null)
+    setRecording(false)
+    setSavingDefault(true)
+    void onChange('')
+      .catch((e) => {
+        setErr(typeof e === 'string' ? e : String(e))
+      })
+      .finally(() => {
+        setSavingDefault(false)
+      })
+  }
 
   return (
     <div id={id} className="px-4 py-3">
@@ -160,6 +177,15 @@ export default function HotkeyInput({
             }}
           >
             {recording ? '按下组合键' : '录制'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || isEmpty}
+            onClick={handleClear}
+          >
+            清除
           </Button>
           <Button
             type="button"

@@ -42,6 +42,12 @@ fn open_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), Stri
     window::show_settings_window(&app).map_err(|e| e.to_string())
 }
 
+/// 开发调试用：打开首次运行引导窗口（生产包无入口，由前端仅在 dev 调用）。
+#[tauri::command]
+fn show_onboarding_window_cmd<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    window::show_onboarding_window(&app).map_err(|e| e.to_string())
+}
+
 /// 前端拖拽前调用：设置交互标记并启动原生拖拽，避免 startDragging 导致的短暂失焦触发自动隐藏。
 #[tauri::command]
 fn start_floating_drag<R: Runtime>(app: tauri::AppHandle<R>, state: tauri::State<'_, app_state::AppState>) -> Result<(), String> {
@@ -572,6 +578,7 @@ pub fn run() {
             show_window,
             hide_window,
             open_settings_window,
+            show_onboarding_window_cmd,
             exit_after_flush,
             clipboard::paste::paste_item,
             update_global_shortcut,

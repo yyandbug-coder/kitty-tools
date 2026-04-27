@@ -21,43 +21,44 @@ static CURRENT_SELECTION_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_SCREENSHOT_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_LAUNCHER_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 
-/// 保存前校验：非空快捷键不得与其它项重复（启动器可为空以关闭）。
+/// 保存前校验：任意项可为空以关闭该全局快捷键；非空项之间不得重复（忽略大小写）。
 pub fn validate_hotkey_config(config: &crate::config::AppConfig) -> Result<(), String> {
-    let mut seen: HashSet<&str> = HashSet::new();
-    for (_label, s) in [
-        ("剪贴板历史", config.clipboard_shortcut.trim()),
-        ("划词翻译", config.hotkey_selection.trim()),
-        ("截图翻译", config.hotkey_screenshot.trim()),
+    let mut seen: HashSet<String> = HashSet::new();
+    for s in [
+        config.clipboard_shortcut.trim(),
+        config.hotkey_selection.trim(),
+        config.hotkey_screenshot.trim(),
+        config.launcher_shortcut.trim(),
     ] {
         if s.is_empty() {
-            return Err("剪贴板与翻译相关快捷键不能为空".to_string());
+            continue;
         }
-        if !seen.insert(s) {
+        if !seen.insert(s.to_lowercase()) {
             return Err(format!("快捷键不能重复：{}", s));
         }
-    }
-    let ls = config.launcher_shortcut.trim();
-    if !ls.is_empty() && !seen.insert(ls) {
-        return Err(format!("启动器快捷键与已有项重复：{}", ls));
     }
     Ok(())
 }
 
 // ── Clipboard shortcut ──────────────────────────────────────────────────
 
-/// Register the clipboard toggle global shortcut.
-///
-/// Unregisters the previous shortcut if one was already registered.
+/// Register the clipboard toggle global shortcut, or unregister if `shortcut` is empty.
 pub fn register_clipboard_shortcut<R: Runtime>(
     app: &tauri::AppHandle<R>,
     shortcut: &str,
 ) -> Result<(), String> {
-    if shortcut.is_empty() {
-        return Err("快捷键不能为空".to_string());
-    }
-
     let global_shortcut = app.global_shortcut();
     let previous_shortcut = lock_poisoned(&CURRENT_CLIPBOARD_SHORTCUT).clone();
+
+    if shortcut.is_empty() {
+        if let Some(ref previous) = previous_shortcut {
+            if let Ok(prev_parsed) = previous.parse::<Shortcut>() {
+                let _ = global_shortcut.unregister(prev_parsed);
+            }
+        }
+        *lock_poisoned(&CURRENT_CLIPBOARD_SHORTCUT) = None;
+        return Ok(());
+    }
 
     if previous_shortcut.as_deref() == Some(shortcut) {
         return Ok(());
@@ -94,39 +95,39 @@ pub fn register_clipboard_shortcut<R: Runtime>(
 
 // ── Translate shortcuts ─────────────────────────────────────────────────
 
-/// Register both translate shortcuts (selection + screenshot).
-///
-/// These emit events that lib.rs listens for and dispatches to the translate pipeline.
-pub fn register_translate_shortcuts<R: Runtime>(
+/// 划词翻译全局键：空则注销。
+fn register_selection_translate_shortcut<R: Runtime>(
     app: &tauri::AppHandle<R>,
-    selection_shortcut: &str,
-    screenshot_shortcut: &str,
+    shortcut: &str,
 ) -> Result<(), String> {
     let global_shortcut = app.global_shortcut();
+    let previous = lock_poisoned(&CURRENT_SELECTION_SHORTCUT).clone();
 
-    // Validate first
-    if selection_shortcut.is_empty() || screenshot_shortcut.is_empty() {
-        return Err("快捷键不能为空".to_string());
+    if shortcut.is_empty() {
+        if let Some(ref prev) = previous {
+            if let Ok(parsed) = Shortcut::from_str(prev) {
+                let _ = global_shortcut.unregister(parsed);
+            }
+        }
+        *lock_poisoned(&CURRENT_SELECTION_SHORTCUT) = None;
+        return Ok(());
     }
-    if selection_shortcut.eq_ignore_ascii_case(screenshot_shortcut) {
-        return Err("划词与截图快捷键不能相同".to_string());
+
+    if previous.as_deref() == Some(shortcut) {
+        return Ok(());
     }
 
-    let sel_parsed = Shortcut::from_str(selection_shortcut)
-        .map_err(|e| format!("划词快捷键无效：{}", e))?;
-    let cap_parsed = Shortcut::from_str(screenshot_shortcut)
-        .map_err(|e| format!("截图快捷键无效：{}", e))?;
+    let parsed = Shortcut::from_str(shortcut).map_err(|e| format!("划词快捷键无效：{}", e))?;
 
-    // Unregister previous translate shortcuts
-    unregister_translate_shortcuts_internal(app);
+    if let Some(ref previous) = previous {
+        if let Ok(prev_parsed) = previous.parse::<Shortcut>() {
+            let _ = global_shortcut.unregister(prev_parsed);
+        }
+    }
+    let _ = global_shortcut.unregister(parsed);
 
-    // Try to pre-clear to avoid "already registered" errors
-    let _ = global_shortcut.unregister(sel_parsed);
-    let _ = global_shortcut.unregister(cap_parsed);
-
-    // Register selection translate shortcut
     global_shortcut
-        .on_shortcut(sel_parsed, |app, _shortcut, event| {
+        .on_shortcut(parsed, |app, _shortcut, event| {
             if event.state != ShortcutState::Pressed {
                 return;
             }
@@ -134,9 +135,43 @@ pub fn register_translate_shortcuts<R: Runtime>(
         })
         .map_err(|error| format!("划词快捷键注册失败：{error}"))?;
 
-    // Register screenshot translate shortcut
+    *lock_poisoned(&CURRENT_SELECTION_SHORTCUT) = Some(shortcut.to_string());
+    Ok(())
+}
+
+/// 截图翻译全局键：空则注销。
+fn register_screenshot_translate_shortcut<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    shortcut: &str,
+) -> Result<(), String> {
+    let global_shortcut = app.global_shortcut();
+    let previous = lock_poisoned(&CURRENT_SCREENSHOT_SHORTCUT).clone();
+
+    if shortcut.is_empty() {
+        if let Some(ref prev) = previous {
+            if let Ok(parsed) = Shortcut::from_str(prev) {
+                let _ = global_shortcut.unregister(parsed);
+            }
+        }
+        *lock_poisoned(&CURRENT_SCREENSHOT_SHORTCUT) = None;
+        return Ok(());
+    }
+
+    if previous.as_deref() == Some(shortcut) {
+        return Ok(());
+    }
+
+    let parsed = Shortcut::from_str(shortcut).map_err(|e| format!("截图快捷键无效：{}", e))?;
+
+    if let Some(ref previous) = previous {
+        if let Ok(prev_parsed) = previous.parse::<Shortcut>() {
+            let _ = global_shortcut.unregister(prev_parsed);
+        }
+    }
+    let _ = global_shortcut.unregister(parsed);
+
     global_shortcut
-        .on_shortcut(cap_parsed, |app, _shortcut, event| {
+        .on_shortcut(parsed, |app, _shortcut, event| {
             if event.state != ShortcutState::Pressed {
                 return;
             }
@@ -144,27 +179,25 @@ pub fn register_translate_shortcuts<R: Runtime>(
         })
         .map_err(|error| format!("截图快捷键注册失败：{error}"))?;
 
-    *lock_poisoned(&CURRENT_SELECTION_SHORTCUT) = Some(selection_shortcut.to_string());
-    *lock_poisoned(&CURRENT_SCREENSHOT_SHORTCUT) = Some(screenshot_shortcut.to_string());
+    *lock_poisoned(&CURRENT_SCREENSHOT_SHORTCUT) = Some(shortcut.to_string());
     Ok(())
 }
 
-/// Unregister only the translate shortcuts (internal helper).
-fn unregister_translate_shortcuts_internal<R: Runtime>(app: &tauri::AppHandle<R>) {
-    let global_shortcut = app.global_shortcut();
-    let prev_sel = lock_poisoned(&CURRENT_SELECTION_SHORTCUT).take();
-    let prev_cap = lock_poisoned(&CURRENT_SCREENSHOT_SHORTCUT).take();
-
-    if let Some(s) = prev_sel {
-        if let Ok(parsed) = Shortcut::from_str(&s) {
-            let _ = global_shortcut.unregister(parsed);
-        }
+/// 同步划词与截图翻译快捷键（可单独为空）。
+pub fn register_translate_shortcuts<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    selection_shortcut: &str,
+    screenshot_shortcut: &str,
+) -> Result<(), String> {
+    if !selection_shortcut.is_empty()
+        && !screenshot_shortcut.is_empty()
+        && selection_shortcut.eq_ignore_ascii_case(screenshot_shortcut)
+    {
+        return Err("划词与截图快捷键不能相同".to_string());
     }
-    if let Some(s) = prev_cap {
-        if let Ok(parsed) = Shortcut::from_str(&s) {
-            let _ = global_shortcut.unregister(parsed);
-        }
-    }
+    register_selection_translate_shortcut(app, selection_shortcut)?;
+    register_screenshot_translate_shortcut(app, screenshot_shortcut)?;
+    Ok(())
 }
 
 // ── Launcher shortcut ───────────────────────────────────────────────────

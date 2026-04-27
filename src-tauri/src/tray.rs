@@ -159,10 +159,14 @@ fn build_tray_menu<R: Runtime>(
     app: &tauri::AppHandle<R>,
     config: &crate::config::AppConfig,
 ) -> tauri::Result<Menu<R>> {
-    let clipboard_label = format!(
-        "剪贴板历史\t{}",
-        hotkey_display_for_tray(&config.clipboard_shortcut)
-    );
+    let clipboard_label = if config.clipboard_shortcut.trim().is_empty() {
+        "剪贴板历史（未设置快捷键）".to_string()
+    } else {
+        format!(
+            "剪贴板历史\t{}",
+            hotkey_display_for_tray(&config.clipboard_shortcut)
+        )
+    };
     let launcher_short = config.launcher_shortcut.trim();
     let launcher_label = if launcher_short.is_empty() {
         "启动器（未设置快捷键）".to_string()
@@ -172,14 +176,22 @@ fn build_tray_menu<R: Runtime>(
             hotkey_display_for_tray(&config.launcher_shortcut)
         )
     };
-    let selection_label = format!(
-        "划词翻译\t{}",
-        hotkey_display_for_tray(&config.hotkey_selection)
-    );
-    let screenshot_label = format!(
-        "截图翻译\t{}",
-        hotkey_display_for_tray(&config.hotkey_screenshot)
-    );
+    let selection_label = if config.hotkey_selection.trim().is_empty() {
+        "划词翻译（未设置快捷键）".to_string()
+    } else {
+        format!(
+            "划词翻译\t{}",
+            hotkey_display_for_tray(&config.hotkey_selection)
+        )
+    };
+    let screenshot_label = if config.hotkey_screenshot.trim().is_empty() {
+        "截图翻译（未设置快捷键）".to_string()
+    } else {
+        format!(
+            "截图翻译\t{}",
+            hotkey_display_for_tray(&config.hotkey_screenshot)
+        )
+    };
 
     let tray_clipboard = MenuItem::with_id(
         app,

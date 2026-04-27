@@ -23,7 +23,8 @@ import {
   Palette,
   Search,
   FolderOpen,
-  X
+  X,
+  Sparkles
 } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppConfig } from '@/hooks/useAppConfig'
@@ -643,6 +644,27 @@ export default function SettingsPanel() {
                   <p className="text-xs text-muted-foreground">全局快捷键。</p>
                 </CardHeader>
                 <CardContent className="p-0">
+                  {import.meta.env.DEV ? (
+                    <div className="border-b border-border px-4 py-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => {
+                          void invoke('show_onboarding_window_cmd')
+                            .then(() => toast.success('已打开引导页'))
+                            .catch((e: unknown) =>
+                              toast.error(typeof e === 'string' ? e : String(e))
+                            )
+                        }}
+                      >
+                        <Sparkles className="size-3.5" />
+                        打开引导页
+                      </Button>
+                      <p className="mt-2 text-xs text-muted-foreground">仅开发环境显示，用于预览首次引导界面。</p>
+                    </div>
+                  ) : null}
                   <div className="divide-y divide-border">
                     <HotkeyInput
                       id="hotkey-selection"

@@ -194,6 +194,12 @@ function LauncherPanel() {
               aria-label="启动器搜索"
               spellCheck={false}
             />
+            <span
+              className="text-muted-foreground shrink-0 border-l border-border/60 pl-2.5 text-[11px] tabular-nums sm:text-xs"
+              aria-live="polite"
+            >
+              {items.length} 项
+            </span>
           </div>
         </div>
         <ScrollArea className="min-h-0 flex-1">

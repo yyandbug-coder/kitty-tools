@@ -361,14 +361,18 @@ export default function FloatingResult() {
                       </Button>
                     </div>
                   </ScrollArea>
+                ) : loading ? (
+                  <div
+                    className="flex h-full min-h-28 w-full flex-col items-center justify-center gap-2 px-2 text-center text-[15px] leading-7 text-muted-foreground sm:flex-row sm:gap-2.5"
+                    aria-busy
+                    aria-live="polite"
+                  >
+                    <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+                    <span>{sourceText.trim() ? '翻译中…' : '请稍候…'}</span>
+                  </div>
                 ) : (
                   <ScrollArea className="h-full min-h-0">
-                    {loading ? (
-                      <div className="flex min-h-28 items-center gap-2 text-[15px] leading-7 text-muted-foreground" aria-busy aria-live="polite">
-                        <Loader2 className="size-4 shrink-0 animate-spin" />
-                        <span>{sourceText.trim() ? '翻译中…' : '请稍候…'}</span>
-                      </div>
-                    ) : translatedText ? (
+                    {translatedText ? (
                       <p className="whitespace-pre-wrap text-[15px] leading-7 text-foreground">{translatedText}</p>
                     ) : (
                       <p className="text-[15px] leading-7 text-muted-foreground">译文将显示在这里</p>

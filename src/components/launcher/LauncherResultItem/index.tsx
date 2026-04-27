@@ -11,8 +11,9 @@ import {
 } from 'lucide-react'
 import type { LauncherItem } from '@/types'
 import { cn } from '@/lib/utils'
-import { isMacOs } from '@/lib/platform'
+import { formatListQuickSlotShortcut } from '@/lib/platform'
 import SourceAppIcon from '@/components/clipboard/SourceAppIcon'
+import ShortcutKbd from '@/components/shared/ShortcutKbd'
 
 export interface LauncherResultItemProps {
   item: LauncherItem
@@ -52,7 +53,6 @@ export default function LauncherResultItem({
 }: LauncherResultItemProps) {
   const path = item.iconPath?.trim() ?? ''
   const showShortcut = listIndex >= 0 && listIndex < 9
-  const shortcutLabel = isMacOs() ? `⌘${listIndex + 1}` : `Ctrl+${listIndex + 1}`
 
   return (
     <button
@@ -102,14 +102,16 @@ export default function LauncherResultItem({
         </span>
       </span>
       {showShortcut ? (
-        <span
-          className={cn(
-            'shrink-0 tabular-nums text-[10px] font-semibold tracking-tight sm:text-[11px]',
-            selected ? 'text-primary' : 'text-muted-foreground',
-          )}
-          aria-hidden
-        >
-          {shortcutLabel}
+        <span className="inline-flex shrink-0" aria-hidden>
+          <ShortcutKbd
+            formatted={formatListQuickSlotShortcut(listIndex + 1)}
+            emptyMessage={null}
+            className={cn(
+              'pointer-events-none tabular-nums',
+              'h-4 min-h-4 px-1 text-[10px] font-semibold tracking-tight sm:h-[18px] sm:text-[11px]',
+              selected ? 'text-primary' : 'text-muted-foreground',
+            )}
+          />
         </span>
       ) : null}
     </button>

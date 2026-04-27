@@ -804,7 +804,7 @@ export default function SettingsPanel() {
                     <span className="font-mono text-foreground/90">find </span>+ 关键词为仅文件搜索，选中后
                     <strong className="font-medium text-foreground">打开该文件所在目录</strong>；输入{' '}
                     <span className="font-mono text-foreground/90">open </span>+ 关键词为仅文件搜索，选中后
-                    <strong className="font-medium text-foreground">打开该文件</strong>。关键词至少 2 个字符。目录列表为空时使用系统「文档」文件夹。深度与扫描量已做上限，超大目录可能仍较慢。
+                    <strong className="font-medium text-foreground">打开该文件</strong>。关键词至少 2 个字符。目录列表为空时使用系统「文档」文件夹。多根目录会并行扫描；仅添加常用文件夹可明显加快。整盘搜索仍可能较慢。
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-0">

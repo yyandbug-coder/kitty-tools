@@ -2,7 +2,7 @@
  * 启动器面板：输入关键词筛选内置动作/URL/路径，回车执行当前选中项；
  * 标题栏可固定（失焦不自动隐藏）与打开应用设置。后续可接书签与全盘文件索引。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -22,8 +22,17 @@ function LauncherPanel() {
   const [items, setItems] = useState<LauncherItem[]>([])
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listItemRefs = useRef<(HTMLDivElement | null)[]>([])
   const queryForResultRef = useRef(query)
   queryForResultRef.current = query
+
+  useLayoutEffect(() => {
+    if (items.length === 0) {
+      return
+    }
+    const idx = Math.min(selected, items.length - 1)
+    listItemRefs.current[idx]?.scrollIntoView({ block: 'nearest' })
+  }, [items, selected])
 
   /** 非空时防抖，避免每键都触发 `launcher_query` 全盘/多目录 walk 导致卡顿；空串立即拉默认列表。 */
   useEffect(() => {
@@ -33,6 +42,7 @@ function LauncherPanel() {
         .then((res) => {
           if (queryForResultRef.current === queryStr) {
             setItems(res)
+            setSelected(0)
           }
         })
         .catch((e) => {
@@ -42,19 +52,16 @@ function LauncherPanel() {
           console.error(e)
           toast.error('无法加载结果')
           setItems([])
+          setSelected(0)
         })
     }
     if (q.length === 0) {
       run('')
       return
     }
-    const t = window.setTimeout(() => run(q), 220)
+    const t = window.setTimeout(() => run(q), 160)
     return () => window.clearTimeout(t)
   }, [query])
-
-  useEffect(() => {
-    setSelected(0)
-  }, [items])
 
   const executeAt = useCallback(
     (index: number) => {
@@ -195,32 +202,39 @@ function LauncherPanel() {
               <p className="text-muted-foreground px-2 py-6 text-center text-sm">无匹配项</p>
             ) : (
               items.map((item, i) => (
-                <Button
+                <div
                   key={`${item.id}-${i}`}
-                  type="button"
-                  role="option"
-                  variant="ghost"
-                  aria-selected={i === selected}
-                  className={cn(
-                    'h-auto w-full min-h-9 flex-col items-stretch justify-center gap-0.5 px-2.5 py-1.5 sm:min-h-10',
-                    i === selected && 'bg-accent text-accent-foreground',
-                  )}
-                  onClick={() => {
-                    setSelected(i)
-                    executeAt(i)
+                  ref={(el) => {
+                    listItemRefs.current[i] = el
                   }}
-                  onMouseEnter={() => setSelected(i)}
+                  className="w-full min-w-0"
                 >
-                  <span className="text-left text-sm font-medium leading-tight">{item.title}</span>
-                  <span
+                  <Button
+                    type="button"
+                    role="option"
+                    variant="ghost"
+                    aria-selected={i === selected}
                     className={cn(
-                      'line-clamp-1 text-left text-[11px] leading-snug sm:text-xs',
-                      i === selected ? 'text-accent-foreground/80' : 'text-muted-foreground',
+                      'h-auto w-full min-h-9 flex-col items-stretch justify-center gap-0.5 px-2.5 py-1.5 sm:min-h-10',
+                      i === selected && 'bg-accent text-accent-foreground',
                     )}
+                    onClick={() => {
+                      setSelected(i)
+                      executeAt(i)
+                    }}
+                    onMouseEnter={() => setSelected(i)}
                   >
-                    {item.subtitle}
-                  </span>
-                </Button>
+                    <span className="text-left text-sm font-medium leading-tight">{item.title}</span>
+                    <span
+                      className={cn(
+                        'line-clamp-1 text-left text-[11px] leading-snug sm:text-xs',
+                        i === selected ? 'text-accent-foreground/80' : 'text-muted-foreground',
+                      )}
+                    >
+                      {item.subtitle}
+                    </span>
+                  </Button>
+                </div>
               ))
             )}
           </div>

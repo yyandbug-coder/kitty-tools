@@ -3,13 +3,15 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use rayon::prelude::*;
 use walkdir::WalkDir;
 
 use super::LauncherItem as Item;
 
 /// 单根目录上匹配过多时，整盘如 `D:\` 会优先在某一棵子树里耗尽；拆成多根并合并后按深度优先排序。
 const MAX_FILE_RESULTS: usize = 100;
-const MAX_GLOBAL_SCAN: u64 = 800_000;
+/// 单根目录内最多检查的路径项数（多根并行时各根独立，总体体验更快）。
+const MAX_SCAN_PER_ROOT: u64 = 60_000;
 const MIN_PER_ROOT: usize = 6;
 const MAX_PER_ROOT: usize = 32;
 
@@ -59,24 +61,16 @@ pub fn file_items_for_query(
     let per_root_cap = ((MAX_FILE_RESULTS * 2) / n)
         .max(MIN_PER_ROOT)
         .min(MAX_PER_ROOT);
-    let max_scan_per_root = (MAX_GLOBAL_SCAN / n as u64).max(50_000);
+    // 多根并行时每根走独立步数预算，与串行时「整盘 80 万步」同量级
+    let max_scan_per_root = (MAX_SCAN_PER_ROOT * 16 / n as u64).max(28_000).min(120_000);
 
-    let mut global_scanned: u64 = 0;
-    let mut all_paths: Vec<PathBuf> = Vec::new();
-
-    for wr in work_roots {
-        let (paths, _) = walk_one_root(
-            &wr,
-            &q_lower,
-            per_root_cap,
-            max_scan_per_root,
-            &mut global_scanned,
-        );
-        all_paths.extend(paths);
-        if global_scanned >= MAX_GLOBAL_SCAN {
-            break;
-        }
-    }
+    // 多核并行各根，避免在 D:\Apps 等子树上顺序堵死
+    let mut all_paths: Vec<PathBuf> = work_roots
+        .par_iter()
+        .flat_map(|wr| {
+            walk_one_root(wr, &q_lower, per_root_cap, max_scan_per_root)
+        })
+        .collect();
 
     // 去重
     let mut seen = HashSet::new();
@@ -156,8 +150,7 @@ fn walk_one_root(
     q_lower: &str,
     max_matches: usize,
     max_scan_for_this_root: u64,
-    global_scanned: &mut u64,
-) -> (Vec<PathBuf>, u64) {
+) -> Vec<PathBuf> {
     let mut matches = Vec::new();
     let mut local_scanned: u64 = 0;
     for entry in WalkDir::new(root)
@@ -167,20 +160,22 @@ fn walk_one_root(
             n != "node_modules"
                 && n != ".git"
                 && !n.eq_ignore_ascii_case("target")
+                && n != "bower_components"
+                && n != "dist"
+                && n != "build"
                 && !(e.depth() > 0 && n.starts_with('.') && n != ".")
         })
     {
-        if local_scanned >= max_scan_for_this_root || *global_scanned >= MAX_GLOBAL_SCAN {
+        if local_scanned >= max_scan_for_this_root {
             break;
         }
         let Ok(entry) = entry else { continue };
         local_scanned += 1;
-        *global_scanned += 1;
         if !entry.file_type().is_file() {
             continue;
         }
         let name = entry.file_name().to_string_lossy();
-        if !name.to_lowercase().contains(q_lower) {
+        if !contains_ascii_case_insensitive(&name, q_lower) {
             continue;
         }
         matches.push(entry.path().to_path_buf());
@@ -188,7 +183,38 @@ fn walk_one_root(
             break;
         }
     }
-    (matches, local_scanned)
+    matches
+}
+
+/// 对英文查询避免整串 `to_lowercase()` 分配；中文等查询仍用 Unicode。
+fn contains_ascii_case_insensitive(hay: &str, q_lower: &str) -> bool {
+    if q_lower.is_empty() {
+        return true;
+    }
+    if !q_lower.is_ascii() {
+        return hay.to_lowercase().contains(q_lower);
+    }
+    if hay.is_ascii() {
+        return contains_ascii_haystack_case_insensitive(hay, q_lower);
+    }
+    hay.to_lowercase().contains(q_lower)
+}
+
+fn contains_ascii_haystack_case_insensitive(hay: &str, q_lower: &str) -> bool {
+    let h = hay.as_bytes();
+    let q = q_lower.as_bytes();
+    if q.len() > h.len() {
+        return false;
+    }
+    'start: for i in 0..=h.len() - q.len() {
+        for j in 0..q.len() {
+            if h[i + j].to_ascii_lowercase() != q[j] {
+                continue 'start;
+            }
+        }
+        return true;
+    }
+    false
 }
 
 fn make_item(path: &Path, mode: FileOpenMode) -> Item {

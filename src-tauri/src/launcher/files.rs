@@ -202,15 +202,18 @@ fn walk_one_root(
     matches
 }
 
-/// 是否进入该目录项：按配置目录名过滤，并跳过深层以 `.` 开头的目录（除 `.` 自身）。
+/// 是否进入/遍历该路径：`exclude_dir_names` **仅对目录**生效，避免与同名文件（如无扩展名 `dist`）冲突。
+/// 深层以 `.` 开头且非 `.` 的目录/文件名一律跳过（如 `.env`、`.git`）。
 fn walk_entry_allowed(
     e: &walkdir::DirEntry,
     exclude_dir_names: &HashSet<String>,
 ) -> bool {
     let n = e.file_name().to_string_lossy();
-    let lower = n.to_lowercase();
-    if exclude_dir_names.contains(&lower) {
-        return false;
+    if e.file_type().is_dir() {
+        let lower = n.to_lowercase();
+        if exclude_dir_names.contains(&lower) {
+            return false;
+        }
     }
     if e.depth() > 0 && n.starts_with('.') && n != "." {
         return false;

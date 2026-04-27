@@ -94,6 +94,8 @@ const TAB_ITEMS: ITabItem[] = [
 
 export default function SettingsPanel() {
   const { config, updateConfig, loaded } = useAppConfig()
+  /** 旧版配置可能无此字段，避免 UI 抛错 */
+  const launcherExcludedDirNames = config.launcherFileSearchExcludedDirNames ?? []
   const [testing, setTesting] = useState(false)
   const [testFeedback, setTestFeedback] = useState<{ ok: boolean; text: string } | null>(null)
   const [appVersion, setAppVersion] = useState('')
@@ -901,7 +903,7 @@ export default function SettingsPanel() {
                             e.preventDefault()
                             const t = launcherExcludeDirInput.trim()
                             if (!t) return
-                            const cur = config.launcherFileSearchExcludedDirNames
+                            const cur = launcherExcludedDirNames
                             if (cur.some((x) => x.toLowerCase() === t.toLowerCase())) {
                               setLauncherExcludeDirInput('')
                               return
@@ -925,7 +927,7 @@ export default function SettingsPanel() {
                           onClick={() => {
                             const t = launcherExcludeDirInput.trim()
                             if (!t) return
-                            const cur = config.launcherFileSearchExcludedDirNames
+                            const cur = launcherExcludedDirNames
                             if (cur.some((x) => x.toLowerCase() === t.toLowerCase())) {
                               setLauncherExcludeDirInput('')
                               return
@@ -951,9 +953,9 @@ export default function SettingsPanel() {
                         </Button>
                       </div>
                     </div>
-                    {config.launcherFileSearchExcludedDirNames.length > 0 ? (
+                    {launcherExcludedDirNames.length > 0 ? (
                       <ul className="border-border bg-muted/30 max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2 text-sm">
-                        {config.launcherFileSearchExcludedDirNames.map((name) => (
+                        {launcherExcludedDirNames.map((name) => (
                           <li
                             key={name}
                             className="text-muted-foreground font-mono flex min-w-0 items-center justify-between gap-2"
@@ -968,8 +970,9 @@ export default function SettingsPanel() {
                               disabled={!config.launcherFileSearchEnabled}
                               onClick={() =>
                                 void updateConfig({
-                                  launcherFileSearchExcludedDirNames:
-                                    config.launcherFileSearchExcludedDirNames.filter((x) => x !== name)
+                                  launcherFileSearchExcludedDirNames: launcherExcludedDirNames.filter(
+                                    (x) => x !== name
+                                  ),
                                 })
                               }
                             >

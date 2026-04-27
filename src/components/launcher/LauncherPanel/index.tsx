@@ -1,6 +1,6 @@
 /**
- * 启动器面板：输入关键词筛选内置动作/URL/路径，回车执行当前选中项；
- * 标题栏可固定（失焦不自动隐藏）与打开应用设置。后续可接书签与全盘文件索引。
+ * 启动器面板：输入关键词筛选内置动作、系统应用、URL、路径、书签、本地文件等，回车执行当前选中项；
+ * 标题栏可固定（失焦不自动隐藏）与打开应用设置。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'

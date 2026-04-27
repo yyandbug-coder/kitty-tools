@@ -14,6 +14,7 @@ use crate::window;
 
 mod bookmarks;
 mod files;
+mod system_apps;
 
 use files::FileOpenMode;
 
@@ -123,7 +124,9 @@ fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
     }
 
     if q.is_empty() {
-        return builtins_matched;
+        let mut out = builtins_matched;
+        out.extend(system_apps::items_for_query("", ""));
+        return out;
     }
 
     let bms = bookmarks::bookmark_items_for_query(
@@ -138,9 +141,11 @@ fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
         q,
         FileOpenMode::OpenFile,
     );
+    let system_hits = system_apps::items_for_query(&q, &q_lower);
 
     let mut out: Vec<LauncherItem> = Vec::new();
     out.extend(bms);
+    out.extend(system_hits);
     out.extend(file_hits);
     out.extend(builtins_matched);
 
@@ -203,7 +208,7 @@ fn normalize_url(s: &str) -> Option<String> {
 }
 
 fn built_in_list() -> Vec<LauncherItem> {
-    let mut v = vec![
+    vec![
         LauncherItem {
             id: "action-settings".into(),
             title: "打开设置".into(),
@@ -225,45 +230,7 @@ fn built_in_list() -> Vec<LauncherItem> {
             kind: "action".into(),
             payload: "clipboard".into(),
         },
-    ];
-    v.extend(platform_quick_actions());
-    v
-}
-
-fn platform_quick_actions() -> Vec<LauncherItem> {
-    #[cfg(target_os = "windows")]
-    {
-        vec![
-            LauncherItem {
-                id: "os-explorer".into(),
-                title: "文件资源管理器".into(),
-                subtitle: "系统".into(),
-                kind: "open_path".into(),
-                payload: "explorer".into(),
-            },
-            LauncherItem {
-                id: "os-notepad".into(),
-                title: "记事本".into(),
-                subtitle: "C:\\Windows\\System32\\notepad.exe".into(),
-                kind: "open_path".into(),
-                payload: "C:\\Windows\\System32\\notepad.exe".into(),
-            },
-        ]
-    }
-    #[cfg(target_os = "macos")]
-    {
-        vec![LauncherItem {
-            id: "os-finder".into(),
-            title: "访达".into(),
-            subtitle: "Finder".into(),
-            kind: "open_path".into(),
-            payload: "/System/Library/CoreServices/Finder.app".into(),
-        }]
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        vec![]
-    }
+    ]
 }
 
 /// 执行启动器项：先隐藏启动器窗口，再打开设置/工作区/剪贴板或系统打开器。
@@ -308,6 +275,38 @@ pub async fn launcher_execute<R: Runtime>(
             app.opener()
                 .open_path(&payload, None::<&str>)
                 .map_err(|e| e.to_string())?;
+        }
+        "win_shell" => {
+            #[cfg(target_os = "windows")]
+            {
+                use std::process::Command;
+                use std::os::windows::process::CommandExt;
+                // `start "" <payload>` 以关联方式启动 UWP、.msc、calc 等
+                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                let st = Command::new("cmd")
+                    .args(["/C", "start", "", &payload])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .spawn();
+                st.map_err(|e| e.to_string())?;
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                return Err("当前平台不支持此启动项".into());
+            }
+        }
+        "mac_open" => {
+            #[cfg(target_os = "macos")]
+            {
+                use std::process::Command;
+                Command::new("open")
+                    .args(["-a", &payload])
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                return Err("当前平台不支持此启动项".into());
+            }
         }
         _ => return Err("未知类型".into()),
     }

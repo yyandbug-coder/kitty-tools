@@ -55,13 +55,17 @@ fn try_parse_file_command(q: &str) -> Option<(FileKeyword, String)> {
 
 /// 单条可展示、可执行的启动器项。
 #[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LauncherItem {
     pub id: String,
     pub title: String,
     pub subtitle: String,
-    /// `action` | `open_url` | `open_path`
+    /// `action` | `open_url` | `open_path` 等
     pub kind: String,
     pub payload: String,
+    /// 若存在，前端可调用 `get_app_icon_data_url` 显示 .exe / .app 等系统图标
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_path: Option<String>,
 }
 
 /// 供前端 `invoke` 的查询：返回与关键词匹配的条目（含内置、书签、文件等）。
@@ -107,6 +111,7 @@ fn query_with_config_impl(config: &AppConfig, query: String, include_file_search
         );
         if let FileKeyword::Open = kw {
             if !rest.is_empty() && path_exists(&rest) {
+                let icon_path = files::icon_path_for_path(Path::new(&rest));
                 out.insert(
                     0,
                     LauncherItem {
@@ -115,6 +120,7 @@ fn query_with_config_impl(config: &AppConfig, query: String, include_file_search
                         subtitle: "本地路径".into(),
                         kind: "open_path".into(),
                         payload: rest,
+                        icon_path,
                     },
                 );
             }
@@ -177,11 +183,13 @@ fn query_with_config_impl(config: &AppConfig, query: String, include_file_search
                 subtitle: "URL".into(),
                 kind: "open_url".into(),
                 payload: normalize_url(q).unwrap_or_else(|| q.to_string()),
+                icon_path: None,
             },
         );
     }
 
     if path_exists(q) {
+        let p = Path::new(q);
         out.insert(
             0,
             LauncherItem {
@@ -190,6 +198,7 @@ fn query_with_config_impl(config: &AppConfig, query: String, include_file_search
                 subtitle: "本地路径".into(),
                 kind: "open_path".into(),
                 payload: q.to_string(),
+                icon_path: files::icon_path_for_path(p),
             },
         );
     }
@@ -238,6 +247,7 @@ fn built_in_list() -> Vec<LauncherItem> {
             subtitle: "Kitty Tools 偏好与快捷键".into(),
             kind: "action".into(),
             payload: "settings".into(),
+            icon_path: None,
         },
         LauncherItem {
             id: "action-workspace".into(),
@@ -245,6 +255,7 @@ fn built_in_list() -> Vec<LauncherItem> {
             subtitle: "文本与 OCR 翻译".into(),
             kind: "action".into(),
             payload: "translate_workspace".into(),
+            icon_path: None,
         },
         LauncherItem {
             id: "action-clipboard".into(),
@@ -252,6 +263,7 @@ fn built_in_list() -> Vec<LauncherItem> {
             subtitle: "打开剪贴板记录面板".into(),
             kind: "action".into(),
             payload: "clipboard".into(),
+            icon_path: None,
         },
     ]
 }

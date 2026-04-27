@@ -1,5 +1,7 @@
 //! 启动器：可搜索的常用系统应用（Windows / macOS），与 Kitty 内置动作相区分。
 
+use std::path::Path;
+
 use super::LauncherItem;
 
 struct SysApp {
@@ -59,14 +61,186 @@ impl SysApp {
             AppLaunch::WinStart(s) => ("win_shell", (*s).to_string()),
             AppLaunch::MacOpen(s) => ("mac_open", (*s).to_string()),
         };
+        let icon_path = icon_path_for_sys_app(self);
         LauncherItem {
             id: self.id.to_string(),
             title: self.title.to_string(),
             subtitle: self.subtitle.to_string(),
             kind: kind.to_string(),
             payload,
+            icon_path,
         }
     }
+}
+
+/// 为「系统应用」列表项解析可用于 `get_app_icon_data_url` 的路径
+fn icon_path_for_sys_app(app: &SysApp) -> Option<String> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(p) = windows_icon_path_by_id(app.id) {
+            return Some(p);
+        }
+    }
+    icon_path_from_app_launch(&app.act)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_icon_path_by_id(id: &str) -> Option<String> {
+    if id == "sys-wt" {
+        return windows_terminal_exe();
+    }
+    let candidates: &[&str] = match id {
+        "sys-explorer" => &[r"C:\Windows\explorer.exe"],
+        "sys-notepad" => &[r"C:\Windows\System32\notepad.exe"],
+        "sys-calc" => &[
+            r"C:\Windows\System32\win32calc.exe",
+            r"C:\Windows\System32\calc.exe",
+        ],
+        "sys-mspaint" => &[r"C:\Windows\System32\mspaint.exe"],
+        "sys-snipping" => &[
+            r"C:\Windows\System32\SnippingTool\SnippingTool.exe",
+            r"C:\Windows\System32\SnippingTool.exe",
+        ],
+        "sys-cmd" => &[r"C:\Windows\System32\cmd.exe"],
+        "sys-pwsh" => &[r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"],
+        "sys-control" => &[r"C:\Windows\System32\control.exe"],
+        "sys-taskmgr" => {
+            &[
+                r"C:\Windows\System32\Taskmgr\Taskmgr.exe",
+                r"C:\Windows\System32\taskmgr.exe",
+            ]
+        }
+        "sys-regedit" => &[r"C:\Windows\regedit.exe"],
+        "sys-mstsc" => &[r"C:\Windows\System32\mstsc.exe"],
+        "sys-services" => &[r"C:\Windows\System32\services.msc"],
+        "sys-diskmgmt" => &[r"C:\Windows\System32\diskmgmt.msc"],
+        "sys-devmgmt" => &[r"C:\Windows\System32\devmgmt.msc"],
+        "sys-odbcad32" => &[r"C:\Windows\System32\odbcad32.exe"],
+        _ => return None,
+    };
+    first_existing(candidates)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_terminal_exe() -> Option<String> {
+    let local = std::env::var("LOCALAPPDATA").ok()?;
+    let p = Path::new(&local)
+        .join("Microsoft")
+        .join("WindowsApps")
+        .join("wt.exe");
+    if p.exists() {
+        return Some(p.to_string_lossy().into_owned());
+    }
+    let alt = Path::new(r"C:\Program Files\WindowsTerminal\wt.exe");
+    if alt.exists() {
+        return Some(alt.to_string_lossy().into_owned());
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn first_existing(paths: &[&str]) -> Option<String> {
+    for p in paths {
+        if Path::new(p).exists() {
+            return Some(p.to_string());
+        }
+    }
+    None
+}
+
+fn icon_path_from_app_launch(act: &AppLaunch) -> Option<String> {
+    match act {
+        AppLaunch::OpenPath(p) => {
+            let p = *p;
+            if Path::new(p).exists() {
+                return Some(p.to_string());
+            }
+            #[cfg(windows)]
+            {
+                if p.eq_ignore_ascii_case("explorer") {
+                    return first_existing(&[r"C:\Windows\explorer.exe"]);
+                }
+            }
+            None
+        }
+        AppLaunch::OpenUrl(_) => None,
+        AppLaunch::WinStart(cmd) => {
+            #[cfg(target_os = "windows")]
+            {
+                return win_shell_icon_path(cmd);
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = cmd;
+                None
+            }
+        }
+        AppLaunch::MacOpen(name) => {
+            #[cfg(target_os = "macos")]
+            {
+                return macos_bundle_path_for_name(name);
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = name;
+                None
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn win_shell_icon_path(cmd: &str) -> Option<String> {
+    let c = cmd.trim();
+    let candidates: &[&str] = match c {
+        "calc" => &[
+            r"C:\Windows\System32\win32calc.exe",
+            r"C:\Windows\System32\calc.exe",
+        ],
+        "mspaint" => &[r"C:\Windows\System32\mspaint.exe"],
+        "SnippingTool" | "snippingtool" => &[
+            r"C:\Windows\System32\SnippingTool\SnippingTool.exe",
+            r"C:\Windows\System32\SnippingTool.exe",
+        ],
+        "cmd" => &[r"C:\Windows\System32\cmd.exe"],
+        "control" => &[r"C:\Windows\System32\control.exe"],
+        "taskmgr" => &[
+            r"C:\Windows\System32\Taskmgr\Taskmgr.exe",
+            r"C:\Windows\System32\taskmgr.exe",
+        ],
+        "regedit" => &[r"C:\Windows\regedit.exe"],
+        "mstsc" => &[r"C:\Windows\System32\mstsc.exe"],
+        "services.msc" => &[r"C:\Windows\System32\services.msc"],
+        "diskmgmt.msc" => &[r"C:\Windows\System32\diskmgmt.msc"],
+        "devmgmt.msc" => &[r"C:\Windows\System32\devmgmt.msc"],
+        _ => &[],
+    };
+    first_existing(candidates)
+}
+
+/// `MacOpen` 的 payload 为应用名，尝试常见 .app 路径
+#[cfg(target_os = "macos")]
+fn macos_bundle_path_for_name(name: &str) -> Option<String> {
+    let n = name.trim();
+    for base in ["/Applications", "/System/Applications", "/System/Applications/Utilities"] {
+        let p = format!("{base}/{n}.app");
+        if Path::new(&p).exists() {
+            return Some(p);
+        }
+    }
+    if n == "Finder" {
+        let f = "/System/Library/CoreServices/Finder.app";
+        if Path::new(f).exists() {
+            return Some(f.to_string());
+        }
+    }
+    if n == "Script Editor" {
+        let s = "/System/Applications/Utilities/Script Editor.app";
+        if Path::new(s).exists() {
+            return Some(s.to_string());
+        }
+    }
+    None
 }
 
 fn all() -> &'static [SysApp] {

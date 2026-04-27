@@ -69,6 +69,7 @@ pub fn bookmark_items_for_query(
             subtitle: format!("书签 · {src}"),
             kind: "open_url".into(),
             payload: url,
+            icon_path: None,
         });
         if out.len() >= 50 {
             break;

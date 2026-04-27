@@ -23,6 +23,41 @@ pub enum FileOpenMode {
     OpenParentDirectory,
 }
 
+/// 用于与 `get_app_icon_data_url` 联用：.exe、.lnk、.msc、macOS 的 .app 包等
+pub fn icon_path_for_path(path: &Path) -> Option<String> {
+    if !path.exists() {
+        return None;
+    }
+    #[cfg(windows)]
+    {
+        if path.is_file() {
+            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                if ext.eq_ignore_ascii_case("exe")
+                    || ext.eq_ignore_ascii_case("lnk")
+                    || ext.eq_ignore_ascii_case("msc")
+                {
+                    return Some(path.to_string_lossy().into_owned());
+                }
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if path.is_dir() {
+            if path.extension().and_then(|e| e.to_str()) == Some("app") {
+                return Some(path.to_string_lossy().into_owned());
+            }
+        } else if path.is_file() {
+            return Some(path.to_string_lossy().into_owned());
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = path;
+    }
+    None
+}
+
 pub fn file_items_for_query(
     enabled: bool,
     roots_cfg: &[String],
@@ -246,6 +281,7 @@ fn make_item(path: &Path, mode: FileOpenMode) -> Item {
                 subtitle: format!("文件 · {parent}"),
                 kind: "open_path".into(),
                 payload: path.to_string_lossy().to_string(),
+                icon_path: icon_path_for_path(path),
             }
         }
         FileOpenMode::OpenParentDirectory => {
@@ -258,6 +294,7 @@ fn make_item(path: &Path, mode: FileOpenMode) -> Item {
                 subtitle: format!("打开所在目录 · {paren_str}"),
                 kind: "open_path".into(),
                 payload,
+                icon_path: icon_path_for_path(path),
             }
         }
     }

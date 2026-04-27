@@ -84,6 +84,8 @@ export interface LauncherItem {
   subtitle: string;
   kind: string;
   payload: string;
+  /** 存在时用于 `get_app_icon_data_url` 拉取本机 .exe / .app 等图标 */
+  iconPath?: string | null;
 }
 
 export interface AppConfig {

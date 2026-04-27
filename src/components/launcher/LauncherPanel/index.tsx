@@ -245,10 +245,10 @@ function LauncherPanel() {
   const totalListSize = listVirtualizer.getTotalSize()
 
   return (
-    <div className="box-border flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden p-3 sm:p-4">
+    <div className="box-border flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden">
       <div
         className={cn(
-          'relative flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden overflow-x-clip rounded-xl',
+          'relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden overflow-x-clip rounded-xl',
           '[background:linear-gradient(165deg,color-mix(in_oklch,var(--theme-accent,var(--ring))_18%,transparent),transparent_52%),color-mix(in_oklch,var(--background)_var(--window-alpha),transparent)]',
           'border border-[color-mix(in_oklch,var(--border)_44%,transparent)]',
           'shadow-[0_20px_72px_color-mix(in_oklch,var(--background)_32%,transparent),inset_0_1px_0_color-mix(in_oklch,white_20%,transparent)]',

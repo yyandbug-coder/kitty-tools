@@ -48,7 +48,7 @@ fn clipboard_images_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<
     let base = app
         .path()
         .app_data_dir()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
     let dir = base.join("clipboard_images");
     if !dir.exists() {
         fs::create_dir_all(&dir)?;
@@ -124,15 +124,9 @@ fn persist_clipboard_image<R: tauri::Runtime>(
     height: usize,
     bytes: &[u8],
 ) -> Option<usize> {
-    let Some(safe_id) = sanitize_clipboard_image_id(id) else {
-        return None;
-    };
-    let Ok(dir) = clipboard_images_dir(app) else {
-        return None;
-    };
-    let Some(png) = rgba_to_png_bytes(width, height, bytes) else {
-        return None;
-    };
+    let safe_id = sanitize_clipboard_image_id(id)?;
+    let dir = clipboard_images_dir(app).ok()?;
+    let png = rgba_to_png_bytes(width, height, bytes)?;
     let path = dir.join(format!("{safe_id}.kchi"));
     let mut buf = Vec::with_capacity(16 + png.len());
     buf.extend_from_slice(CLIPBOARD_IMAGE_MAGIC_PNG);

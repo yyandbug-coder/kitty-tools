@@ -74,7 +74,7 @@ fn trigger_paste_shortcut() {
             let mut inputs: [INPUT; 4] = std::mem::zeroed();
             // Ctrl down
             inputs[0].r#type = INPUT_TYPE(1);
-            inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0 as u16);
+            inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
             inputs[0].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(0);
             // V down
             inputs[1].r#type = INPUT_TYPE(1);
@@ -86,7 +86,7 @@ fn trigger_paste_shortcut() {
             inputs[2].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
             // Ctrl up
             inputs[3].r#type = INPUT_TYPE(1);
-            inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0 as u16);
+            inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
             inputs[3].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
             SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
         }
@@ -270,7 +270,7 @@ fn write_windows_clipboard_files(paths: &[String]) -> bool {
 }
 
 #[cfg(target_os = "windows")]
-#[allow(non_snake_case)]
+#[allow(non_snake_case, clippy::upper_case_acronyms)]
 #[repr(C)]
 struct DROPFILES {
     pFiles: u32,

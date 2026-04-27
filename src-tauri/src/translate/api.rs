@@ -154,13 +154,12 @@ pub fn resolve_translate_request(
     let eff_c = canonicalize_app_lang(&eff);
 
     if request.source_lang == "auto" && request.target_lang == "auto" {
-        // auto → auto：完全根据检测结果选向
-        if lang_slots_match(&eff_c, &a) {
-            TranslateRequest { text: request.text.clone(), source_lang: eff_c.clone(), target_lang: b }
-        } else if lang_slots_match(&eff_c, &b) {
-            TranslateRequest { text: request.text.clone(), source_lang: eff_c.clone(), target_lang: a }
-        } else {
-            TranslateRequest { text: request.text.clone(), source_lang: eff_c.clone(), target_lang: a }
+        // auto → auto：完全根据检测结果选向（与甲匹配则译向乙，否则译向甲）
+        let target_lang = if lang_slots_match(&eff_c, &a) { b } else { a };
+        TranslateRequest {
+            text: request.text.clone(),
+            source_lang: eff_c.clone(),
+            target_lang,
         }
     } else if request.source_lang == "auto" {
         // source=auto, target=fixed：检测到的源与目标相同时，切换目标
@@ -172,14 +171,13 @@ pub fn resolve_translate_request(
             TranslateRequest { text: request.text.clone(), source_lang: eff_c.clone(), target_lang: request.target_lang.clone() }
         }
     } else {
-        // source=fixed, target=auto：根据源语言选目标
+        // source=fixed, target=auto：源与甲同族则目标为乙，否则目标为甲
         let source_c = canonicalize_app_lang(&request.source_lang);
-        if lang_slots_match(&source_c, &a) {
-            TranslateRequest { text: request.text.clone(), source_lang: source_c, target_lang: b }
-        } else if lang_slots_match(&source_c, &b) {
-            TranslateRequest { text: request.text.clone(), source_lang: source_c, target_lang: a }
-        } else {
-            TranslateRequest { text: request.text.clone(), source_lang: source_c, target_lang: a }
+        let target_lang = if lang_slots_match(&source_c, &a) { b } else { a };
+        TranslateRequest {
+            text: request.text.clone(),
+            source_lang: source_c,
+            target_lang,
         }
     }
 }

@@ -142,7 +142,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             source_lang: "auto".to_string(),
-            target_lang: "auto".to_string(),
+            target_lang: default_bidirectional_lang_a(),
             translate_provider: "youdao".to_string(),
             baidu: BaiduConfig::default(),
             google: GoogleConfig {
@@ -225,7 +225,7 @@ impl Default for AppConfigLegacy {
     fn default() -> Self {
         Self {
             source_lang: "auto".to_string(),
-            target_lang: "auto".to_string(),
+            target_lang: default_bidirectional_lang_a(),
             translate_provider: "youdao".to_string(),
             baidu_app_id: String::new(),
             baidu_secret: String::new(),
@@ -371,6 +371,17 @@ pub fn load_config() -> AppConfig {
     if config.translate_provider == "deepl" {
         eprintln!("翻译引擎 DeepL 已不再支持，已自动切换为 youdao");
         config.translate_provider = "youdao".to_string();
+    }
+    // 设置里「目标语言」下拉排除了 auto；历史默认 target_lang=auto 会导致界面空白
+    if config.target_lang == "auto" || config.target_lang.trim().is_empty() {
+        config.target_lang = default_bidirectional_lang_a();
+        match save_config(&config) {
+            Ok(saved) => config = saved,
+            Err(e) => eprintln!(
+                "[kitty-tools] 目标语言已改为 {}，但写入配置失败: {}",
+                config.target_lang, e
+            ),
+        }
     }
     config
 }

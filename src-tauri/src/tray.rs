@@ -4,15 +4,14 @@
 //! clipboard toggle, selection translate, screenshot translate,
 //! translate workspace, settings, and quit.
 //!
-//! Left-click: show translate workspace (single click) / settings (double click).
-//! Right-click: show context menu.
+//! Right-click: show context menu. Left-click is not handled (same as `show_menu_on_left_click(false)`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Emitter, Runtime};
+use tauri::{Emitter, Manager, Runtime};
 
 use crate::window;
 
@@ -71,17 +70,38 @@ fn hotkey_display_for_tray(h: &str) -> String {
 /// ├── ────────────
 /// └── 退出
 /// ```
+/// 内嵌 `icons/icon.png`，在 `default_window_icon` 缺失时仍尝试显示托盘。
+fn tray_icon_fallback() -> Option<tauri::image::Image<'static>> {
+    let icon = image::load_from_memory_with_format(
+        include_bytes!("../icons/icon.png"),
+        image::ImageFormat::Png,
+    )
+    .ok()?
+    .into_rgba8();
+    let (width, height) = icon.dimensions();
+    Some(tauri::image::Image::new_owned(
+        icon.into_raw(),
+        width,
+        height,
+    ))
+}
+
 pub fn build_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let config = crate::config::load_config();
     let menu = build_tray_menu(app, &config)?;
 
-    let icon = match app.default_window_icon().cloned() {
-        Some(icon) => icon,
-        None => {
-            eprintln!("[kitty-tools] 警告：未设置默认窗口图标，托盘图标可能无法正常显示");
-            return Ok(());
-        }
+    let mut icon = app.default_window_icon().cloned();
+    if icon.is_none() {
+        icon = tray_icon_fallback();
+    }
+    let Some(icon) = icon else {
+        eprintln!(
+            "[kitty-tools] 警告：无法加载托盘图标（默认图标与内嵌 icon.png 均不可用）"
+        );
+        return Ok(());
     };
+    // `mut` is required on macOS so we can swap in `build_macos_tray_icon`; unused on other targets.
+    #[allow(unused_mut)]
     let mut tray_builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("Kitty Tools · 右键打开菜单")
         .icon(icon)
@@ -213,13 +233,18 @@ pub fn refresh_tray_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
 
 fn handle_quit<R: Runtime>(app: &tauri::AppHandle<R>) {
     APP_EXIT_FLUSH_ACK.store(false, Ordering::SeqCst);
-    if let Err(error) = app.emit("app-exit-requested", ()) {
+    // 只向剪贴板窗口发送，避免其它 WebView 抢先 `exit_after_flush` 导致未落盘。
+    let emit_result = match app.get_webview_window(window::WINDOW_CLIPBOARD_POPUP) {
+        Some(w) => w.emit("app-exit-requested", ()),
+        None => app.emit("app-exit-requested", ()),
+    };
+    if let Err(error) = emit_result {
         eprintln!(
             "[kitty-tools] 退出事件发送失败: {}，将直接退出（可能未落盘）",
             error
         );
         ALLOW_APP_EXIT.store(true, Ordering::SeqCst);
-        let _ = app.exit(0);
+        app.exit(0);
     } else {
         let app_for_deadline = app.clone();
         std::thread::spawn(move || {
@@ -231,7 +256,7 @@ fn handle_quit<R: Runtime>(app: &tauri::AppHandle<R>) {
                 "[kitty-tools] 前端未在 15s 内完成退出落盘流程，将强制退出（数据可能未完全保存）"
             );
             ALLOW_APP_EXIT.store(true, Ordering::SeqCst);
-            let _ = app_for_deadline.exit(0);
+            app_for_deadline.exit(0);
         });
     }
 }

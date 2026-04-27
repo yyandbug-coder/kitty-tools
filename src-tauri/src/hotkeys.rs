@@ -52,7 +52,7 @@ pub fn register_clipboard_shortcut<R: Runtime>(
 
     // Also try to pre-clear the new shortcut to avoid "already registered" errors
     // caused by stale state from a previous crash.
-    let _ = global_shortcut.unregister(parsed_shortcut.clone());
+    let _ = global_shortcut.unregister(parsed_shortcut);
 
     global_shortcut
         .on_shortcut(parsed_shortcut, |app, _shortcut, event| {
@@ -96,8 +96,8 @@ pub fn register_translate_shortcuts<R: Runtime>(
     unregister_translate_shortcuts_internal(app);
 
     // Try to pre-clear to avoid "already registered" errors
-    let _ = global_shortcut.unregister(sel_parsed.clone());
-    let _ = global_shortcut.unregister(cap_parsed.clone());
+    let _ = global_shortcut.unregister(sel_parsed);
+    let _ = global_shortcut.unregister(cap_parsed);
 
     // Register selection translate shortcut
     global_shortcut

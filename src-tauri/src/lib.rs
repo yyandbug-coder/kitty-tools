@@ -23,12 +23,12 @@ use translate::api::{TranslateCreds, TranslateRequest};
 
 #[tauri::command]
 fn show_window(window: tauri::Window) {
-    window::show_clipboard_popup(&window.app_handle());
+    window::show_clipboard_popup(window.app_handle());
 }
 
 #[tauri::command]
 fn hide_window(window: tauri::Window) {
-    window::hide_clipboard_popup(&window.app_handle());
+    window::hide_clipboard_popup(window.app_handle());
 }
 
 #[tauri::command]
@@ -63,7 +63,7 @@ fn start_clipboard_drag<R: Runtime>(app: tauri::AppHandle<R>, state: tauri::Stat
 #[tauri::command]
 fn exit_after_flush<R: Runtime>(app: tauri::AppHandle<R>) {
     tray::mark_exit_flush_ack();
-    let _ = app.exit(0);
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -533,7 +533,7 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            window::show_clipboard_popup(&app);
+            window::show_clipboard_popup(app);
         }));
     }
 
@@ -593,30 +593,30 @@ pub fn run() {
         ])
         .setup(move |app| {
             // Build tray
-            if let Err(e) = tray::build_tray(&app.handle()) {
+            if let Err(e) = tray::build_tray(app.handle()) {
                 eprintln!("[kitty-tools] 托盘初始化失败: {}", e);
             }
 
             // Ensure tray-only app (no dock/taskbar icon)
-            if let Err(e) = window::ensure_tray_only_app(&app.handle()) {
+            if let Err(e) = window::ensure_tray_only_app(app.handle()) {
                 eprintln!("[kitty-tools] 设置托盘模式失败: {}", e);
             }
 
             // Register global shortcuts
             let cfg = app.state::<Mutex<config::AppConfig>>().lock().unwrap().clone();
-            if let Err(e) = hotkeys::sync_all_hotkeys(&app.handle(), &cfg) {
+            if let Err(e) = hotkeys::sync_all_hotkeys(app.handle(), &cfg) {
                 eprintln!("[kitty-tools] 快捷键注册失败: {}", e);
                 let _ = app.handle().emit("global-shortcut-register-failed", e);
             }
 
             // Sync autostart
-            sync_launch_on_startup(&app.handle(), launch_on_startup);
+            sync_launch_on_startup(app.handle(), launch_on_startup);
 
             // Pre-create clipboard, floating, region-select and settings windows
-            let _ = window::get_or_create_clipboard_popup_window(&app.handle());
-            let _ = window::get_or_create_floating_window(&app.handle());
-            let _ = window::get_or_create_region_select_window(&app.handle());
-            let _ = window::get_or_create_settings_window(&app.handle());
+            let _ = window::get_or_create_clipboard_popup_window(app.handle());
+            let _ = window::get_or_create_floating_window(app.handle());
+            let _ = window::get_or_create_region_select_window(app.handle());
+            let _ = window::get_or_create_settings_window(app.handle());
 
             // Handle hotkey events for translate pipelines
             let app_handle = app.handle().clone();
@@ -647,7 +647,7 @@ pub fn run() {
 
             // Show onboarding on first run
             if first_run {
-                let _ = window::show_onboarding_window(&app.handle());
+                let _ = window::show_onboarding_window(app.handle());
             }
 
             Ok(())

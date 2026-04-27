@@ -386,7 +386,7 @@ async fn recognize_with_youdao(
 
     let text = body
         .get("Result")
-        .map(|r| youdao_collect_text_from_result(r))
+        .map(youdao_collect_text_from_result)
         .unwrap_or_default();
 
     Ok(OcrResult {
@@ -396,6 +396,7 @@ async fn recognize_with_youdao(
 }
 
 /// 截图 / 图片识别：`translate_provider == "baidu"` 时仅走百度 OCR；`youdao` 走有道通用 OCR；否则**优先百度智能云 OCR**，再视情况使用 Google Vision。
+#[allow(clippy::too_many_arguments)]
 pub async fn recognize_text(
     client: &Client,
     image_data: &[u8],

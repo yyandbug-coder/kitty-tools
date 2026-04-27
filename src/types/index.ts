@@ -129,7 +129,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   clipboardPasteOnEnter: true,
   clipboardDisableTextSelection: true,
   sourceLang: 'auto',
-  targetLang: 'auto',
+  /** 目标语言不设为 auto：设置页下拉排除了 auto，否则未选过时触发器会空白 */
+  targetLang: 'zh-CN',
   translateProvider: 'youdao',
   baidu: { appId: '', secret: '', ocrApiKey: '', ocrSecretKey: '', ocrAipBaseUrl: '' },
   google: { apiKey: '', visionApiUrl: '', translateApiUrl: '' },

@@ -353,7 +353,8 @@ pub fn show_region_overlay<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Resu
     use tauri::{PhysicalPosition, PhysicalSize, Position, Size};
 
     let w = get_or_create_region_select_window(app)?;
-    let (vx, vy, vw, vh) = crate::screenshot::virtual_screen_bounds().map_err(|e| tauri::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+    let (vx, vy, vw, vh) = crate::screenshot::virtual_screen_bounds()
+        .map_err(|e| tauri::Error::from(std::io::Error::other(e)))?;
     w.set_position(Position::Physical(PhysicalPosition::new(vx, vy)))?;
     w.set_size(Size::Physical(PhysicalSize::new(vw, vh)))?;
     w.show()?;

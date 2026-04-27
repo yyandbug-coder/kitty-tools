@@ -16,11 +16,11 @@ pub fn get_selected_text() -> Result<String, String> {
         let mut inputs: [INPUT; 2] = std::mem::zeroed();
 
         inputs[0].r#type = INPUT_TYPE(1);
-        inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0 as u16);
+        inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
         inputs[0].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
 
         inputs[1].r#type = INPUT_TYPE(1);
-        inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(VK_SHIFT.0 as u16);
+        inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(VK_SHIFT.0);
         inputs[1].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
 
         SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
@@ -31,7 +31,7 @@ pub fn get_selected_text() -> Result<String, String> {
 
         // Ctrl down
         inputs[0].r#type = INPUT_TYPE(1);
-        inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0 as u16);
+        inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
         inputs[0].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(0);
 
         // C down
@@ -46,7 +46,7 @@ pub fn get_selected_text() -> Result<String, String> {
 
         // Ctrl up
         inputs[3].r#type = INPUT_TYPE(1);
-        inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0 as u16);
+        inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
         inputs[3].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
 
         SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);

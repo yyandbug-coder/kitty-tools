@@ -21,6 +21,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         setConfig(DEFAULT_CONFIG)
         setLoaded(true)
+        toast.error('配置加载失败，已使用默认设置', { duration: 4500 })
       })
   }, [])
 

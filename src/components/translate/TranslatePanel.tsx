@@ -29,6 +29,7 @@ export default function TranslatePanel() {
   const [copied, setCopied] = useState(false)
   const MAX_INPUT_LENGTH = 5000
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 监听截图/划词翻译结果，回显到面板
   useEffect(() => {
@@ -66,6 +67,10 @@ export default function TranslatePanel() {
     inputRef.current?.focus()
   }, [])
 
+  useEffect(() => () => {
+    if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
+  }, [])
+
   const autoCopyResult = async (text: string) => {
     if (!config.autoCopy || !text) return
     try { await navigator.clipboard.writeText(text) } catch { /* clipboard not available */ }
@@ -99,8 +104,12 @@ export default function TranslatePanel() {
     if (!result?.translatedText) return
     try {
       await navigator.clipboard.writeText(result.translatedText)
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      copyResetTimerRef.current = setTimeout(() => {
+        setCopied(false)
+        copyResetTimerRef.current = null
+      }, 2000)
     } catch { /* fallback */ }
   }
 

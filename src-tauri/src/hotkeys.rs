@@ -10,6 +10,7 @@ use std::sync::Mutex;
 use tauri::{Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
+use crate::app_state::lock_poisoned;
 use crate::window;
 
 // ── Static tracking of currently registered shortcuts ───────────────────
@@ -32,7 +33,7 @@ pub fn register_clipboard_shortcut<R: Runtime>(
     }
 
     let global_shortcut = app.global_shortcut();
-    let previous_shortcut = CURRENT_CLIPBOARD_SHORTCUT.lock().unwrap().clone();
+    let previous_shortcut = lock_poisoned(&CURRENT_CLIPBOARD_SHORTCUT).clone();
 
     if previous_shortcut.as_deref() == Some(shortcut) {
         return Ok(());
@@ -63,7 +64,7 @@ pub fn register_clipboard_shortcut<R: Runtime>(
         })
         .map_err(|error| format!("快捷键注册失败：{error}"))?;
 
-    *CURRENT_CLIPBOARD_SHORTCUT.lock().unwrap() = Some(shortcut.to_string());
+    *lock_poisoned(&CURRENT_CLIPBOARD_SHORTCUT) = Some(shortcut.to_string());
     Ok(())
 }
 
@@ -119,16 +120,16 @@ pub fn register_translate_shortcuts<R: Runtime>(
         })
         .map_err(|error| format!("截图快捷键注册失败：{error}"))?;
 
-    *CURRENT_SELECTION_SHORTCUT.lock().unwrap() = Some(selection_shortcut.to_string());
-    *CURRENT_SCREENSHOT_SHORTCUT.lock().unwrap() = Some(screenshot_shortcut.to_string());
+    *lock_poisoned(&CURRENT_SELECTION_SHORTCUT) = Some(selection_shortcut.to_string());
+    *lock_poisoned(&CURRENT_SCREENSHOT_SHORTCUT) = Some(screenshot_shortcut.to_string());
     Ok(())
 }
 
 /// Unregister only the translate shortcuts (internal helper).
 fn unregister_translate_shortcuts_internal<R: Runtime>(app: &tauri::AppHandle<R>) {
     let global_shortcut = app.global_shortcut();
-    let prev_sel = CURRENT_SELECTION_SHORTCUT.lock().unwrap().take();
-    let prev_cap = CURRENT_SCREENSHOT_SHORTCUT.lock().unwrap().take();
+    let prev_sel = lock_poisoned(&CURRENT_SELECTION_SHORTCUT).take();
+    let prev_cap = lock_poisoned(&CURRENT_SCREENSHOT_SHORTCUT).take();
 
     if let Some(s) = prev_sel {
         if let Ok(parsed) = Shortcut::from_str(&s) {
@@ -166,7 +167,7 @@ pub fn unregister_all<R: Runtime>(app: &tauri::AppHandle<R>) {
     let global_shortcut = app.global_shortcut();
     let _ = global_shortcut.unregister_all();
 
-    *CURRENT_CLIPBOARD_SHORTCUT.lock().unwrap() = None;
-    *CURRENT_SELECTION_SHORTCUT.lock().unwrap() = None;
-    *CURRENT_SCREENSHOT_SHORTCUT.lock().unwrap() = None;
+    *lock_poisoned(&CURRENT_CLIPBOARD_SHORTCUT) = None;
+    *lock_poisoned(&CURRENT_SELECTION_SHORTCUT) = None;
+    *lock_poisoned(&CURRENT_SCREENSHOT_SHORTCUT) = None;
 }

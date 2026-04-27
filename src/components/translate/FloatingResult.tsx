@@ -13,6 +13,7 @@ import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/comp
 import { Toaster } from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { cn } from '@/lib/utils'
+import { toastInvokeError } from '@/lib/invoke-helpers'
 import { translateSubmitShortcutLabel } from '@/lib/platform'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import { type AppTheme, getLanguageDisplayName } from '@/types'
@@ -98,8 +99,8 @@ export default function FloatingResult() {
         }
 
         await invoke('floating_ready')
-      } catch {
-        // 非 Tauri 环境忽略
+      } catch (e) {
+        toastInvokeError('浮动翻译窗口未就绪', e)
       }
     })()
 
@@ -113,7 +114,7 @@ export default function FloatingResult() {
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'Escape' && !config.floatingPinned) {
-        void invoke('hide_floating_window')
+        void invoke('hide_floating_window').catch((err) => toastInvokeError('无法隐藏翻译窗口', err))
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -189,7 +190,7 @@ export default function FloatingResult() {
   }
 
   const handleOpenSettings = async () => {
-    try { await invoke('open_settings_window') } catch { /* ignore */ }
+    try { await invoke('open_settings_window') } catch (e) { toastInvokeError('无法打开设置', e) }
   }
 
   const handleTogglePin = async () => {
@@ -202,8 +203,8 @@ export default function FloatingResult() {
     if (event.button !== 0) return
     try {
       await invoke('start_floating_drag')
-    } catch {
-      // 非 Tauri 环境忽略
+    } catch (e) {
+      toastInvokeError('无法开始拖动窗口', e)
     }
   }
 

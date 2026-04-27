@@ -553,7 +553,10 @@ pub fn run() {
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
-                .expect("failed to build HTTP client"),
+                .unwrap_or_else(|e| {
+                    eprintln!("[kitty-tools] 构建 HTTP 客户端失败，使用无超时回退: {}", e);
+                    reqwest::Client::new()
+                }),
             pending_translation: Arc::new(Mutex::new(None)),
             region_pending: Mutex::new(None),
             region_capture: Mutex::new(None),

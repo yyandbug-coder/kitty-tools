@@ -5,17 +5,19 @@ use std::sync::{LazyLock, Mutex};
 #[cfg(target_os = "macos")]
 use base64::Engine;
 
+use crate::app_state::lock_poisoned;
+
 const APP_ICON_CACHE_CAP: usize = 64;
 
 static APP_ICON_CACHE: LazyLock<Mutex<HashMap<String, String>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn app_icon_cache_get(path: &str) -> Option<String> {
-    APP_ICON_CACHE.lock().unwrap().get(path).cloned()
+    lock_poisoned(&*APP_ICON_CACHE).get(path).cloned()
 }
 
 fn app_icon_cache_put(path: String, data_url: String) {
-    let mut g = APP_ICON_CACHE.lock().unwrap();
+    let mut g = lock_poisoned(&*APP_ICON_CACHE);
     if g.len() >= APP_ICON_CACHE_CAP && !g.contains_key(&path) {
         g.clear();
     }

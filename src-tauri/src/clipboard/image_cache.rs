@@ -10,6 +10,8 @@ use std::{
 };
 use tauri::Manager;
 
+use crate::app_state::lock_poisoned;
+
 const MAX_CACHED_IMAGES: usize = 100;
 const MAX_CACHED_IMAGE_BYTES: usize = 48 * 1024 * 1024;
 const PREVIEW_MAX_EDGE: u32 = 420;
@@ -189,7 +191,7 @@ fn load_clipboard_image_from_disk<R: tauri::Runtime>(
 }
 
 fn put_image_in_memory_cache(id: &str, width: usize, height: usize, bytes: &[u8]) {
-    let mut cache = IMAGE_CACHE.lock().unwrap();
+    let mut cache = lock_poisoned(&IMAGE_CACHE);
     cache.retain(|entry| entry.id != id);
     cache.push(CachedImage {
         id: id.to_string(),
@@ -206,7 +208,7 @@ fn put_image_in_memory_cache(id: &str, width: usize, height: usize, bytes: &[u8]
 }
 
 fn prune_image_memory_cache(keep: &HashSet<String>) {
-    let mut cache = IMAGE_CACHE.lock().unwrap();
+    let mut cache = lock_poisoned(&IMAGE_CACHE);
     cache.retain(|entry| keep.contains(&entry.id));
 }
 
@@ -221,7 +223,7 @@ pub fn cache_image<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str, width
 
 pub fn resolve_image_entry<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str) -> Option<CachedImage> {
     {
-        let mut cache = IMAGE_CACHE.lock().unwrap();
+        let mut cache = lock_poisoned(&IMAGE_CACHE);
         if let Some(idx) = cache.iter().position(|e| e.id == id) {
             let entry = cache.remove(idx);
             cache.push(entry.clone());

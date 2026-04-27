@@ -28,10 +28,13 @@
     "sql:allow-execute",
     "sql:allow-select",
     "dialog:default",
-    "fs:allow-write-text-file",
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "**" }]
+      "allow": [
+        { "path": "$APPDATA/kitty-tools/**" },
+        { "path": "$APPDATA/com.yy.kitty-tools/**" },
+        { "path": "$APPDATA/clipboard_images/**" }
+      ]
     },
     "autostart:allow-enable",
     "autostart:allow-disable",

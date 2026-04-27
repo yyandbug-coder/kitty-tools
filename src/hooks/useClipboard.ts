@@ -12,6 +12,8 @@ import {
 } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import toast from 'react-hot-toast'
+import { toastInvokeError } from '@/lib/invoke-helpers'
 import type { AppConfig, ClipboardItem } from '@/types'
 import {
   clearClipboardImagePreviewCache,
@@ -94,7 +96,7 @@ export function useClipboard(config: AppConfig) {
   }, [config.clipboardHistoryRetentionDays])
 
   useEffect(() => {
-    void invoke('start_clipboard_watcher')
+    void invoke('start_clipboard_watcher').catch((e) => toastInvokeError('剪贴板监听启动失败', e))
     let teardown = false
     const unlistenPromise = listen<ClipboardItem>('clipboard-change', (e) => {
       const incoming = e.payload
@@ -120,7 +122,7 @@ export function useClipboard(config: AppConfig) {
           }
           setVisibleCount(PAGE_SIZE)
         })
-        .catch((err) => { console.error('clipboard-change 处理失败:', err) })
+        .catch((err) => { toastInvokeError('处理剪贴板更新失败', err) })
     })
     return () => {
       teardown = true
@@ -159,6 +161,7 @@ export function useClipboard(config: AppConfig) {
         })
       } catch (error) {
         console.error('Failed to load clipboard history from database:', error)
+        toast.error('从本地数据库加载剪贴板历史失败', { duration: 4500 })
       } finally {
         if (!cancelled) { isHistoryLoadingRef.current = false; setIsHistoryLoading(false) }
       }
@@ -184,8 +187,8 @@ export function useClipboard(config: AppConfig) {
           } satisfies StoredClipboardHistory)
         }
         if (generation !== persistGenerationRef.current) return
-        try { await saveClipboardHistoryToDb(serialized) } catch (error) { console.error('Failed to save clipboard history:', error); return }
-        try { await invoke('prune_clipboard_image_store', { keepIds: imageIds }) } catch (error) { console.error('Failed to prune clipboard image store:', error) }
+        try { await saveClipboardHistoryToDb(serialized) } catch (error) { toastInvokeError('保存剪贴板历史失败', error); return }
+        try { await invoke('prune_clipboard_image_store', { keepIds: imageIds }) } catch (error) { toastInvokeError('清理剪贴板图片缓存失败', error) }
       })()
     }, 350)
     return () => window.clearTimeout(timeout)
@@ -222,7 +225,7 @@ export function useClipboard(config: AppConfig) {
     try {
       const payload = item.type === 'image' ? { ...item, imageRgba: undefined } : item
       await invoke('paste_item', { item: payload })
-    } catch (err) { console.error('Paste failed:', err) }
+    } catch (err) { toastInvokeError('粘贴失败', err) }
   }, [])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -251,7 +254,7 @@ export function useClipboard(config: AppConfig) {
       handlePaste(currentFiltered[currentIdx])
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      invoke('hide_window')
+      void invoke('hide_window').catch((err) => toastInvokeError('隐藏窗口失败', err))
     }
   }, [handlePaste])
 
@@ -306,7 +309,7 @@ export function useClipboard(config: AppConfig) {
       const cachedHistory = filterHistoryByRetention(applyClipboardHistoryMaxSlice(normalized, historyMaxRef.current), retentionDaysRef.current)
       pruneClipboardImagePreviewCache(cachedHistory.map((item) => item.id))
       startTransition(() => { setHistory(cachedHistory); setSelectedIndex(0); setVisibleCount(PAGE_SIZE) })
-    } catch (error) { console.error('从数据库重新加载剪贴板历史失败:', error) }
+    } catch (error) { toastInvokeError('从数据库重新加载剪贴板历史失败', error) }
   }, [])
 
   useEffect(() => {
@@ -345,7 +348,7 @@ export function useClipboard(config: AppConfig) {
       } satisfies StoredClipboardHistory)
     }
     try { await saveClipboardHistoryToDb(serialized) } catch (error) { console.error('退出前保存剪贴板历史失败:', error); throw error }
-    try { await invoke('prune_clipboard_image_store', { keepIds: imageIds }) } catch (error) { console.error('退出前清理图片缓存失败:', error) }
+    try { await invoke('prune_clipboard_image_store', { keepIds: imageIds }) } catch (error) { toast.error('退出前清理图片缓存失败，但不影响已保存的文本历史', { duration: 4000 }); console.error(error) }
   }, [])
 
   return {

@@ -16,7 +16,9 @@ import { getThemeRuntimeStyle, getSearchShellStyle } from '@/lib/theme'
 import ClipboardItemCard from '@/components/clipboard/ClipboardItemCard'
 import ClipboardHistoryListSkeleton from '@/components/clipboard/ClipboardHistoryListSkeleton'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { toastInvokeError } from '@/lib/invoke-helpers'
 import { Pin, Settings, Star } from 'lucide-react'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { cn } from '@/lib/utils'
@@ -126,7 +128,7 @@ export default function App() {
   useEffect(() => {
     const root = scrollAreaRef.current
     if (!root) return
-    const viewport = root.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
+    const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null
     if (!viewport) return
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = viewport
@@ -176,13 +178,13 @@ export default function App() {
     if (event.button !== 0) return
     try {
       await invoke('start_clipboard_drag')
-    } catch { /* 非 Tauri 环境忽略 */ }
+    } catch (e) { toastInvokeError('无法开始拖动窗口', e) }
   }, [])
 
   const handleOpenSettings = useCallback(async () => {
     try {
       await invoke('open_settings_window')
-    } catch { /* ignore */ }
+    } catch (e) { toastInvokeError('无法打开设置', e) }
   }, [])
 
   if (!loaded) {
@@ -256,14 +258,17 @@ export default function App() {
                     style={searchShellStyle}
                     data-no-drag="true"
                   >
-                    <input
+                    <Input
                       ref={searchInputRef}
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                       placeholder="搜索文本、文件名或路径..."
                       className={cn(
-                        'appearance-none bg-transparent text-foreground shadow-none outline-none [-webkit-appearance:none] placeholder:text-muted-foreground focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:outline-none',
-                        'h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:ring-0',
+                        'h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none ring-0 file:h-10',
+                        'appearance-none text-foreground outline-none [-webkit-appearance:none] placeholder:text-muted-foreground',
+                        'focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none focus:ring-0',
+                        'focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0',
+                        'md:text-sm',
                         config.clipboardDisableTextSelection && 'select-text'
                       )}
                     />

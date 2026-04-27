@@ -150,6 +150,12 @@ pub struct AppConfig {
     /// 遍历时若某级目录名与此列表**忽略大小写**相同则跳过其整棵子树（如 `node_modules`、`dist`）。
     #[serde(default = "default_launcher_file_search_excluded_dir_names")]
     pub launcher_file_search_excluded_dir_names: Vec<String>,
+    /// 启动器窗口上次内宽（px）；未设置时用默认 680。
+    #[serde(default)]
+    pub launcher_window_width: Option<u32>,
+    /// 启动器窗口上次内高（px）；未设置时用默认 480。
+    #[serde(default)]
+    pub launcher_window_height: Option<u32>,
 }
 
 fn default_true() -> bool {
@@ -233,6 +239,8 @@ impl Default for AppConfig {
             launcher_file_search_enabled: true,
             launcher_file_search_paths: Vec::new(),
             launcher_file_search_excluded_dir_names: default_launcher_file_search_excluded_dir_names(),
+            launcher_window_width: None,
+            launcher_window_height: None,
         }
     }
 }

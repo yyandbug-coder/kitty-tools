@@ -77,7 +77,20 @@ pub async fn launcher_query(
         .map_err(|e| e.to_string())
 }
 
-fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
+/// 不含慢速本地文件名 walk，用于与 `launcher_query` 组合，先出书签/系统/内置等再补全文件。
+#[tauri::command]
+pub async fn launcher_query_instant(
+    state: State<'_, Mutex<AppConfig>>,
+    query: String,
+) -> Result<Vec<LauncherItem>, String> {
+    let config: AppConfig = lock_poisoned(&*state).clone();
+    tokio::task::spawn_blocking(move || query_with_config_impl(&config, query, false))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// `include_file_search` 为 false 时略过本地文件名遍历，供「先快后全」的前半段结果。
+fn query_with_config_impl(config: &AppConfig, query: String, include_file_search: bool) -> Vec<LauncherItem> {
     let q = query.trim();
 
     if let Some((kw, rest)) = try_parse_file_command(q) {
@@ -136,13 +149,17 @@ fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
         config.launcher_bookmarks_edge,
         config.launcher_bookmarks_brave,
     );
-    let file_hits = files::file_items_for_query(
-        config.launcher_file_search_enabled,
-        &config.launcher_file_search_paths,
-        &config.launcher_file_search_excluded_dir_names,
-        q,
-        FileOpenMode::OpenFile,
-    );
+    let file_hits = if include_file_search {
+        files::file_items_for_query(
+            config.launcher_file_search_enabled,
+            &config.launcher_file_search_paths,
+            &config.launcher_file_search_excluded_dir_names,
+            q,
+            FileOpenMode::OpenFile,
+        )
+    } else {
+        vec![]
+    };
     let system_hits = system_apps::items_for_query(&q, &q_lower);
 
     let mut out: Vec<LauncherItem> = Vec::new();
@@ -178,6 +195,10 @@ fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
     }
 
     out
+}
+
+fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
+    query_with_config_impl(config, query, true)
 }
 
 fn path_exists(s: &str) -> bool {

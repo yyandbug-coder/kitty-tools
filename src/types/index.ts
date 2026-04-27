@@ -135,6 +135,10 @@ export interface AppConfig {
   launcherFileSearchPaths: string[];
   /** 遍历时跳过的目录名（仅匹配路径中一级文件夹名，忽略大小写） */
   launcherFileSearchExcludedDirNames: string[];
+  /** 启动器窗口上次内宽（px），未设则用默认 */
+  launcherWindowWidth: number | null;
+  /** 启动器窗口上次内高（px） */
+  launcherWindowHeight: number | null;
 }
 
 export const SUPPORTED_LANGUAGES: Language[] = [
@@ -191,6 +195,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   launcherFileSearchEnabled: true,
   launcherFileSearchPaths: [],
   launcherFileSearchExcludedDirNames: [...DEFAULT_LAUNCHER_FILE_SEARCH_EXCLUDED_DIR_NAMES],
+  launcherWindowWidth: null,
+  launcherWindowHeight: null,
 };
 
 export function getLanguageDisplayName(code: string): string {

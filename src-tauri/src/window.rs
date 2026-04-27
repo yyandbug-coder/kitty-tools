@@ -224,14 +224,22 @@ pub fn get_or_create_launcher_window<R: Runtime>(
     if let Some(w) = app.get_webview_window(WINDOW_LAUNCHER) {
         return Ok(w);
     }
+    let (iw, ih) = {
+        let cfg_state = app.state::<std::sync::Mutex<crate::config::AppConfig>>();
+        let g = crate::app_state::lock_poisoned(&*cfg_state);
+        let w = g.launcher_window_width.unwrap_or(680).clamp(360, 2400) as f64;
+        let h = g.launcher_window_height.unwrap_or(480).clamp(280, 1800) as f64;
+        (w, h)
+    };
     let window = WebviewWindow::builder(app, WINDOW_LAUNCHER, webview_url("html/launcher.html"))
         .title("Kitty Tools · 启动器")
-        .inner_size(680.0, 480.0)
+        .inner_size(iw, ih)
         .decorations(false)
         .transparent(true)
         .always_on_top(true)
         .skip_taskbar(true)
-        .resizable(false)
+        .resizable(true)
+        .min_inner_size(360.0, 280.0)
         .visible(false)
         .shadow(false)
         .center()
@@ -303,6 +311,21 @@ fn register_launcher_handlers<R: Runtime>(window: &WebviewWindow<R>, app: &tauri
 /// 隐藏启动器。
 pub fn hide_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window(WINDOW_LAUNCHER) {
+        if let Ok(size) = window.inner_size() {
+            let w = size.width;
+            let h = size.height;
+            if (320..=4096).contains(&w) && (200..=4096).contains(&h) {
+                let cfg_state = app.state::<std::sync::Mutex<crate::config::AppConfig>>();
+                let mut cfg = crate::app_state::lock_poisoned(&*cfg_state).clone();
+                if cfg.launcher_window_width != Some(w) || cfg.launcher_window_height != Some(h) {
+                    cfg.launcher_window_width = Some(w);
+                    cfg.launcher_window_height = Some(h);
+                    if let Ok(saved) = crate::config::save_config(&cfg) {
+                        *crate::app_state::lock_poisoned(&*cfg_state) = saved;
+                    }
+                }
+            }
+        }
         let _ = window.hide();
     }
 

@@ -529,7 +529,7 @@ pub fn hide_region_overlay<R: Runtime>(app: &tauri::AppHandle<R>) {
 
 /// Get or create the settings window.
 ///
-/// 680x720, decorated, resizable, centered, skip_taskbar, initially invisible.
+/// 680x720，**无系统标题栏**（与启动器/剪贴板浮层一致）、可调整大小、居中、初始不可见；前端须设 `data-tauri-drag-region`。
 /// Registers close-to-hide handler.
 pub fn get_or_create_settings_window<R: Runtime>(
     app: &tauri::AppHandle<R>,
@@ -543,7 +543,7 @@ pub fn get_or_create_settings_window<R: Runtime>(
             .title("Kitty Tools · 设置")
             .inner_size(680.0, 720.0)
             .min_inner_size(560.0, 600.0)
-            .decorations(true)
+            .decorations(false)
             .resizable(true)
             .center()
             .visible(false)
@@ -572,7 +572,7 @@ pub fn show_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
 
 /// Get or create the translate workspace window.
 ///
-/// 800x600, decorated, resizable, centered, initially invisible.
+/// 800x600，**无系统标题栏**（与启动器/剪贴板浮层一致）、可调整、居中、初始不可见；前端须设 `data-tauri-drag-region`。
 /// Registers close-to-hide handler.
 pub fn get_or_create_translate_workspace_window<R: Runtime>(
     app: &tauri::AppHandle<R>,
@@ -589,7 +589,7 @@ pub fn get_or_create_translate_workspace_window<R: Runtime>(
     .title("Kitty 翻译 · 工作台")
     .inner_size(800.0, 600.0)
     .min_inner_size(560.0, 400.0)
-    .decorations(true)
+    .decorations(false)
     .resizable(true)
     .center()
     .visible(false)

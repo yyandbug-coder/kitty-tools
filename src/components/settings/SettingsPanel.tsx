@@ -1,11 +1,14 @@
-// 设置面板 - 应用全局设置（剪贴板/翻译/交互/外观/关于）
+// 设置面板 - 应用全局设置（剪贴板/翻译/交互/外观/关于）；无系统装饰窗，首行 Logo+标题+关闭，其下为 Tab
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { DEFAULT_CONFIG, type TranslateResult } from '@/types'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -146,13 +149,31 @@ export default function SettingsPanel() {
     )
   }
 
+  const handleCloseWindow = useCallback(() => {
+    void getCurrentWindow().hide()
+  }, [])
+
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
-      <div className="flex items-center gap-3 px-4 py-3 border-b" data-tauri-drag-region>
-        <AppLogoIcon className="size-5" />
-        <h1 className="text-sm font-semibold tracking-tight" data-tauri-drag-region>
-          Kitty Tools 设置
-        </h1>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-4 py-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3" data-tauri-drag-region>
+          <AppLogoIcon className="size-5 shrink-0" alt="" aria-hidden />
+          <h1 className="min-w-0 truncate text-sm font-semibold tracking-tight" data-tauri-drag-region>
+            Kitty Tools 设置
+          </h1>
+        </div>
+        <div className="shrink-0" data-no-drag="true">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8 text-muted-foreground hover:text-foreground"
+            onClick={handleCloseWindow}
+            aria-label="关闭窗口"
+          >
+            <X className="size-4" aria-hidden />
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
@@ -161,8 +182,9 @@ export default function SettingsPanel() {
             'max-w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain',
             'touch-pan-x [-webkit-overflow-scrolling:touch]',
           )}
+          data-tauri-drag-region
         >
-          <TabsList className="inline-flex h-auto w-max max-w-none flex-nowrap justify-start gap-1 p-1 mx-4 mt-3">
+          <TabsList className="inline-flex h-auto w-max max-w-none flex-nowrap justify-start gap-1 p-1 m-2 mx-3 sm:mx-4">
             {SETTINGS_TAB_ITEMS.map((tab) => (
               <TabsTrigger
                 key={tab.value}

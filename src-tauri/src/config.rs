@@ -368,21 +368,29 @@ pub fn load_config() -> AppConfig {
         }
     };
     normalize_builtin_google_api_urls(&mut config);
+
+    let mut needs_persist = false;
     if config.translate_provider == "deepl" {
         eprintln!("翻译引擎 DeepL 已不再支持，已自动切换为 youdao");
         config.translate_provider = "youdao".to_string();
+        needs_persist = true;
     }
     // 设置里「目标语言」下拉排除了 auto；历史默认 target_lang=auto 会导致界面空白
     if config.target_lang == "auto" || config.target_lang.trim().is_empty() {
         config.target_lang = default_bidirectional_lang_a();
+        needs_persist = true;
+    }
+
+    if needs_persist {
         match save_config(&config) {
             Ok(saved) => config = saved,
             Err(e) => eprintln!(
-                "[kitty-tools] 目标语言已改为 {}，但写入配置失败: {}",
-                config.target_lang, e
+                "[kitty-tools] 配置已修正（翻译引擎或目标语言），但写入失败: {}",
+                e
             ),
         }
     }
+
     config
 }
 

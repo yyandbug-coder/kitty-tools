@@ -70,7 +70,8 @@ fn hotkey_display_for_tray(h: &str) -> String {
 /// ├── ────────────
 /// └── 退出
 /// ```
-/// 内嵌 `icons/icon.png`，在 `default_window_icon` 缺失时仍尝试显示托盘。
+///
+/// `config` 须与当前应用内存态一致（启动时来自 `load_config` / `Mutex<AppConfig>`，保存后来自 `save_config` 返回值）。
 fn tray_icon_fallback() -> Option<tauri::image::Image<'static>> {
     let icon = image::load_from_memory_with_format(
         include_bytes!("../icons/icon.png"),
@@ -86,9 +87,11 @@ fn tray_icon_fallback() -> Option<tauri::image::Image<'static>> {
     ))
 }
 
-pub fn build_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let config = crate::config::load_config();
-    let menu = build_tray_menu(app, &config)?;
+pub fn build_tray<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    config: &crate::config::AppConfig,
+) -> tauri::Result<()> {
+    let menu = build_tray_menu(app, config)?;
 
     let mut icon = app.default_window_icon().cloned();
     if icon.is_none() {
@@ -219,9 +222,11 @@ fn build_tray_menu<R: Runtime>(
 }
 
 /// Refresh shortcut labels in the tray menu (after config change).
-pub fn refresh_tray_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let config = crate::config::load_config();
-    let menu = build_tray_menu(app, &config)?;
+pub fn refresh_tray_menu<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    config: &crate::config::AppConfig,
+) -> tauri::Result<()> {
+    let menu = build_tray_menu(app, config)?;
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return Ok(());
     };

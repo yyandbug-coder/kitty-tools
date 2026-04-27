@@ -211,10 +211,11 @@ pub fn get_selected_text() -> Result<String, String> {
             .stdin(Stdio::piped())
             .spawn()
             .map_err(|e| format!("pbcopy: {}", e))?;
-        child
+        let mut stdin = child
             .stdin
-            .as_mut()
-            .unwrap()
+            .take()
+            .ok_or_else(|| "pbcopy: 无标准输入".to_string())?;
+        stdin
             .write_all(data)
             .map_err(|e| format!("pbcopy: {}", e))?;
         let status = child.wait().map_err(|e| format!("pbcopy: {}", e))?;

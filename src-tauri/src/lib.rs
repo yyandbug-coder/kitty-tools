@@ -93,7 +93,7 @@ fn save_config_cmd<R: Runtime>(app: tauri::AppHandle<R>, config: config::AppConf
     // Sync autostart
     sync_launch_on_startup(&app, launch);
     // Refresh tray menu labels
-    if let Err(e) = tray::refresh_tray_menu(&app) {
+    if let Err(e) = tray::refresh_tray_menu(&app, &saved) {
         eprintln!("[kitty-tools] 托盘菜单刷新失败: {}", e);
     }
     // Notify all windows
@@ -592,8 +592,10 @@ pub fn run() {
             start_clipboard_drag,
         ])
         .setup(move |app| {
-            // Build tray
-            if let Err(e) = tray::build_tray(app.handle()) {
+            let cfg = app.state::<Mutex<config::AppConfig>>().lock().unwrap().clone();
+
+            // Build tray（复用已加载配置，避免再次读 SQLite）
+            if let Err(e) = tray::build_tray(app.handle(), &cfg) {
                 eprintln!("[kitty-tools] 托盘初始化失败: {}", e);
             }
 
@@ -603,7 +605,6 @@ pub fn run() {
             }
 
             // Register global shortcuts
-            let cfg = app.state::<Mutex<config::AppConfig>>().lock().unwrap().clone();
             if let Err(e) = hotkeys::sync_all_hotkeys(app.handle(), &cfg) {
                 eprintln!("[kitty-tools] 快捷键注册失败: {}", e);
                 let _ = app.handle().emit("global-shortcut-register-failed", e);

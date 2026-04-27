@@ -129,6 +129,9 @@ pub struct AppConfig {
     /// 启动器（命令面板）全局快捷键；空字符串表示不注册快捷键。
     #[serde(default = "default_launcher_shortcut")]
     pub launcher_shortcut: String,
+    /// 失焦时自动隐藏启动器；为 false 时表示「固定」，失焦不关闭直至 Esc 或快捷键。
+    #[serde(default = "default_true")]
+    pub launcher_hide_on_unfocus: bool,
 }
 
 fn default_true() -> bool {
@@ -190,6 +193,7 @@ impl Default for AppConfig {
             custom_hue: 0,
             background_opacity: 72,
             launcher_shortcut: "Alt+Space".to_string(),
+            launcher_hide_on_unfocus: true,
         }
     }
 }

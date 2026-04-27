@@ -236,6 +236,7 @@ pub fn get_or_create_launcher_window<R: Runtime>(
         .shadow(false)
         .center()
         .build()?;
+    register_launcher_handlers(&window, app);
     Ok(window)
 }
 
@@ -272,6 +273,31 @@ pub fn show_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
         let _ = window.set_focus();
     }
     let _ = app.emit("focus-launcher-panel", ());
+}
+
+/// 失焦时按配置决定是否自动隐藏（与 `launcher_hide_on_unfocus` 一致，未固定时隐藏）。
+fn register_launcher_handlers<R: Runtime>(window: &WebviewWindow<R>, app: &tauri::AppHandle<R>) {
+    let app_handle = app.clone();
+    let had_true_focus = Arc::new(AtomicBool::new(false));
+
+    window.on_window_event(move |event| {
+        match event {
+            WindowEvent::Focused(true) => {
+                had_true_focus.store(true, Ordering::SeqCst);
+            }
+            WindowEvent::Focused(false) => {
+                let hide_on_unfocus = {
+                    let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
+                    let guard = crate::app_state::lock_poisoned(&*cfg_state);
+                    guard.launcher_hide_on_unfocus
+                };
+                if hide_on_unfocus && had_true_focus.load(Ordering::SeqCst) {
+                    hide_launcher(&app_handle);
+                }
+            }
+            _ => {}
+        }
+    });
 }
 
 /// 隐藏启动器。

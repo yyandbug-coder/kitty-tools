@@ -108,6 +108,11 @@ export interface AppConfig {
   bidirectionalLangB: string;
   /** 启动器全局快捷键；空字符串表示不注册 */
   launcherShortcut: string;
+  /**
+   * 失焦时是否自动隐藏启动器。
+   * 为 false 时工具栏为「已固定」：失焦不关闭，与剪贴板固定一致。
+   */
+  launcherHideOnUnfocus: boolean;
 }
 
 export const SUPPORTED_LANGUAGES: Language[] = [
@@ -157,6 +162,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   bidirectionalLangA: 'zh-CN',
   bidirectionalLangB: 'en',
   launcherShortcut: 'Alt+Space',
+  launcherHideOnUnfocus: true,
 };
 
 export function getLanguageDisplayName(code: string): string {

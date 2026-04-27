@@ -1,18 +1,23 @@
 /**
- * 启动器面板：输入关键词筛选内置动作/URL/路径，回车执行当前选中项；后续可接书签与全盘文件索引。
+ * 启动器面板：输入关键词筛选内置动作/URL/路径，回车执行当前选中项；
+ * 标题栏可固定（失焦不自动隐藏）与打开应用设置。后续可接书签与全盘文件索引。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import toast from 'react-hot-toast'
+import { Pin, Settings } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import { useAppConfig } from '@/hooks/useAppConfig'
+import { toastInvokeError } from '@/lib/invoke-helpers'
 import type { LauncherItem } from '@/types'
 
 function LauncherPanel() {
+  const { config, loaded, updateConfig } = useAppConfig()
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<LauncherItem[]>([])
   const [selected, setSelected] = useState(0)
@@ -55,6 +60,14 @@ function LauncherPanel() {
     void getCurrentWindow().hide()
   }, [])
 
+  const handleOpenSettings = useCallback(async () => {
+    try {
+      await invoke('open_settings_window')
+    } catch (e) {
+      toastInvokeError('无法打开设置', e)
+    }
+  }, [])
+
   useEffect(() => {
     let un: UnlistenFn | undefined
     void listen('focus-launcher-panel', () => {
@@ -95,6 +108,14 @@ function LauncherPanel() {
     }
   }
 
+  if (!loaded) {
+    return (
+      <div className="box-border flex h-full min-h-0 w-full min-w-0 items-center justify-center p-4">
+        <p className="text-muted-foreground text-sm">加载中…</p>
+      </div>
+    )
+  }
+
   return (
     <div className="box-border flex h-full min-h-0 w-full min-w-0 flex-col p-3 sm:p-4">
       <div
@@ -102,7 +123,37 @@ function LauncherPanel() {
         onKeyDown={onKeyDown}
       >
         <div className="border-b border-border/60 px-3 py-2 sm:px-4 sm:py-2.5">
-          <p className="text-muted-foreground mb-1.5 text-[11px] font-medium sm:text-xs">启动器</p>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-muted-foreground text-[11px] font-medium sm:text-xs">启动器</p>
+            <div className="flex shrink-0 items-center gap-1" data-no-drag="true">
+              <Button
+                type="button"
+                variant={config.launcherHideOnUnfocus ? 'ghost' : 'default'}
+                size="icon-sm"
+                onClick={() => void updateConfig({ launcherHideOnUnfocus: !config.launcherHideOnUnfocus })}
+                aria-label={config.launcherHideOnUnfocus ? '固定面板' : '取消固定'}
+                title={
+                  config.launcherHideOnUnfocus
+                    ? '固定面板（失焦不自动关闭）'
+                    : '取消固定（失焦时自动关闭）'
+                }
+              >
+                <Pin
+                  className={cn('size-4', !config.launcherHideOnUnfocus && 'fill-current')}
+                />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => void handleOpenSettings()}
+                aria-label="打开设置"
+                title="打开设置"
+              >
+                <Settings className="size-4" />
+              </Button>
+            </div>
+          </div>
           <Input
             ref={inputRef}
             value={query}
@@ -151,7 +202,7 @@ function LauncherPanel() {
           </div>
         </ScrollArea>
         <p className="text-muted-foreground border-t border-border/50 px-3 py-1.5 text-[10px] sm:text-xs">
-          ↑↓ 选择 · Enter 打开 · Esc 关闭
+          ↑↓ 选择 · Enter 打开 · Esc 关闭 · 图钉为固定
         </p>
       </div>
     </div>

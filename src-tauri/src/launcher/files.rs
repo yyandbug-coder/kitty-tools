@@ -116,7 +116,7 @@ pub fn file_items_for_query(
     );
 
     // 多核并行各根，避免在 D:\Apps 等子树上顺序堵死
-    let mut all_paths: Vec<PathBuf> = work_roots
+    let all_paths: Vec<PathBuf> = work_roots
         .par_iter()
         .flat_map(|wr| {
             walk_one_root(
@@ -129,9 +129,8 @@ pub fn file_items_for_query(
         })
         .collect();
 
-    // 去重
-    let mut seen = HashSet::new();
-    all_paths.retain(|p| seen.insert(p.to_string_lossy().to_string()));
+    // 去重：移入 HashSet 再倒出，避免 retain 时对每个 PathBuf 额外 clone
+    let mut all_paths: Vec<PathBuf> = all_paths.into_iter().collect::<HashSet<_>>().into_iter().collect();
     // 较浅路径优先，避免深层目录里无关命中挤掉用户目录
     all_paths.sort_by_key(|p| p.components().count());
     all_paths.truncate(MAX_FILE_RESULTS);
@@ -225,8 +224,14 @@ fn walk_one_root(
         if !entry.file_type().is_file() {
             continue;
         }
-        let name = entry.file_name().to_string_lossy();
-        if !file_name_matches_query(&name, q_lower) {
+        let name = entry.file_name();
+        let name_match = if let Some(s) = name.to_str() {
+            file_name_matches_query(s, q_lower)
+        } else {
+            let cow = name.to_string_lossy();
+            file_name_matches_query(cow.as_ref(), q_lower)
+        };
+        if !name_match {
             continue;
         }
         matches.push(entry.path().to_path_buf());
@@ -243,25 +248,66 @@ fn walk_entry_allowed(
     e: &walkdir::DirEntry,
     exclude_dir_names: &HashSet<String>,
 ) -> bool {
-    let n = e.file_name().to_string_lossy();
+    let name = e.file_name();
     if e.file_type().is_dir() {
-        let lower = n.to_lowercase();
-        if exclude_dir_names.contains(&lower) {
+        let excluded = if let Some(s) = name.to_str() {
+            exclude_dir_names.contains(&s.to_lowercase())
+        } else {
+            exclude_dir_names.contains(&name.to_string_lossy().to_lowercase())
+        };
+        if excluded {
             return false;
         }
     }
-    if e.depth() > 0 && n.starts_with('.') && n != "." {
-        return false;
+    if e.depth() > 0 {
+        let hidden_dot = if let Some(s) = name.to_str() {
+            s.starts_with('.') && s != "."
+        } else {
+            let lossy = name.to_string_lossy();
+            lossy.starts_with('.') && lossy != "."
+        };
+        if hidden_dot {
+            return false;
+        }
     }
     true
 }
 
-/// 仅按**文件名**（非路径）子串匹配；查词与文件名均作 Unicode 小写化，保证 `Vpn.md` 与 `vpn.md` 可互搜。
+/// 仅按**文件名**（非路径）子串匹配。查词已小写；纯 ASCII 文件名+关键词走无整串 `to_lowercase` 分配的快速路径。
 fn file_name_matches_query(file_name: &str, q_lower: &str) -> bool {
     if q_lower.is_empty() {
         return true;
     }
+    if !q_lower.is_ascii() {
+        return file_name.to_lowercase().contains(q_lower);
+    }
+    if file_name.is_ascii() {
+        return ascii_lowercase_contains(file_name.as_bytes(), q_lower.as_bytes());
+    }
     file_name.to_lowercase().contains(q_lower)
+}
+
+/// `needle` 已为小写 ASCII；`hay` 为 ASCII 源串，按字节做大小写不敏感子串匹配。
+fn ascii_lowercase_contains(hay: &[u8], needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    if needle.len() > hay.len() {
+        return false;
+    }
+    'outer: for i in 0..=(hay.len() - needle.len()) {
+        for j in 0..needle.len() {
+            let mut c = hay[i + j];
+            if c.is_ascii_uppercase() {
+                c = c.to_ascii_lowercase();
+            }
+            if c != needle[j] {
+                continue 'outer;
+            }
+        }
+        return true;
+    }
+    false
 }
 
 fn make_item(path: &Path, mode: FileOpenMode) -> Item {

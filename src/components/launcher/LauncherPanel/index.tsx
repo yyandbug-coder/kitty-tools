@@ -23,6 +23,8 @@ import LauncherResultItem from '@/components/launcher/LauncherResultItem'
 
 const PAGE_STEP = 10
 const FIND_OPEN_DEBOUNCE_MS = 160
+/** 普通关键词：略防抖，减少连续按键时的后端查询次数（与 find/open 分开，可更短）。 */
+const GENERAL_SEARCH_DEBOUNCE_MS = 72
 
 function LauncherPanel() {
   const { config, loaded, updateConfig } = useAppConfig()
@@ -56,7 +58,7 @@ function LauncherPanel() {
     listVirtualizer.scrollToIndex(idx, { align: 'auto' })
   }, [items, selected, listVirtualizer])
 
-  /** 空串 / find·open：防抖后查询（含慢速文件 walk）；其它关键词：立即查询（统一走 launcher_query）。 */
+  /** 空串 / find·open：防抖后查询（含慢速文件 walk）；其它关键词：短防抖后 launcher_query。 */
   useEffect(() => {
     if (!loaded) {
       return
@@ -126,23 +128,26 @@ function LauncherPanel() {
       }
     }
 
-    track(
-      invoke<LauncherItem[]>('launcher_query', { query: q })
-        .then((res) => {
-          if (searchGenRef.current !== gen) {
-            return
-          }
-          if (queryForResultRef.current !== q) {
-            return
-          }
-          setItems(res)
-          setSelected(0)
-        })
-        .catch((e) => {
-          handleError(e, q)
-        }),
-    )
+    const t = window.setTimeout(() => {
+      track(
+        invoke<LauncherItem[]>('launcher_query', { query: q })
+          .then((res) => {
+            if (searchGenRef.current !== gen) {
+              return
+            }
+            if (queryForResultRef.current !== q) {
+              return
+            }
+            setItems(res)
+            setSelected(0)
+          })
+          .catch((e) => {
+            handleError(e, q)
+          }),
+      )
+    }, GENERAL_SEARCH_DEBOUNCE_MS)
     return () => {
+      window.clearTimeout(t)
       setListLoading(false)
     }
   }, [query, loaded])

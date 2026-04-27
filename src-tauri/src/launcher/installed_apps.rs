@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use walkdir::WalkDir;
@@ -21,6 +21,8 @@ struct CachedEntry {
     item: LauncherItem,
     /// 扫描时预计算，避免每次按键对数千条重复 `to_lowercase`。
     search_lower: String,
+    /// 用于排序：标题前缀匹配优先于仅子串匹配。
+    title_lower: String,
 }
 
 struct Cache {
@@ -29,6 +31,8 @@ struct Cache {
 }
 
 static CACHE: RwLock<Option<Cache>> = RwLock::new(None);
+/// 缓存失效时只允许一条线程全量扫描，避免多路 `launcher_query` 同时扫开始菜单。
+static REFRESH_LOCK: Mutex<()> = Mutex::new(());
 
 fn stable_id(path: &str) -> String {
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -42,6 +46,18 @@ fn cache_stale(c: &Cache, now: Instant) -> bool {
 
 /// 扫描在锁外执行，避免长时间占用全局锁阻塞其它启动器查询。
 fn scan_or_cached() -> Arc<Vec<CachedEntry>> {
+    let now = Instant::now();
+    {
+        let g = CACHE.read().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = g.as_ref() {
+            if !cache_stale(c, now) {
+                return Arc::clone(&c.entries);
+            }
+        }
+    }
+
+    let _only_one_scanner = REFRESH_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
     let now = Instant::now();
     {
         let g = CACHE.read().unwrap_or_else(|e| e.into_inner());
@@ -69,16 +85,41 @@ fn scan_or_cached() -> Arc<Vec<CachedEntry>> {
 }
 
 /// 有关键词时返回名称/路径匹配的已安装应用；空查询不展开（由内置「系统应用」短列表兜底）。
+/// **标题前缀匹配**优先，其次子串匹配；组内按标题长度升序。两遍收集避免对超大量命中做一次大排序。
 pub fn items_for_query(q: &str, q_lower: &str) -> Vec<LauncherItem> {
     if q.trim().is_empty() || q_lower.is_empty() {
         return Vec::new();
     }
-    scan_or_cached()
-        .iter()
-        .filter(|e| e.search_lower.contains(q_lower))
-        .take(MAX_MATCH)
-        .map(|e| e.item.clone())
-        .collect()
+    let entries = scan_or_cached();
+    let mut prefix_idx: Vec<usize> = Vec::new();
+    let mut rest_idx: Vec<usize> = Vec::new();
+    for (i, e) in entries.iter().enumerate() {
+        if !e.search_lower.contains(q_lower) {
+            continue;
+        }
+        if e.title_lower.starts_with(q_lower) {
+            prefix_idx.push(i);
+        } else {
+            rest_idx.push(i);
+        }
+    }
+    prefix_idx.sort_by_key(|&i| entries[i].item.title.len());
+    rest_idx.sort_by_key(|&i| entries[i].item.title.len());
+
+    let mut out = Vec::with_capacity(MAX_MATCH.min(prefix_idx.len() + rest_idx.len()));
+    for i in prefix_idx {
+        if out.len() >= MAX_MATCH {
+            break;
+        }
+        out.push(entries[i].item.clone());
+    }
+    for i in rest_idx {
+        if out.len() >= MAX_MATCH {
+            break;
+        }
+        out.push(entries[i].item.clone());
+    }
+    out
 }
 
 /// `find` / `open` 文件搜索时合并进用户配置目录，便于搜到开始菜单快捷方式与 macOS 应用包（类似 Alfred 常用范围）。
@@ -183,11 +224,12 @@ fn scan_windows_lnk() -> Vec<CachedEntry> {
                 continue;
             }
             let title = name.to_string();
+            let title_lower = title.to_lowercase();
             let subtitle: String = "已安装应用 · 开始菜单".into();
             // 副标题无拉丁大写，直接拼接避免每行 `to_lowercase`。
             let search_lower = format!(
                 "{} {} {}",
-                title.to_lowercase(),
+                &title_lower,
                 subtitle,
                 payload.to_lowercase()
             );
@@ -202,6 +244,7 @@ fn scan_windows_lnk() -> Vec<CachedEntry> {
                     icon_path,
                 },
                 search_lower,
+                title_lower,
             });
         }
     }
@@ -242,6 +285,7 @@ fn scan_macos_apps() -> Vec<CachedEntry> {
                 .and_then(|s| s.to_str())
                 .unwrap_or("App")
                 .to_string();
+            let title_lower = title.to_lowercase();
             let payload = p.to_string_lossy().into_owned();
             if !seen_payload.insert(payload.clone()) {
                 continue;
@@ -249,7 +293,7 @@ fn scan_macos_apps() -> Vec<CachedEntry> {
             let subtitle: String = "应用程序".into();
             let search_lower = format!(
                 "{} {} {}",
-                title.to_lowercase(),
+                &title_lower,
                 subtitle,
                 payload.to_lowercase()
             );
@@ -264,6 +308,7 @@ fn scan_macos_apps() -> Vec<CachedEntry> {
                     icon_path,
                 },
                 search_lower,
+                title_lower,
             });
         }
     }

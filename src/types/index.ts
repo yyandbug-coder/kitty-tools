@@ -67,6 +67,15 @@ export interface YoudaoProviderConfig {
   appSecret: string;
 }
 
+/** 启动器单行结果（后端 `launcher_query`） */
+export interface LauncherItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  kind: string;
+  payload: string;
+}
+
 export interface AppConfig {
   theme: string;
   launchOnStartup: boolean;
@@ -97,6 +106,8 @@ export interface AppConfig {
   bidirectionalAuto: boolean;
   bidirectionalLangA: string;
   bidirectionalLangB: string;
+  /** 启动器全局快捷键；空字符串表示不注册 */
+  launcherShortcut: string;
 }
 
 export const SUPPORTED_LANGUAGES: Language[] = [
@@ -145,6 +156,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   bidirectionalAuto: true,
   bidirectionalLangA: 'zh-CN',
   bidirectionalLangB: 'en',
+  launcherShortcut: 'Alt+Space',
 };
 
 export function getLanguageDisplayName(code: string): string {

@@ -5,6 +5,7 @@ mod config;
 mod config_sqlite;
 mod hotkeys;
 mod lang_detect;
+mod launcher;
 mod ocr;
 mod screenshot;
 mod selection;
@@ -37,6 +38,7 @@ fn open_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), Stri
     // 也避免失焦自动隐藏逻辑干扰设置窗口的显示和聚焦
     window::hide_floating_window(&app);
     window::hide_clipboard_popup(&app);
+    window::hide_launcher(&app);
     window::show_settings_window(&app).map_err(|e| e.to_string())
 }
 
@@ -78,6 +80,7 @@ fn get_config(app: tauri::AppHandle) -> config::AppConfig {
 
 #[tauri::command]
 fn save_config_cmd<R: Runtime>(app: tauri::AppHandle<R>, config: config::AppConfig) -> Result<config::AppConfig, String> {
+    hotkeys::validate_hotkey_config(&config)?;
     let saved = config::save_config(&config)?;
     {
         let cfg_mutex = app.state::<Mutex<config::AppConfig>>();
@@ -590,6 +593,8 @@ pub fn run() {
             show_translate_workspace_window,
             start_floating_drag,
             start_clipboard_drag,
+            launcher::launcher_query,
+            launcher::launcher_execute,
         ])
         .setup(move |app| {
             let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
@@ -613,10 +618,11 @@ pub fn run() {
             // Sync autostart
             sync_launch_on_startup(app.handle(), launch_on_startup);
 
-            // Pre-create clipboard, floating, region-select and settings windows
+            // Pre-create clipboard, floating, region-select, launcher and settings windows
             let _ = window::get_or_create_clipboard_popup_window(app.handle());
             let _ = window::get_or_create_floating_window(app.handle());
             let _ = window::get_or_create_region_select_window(app.handle());
+            let _ = window::get_or_create_launcher_window(app.handle());
             let _ = window::get_or_create_settings_window(app.handle());
 
             // Handle hotkey events for translate pipelines

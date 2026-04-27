@@ -28,6 +28,7 @@ example
 .agents
 .claude
 CLAUDE.md
+.cursor
 
 
 pnpm-lock.yaml

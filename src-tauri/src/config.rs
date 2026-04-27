@@ -12,6 +12,10 @@ fn default_clipboard_shortcut() -> String {
     "CommandOrControl+Shift+V".to_string()
 }
 
+fn default_launcher_shortcut() -> String {
+    "Alt+Space".to_string()
+}
+
 fn default_app_theme_preset() -> String {
     "default".to_string()
 }
@@ -120,6 +124,11 @@ pub struct AppConfig {
     /// 背景不透明度（0-100）。
     #[serde(default = "default_background_opacity")]
     pub background_opacity: u32,
+
+    // ── Launcher (command palette) ─────────────────────────────────
+    /// 启动器（命令面板）全局快捷键；空字符串表示不注册快捷键。
+    #[serde(default = "default_launcher_shortcut")]
+    pub launcher_shortcut: String,
 }
 
 fn default_true() -> bool {
@@ -180,6 +189,7 @@ impl Default for AppConfig {
             app_theme_preset: "default".to_string(),
             custom_hue: 0,
             background_opacity: 72,
+            launcher_shortcut: "Alt+Space".to_string(),
         }
     }
 }

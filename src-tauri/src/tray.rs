@@ -19,6 +19,7 @@ use crate::window;
 
 pub const TRAY_ID: &str = "main-tray";
 const TRAY_CLIPBOARD_ID: &str = "tray-clipboard";
+const TRAY_LAUNCHER_ID: &str = "tray-launcher";
 const TRAY_SELECTION_ID: &str = "tray-selection";
 const TRAY_SCREENSHOT_ID: &str = "tray-screenshot";
 const TRAY_WORKSPACE_ID: &str = "tray-workspace";
@@ -62,6 +63,7 @@ fn hotkey_display_for_tray(h: &str) -> String {
 /// ```text
 /// Kitty Tools
 /// ├── 剪贴板历史 {shortcut}
+/// ├── 启动器 {shortcut}
 /// ├── 划词翻译 {shortcut}
 /// ├── 截图翻译 {shortcut}
 /// ├── ────────────
@@ -114,6 +116,9 @@ pub fn build_tray<R: Runtime>(
             TRAY_CLIPBOARD_ID => {
                 window::toggle_clipboard_popup(app);
             }
+            TRAY_LAUNCHER_ID => {
+                window::toggle_launcher(app);
+            }
             TRAY_SELECTION_ID => {
                 let _ = app.emit("hotkey-selection-translate", ());
             }
@@ -158,6 +163,15 @@ fn build_tray_menu<R: Runtime>(
         "剪贴板历史\t{}",
         hotkey_display_for_tray(&config.clipboard_shortcut)
     );
+    let launcher_short = config.launcher_shortcut.trim();
+    let launcher_label = if launcher_short.is_empty() {
+        "启动器（未设置快捷键）".to_string()
+    } else {
+        format!(
+            "启动器\t{}",
+            hotkey_display_for_tray(&config.launcher_shortcut)
+        )
+    };
     let selection_label = format!(
         "划词翻译\t{}",
         hotkey_display_for_tray(&config.hotkey_selection)
@@ -171,6 +185,13 @@ fn build_tray_menu<R: Runtime>(
         app,
         TRAY_CLIPBOARD_ID,
         clipboard_label,
+        true,
+        None::<&str>,
+    )?;
+    let tray_launcher = MenuItem::with_id(
+        app,
+        TRAY_LAUNCHER_ID,
+        launcher_label,
         true,
         None::<&str>,
     )?;
@@ -210,6 +231,7 @@ fn build_tray_menu<R: Runtime>(
         app,
         &[
             &tray_clipboard,
+            &tray_launcher,
             &tray_selection,
             &tray_screenshot,
             &sep1,

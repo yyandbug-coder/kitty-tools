@@ -1,9 +1,10 @@
 //! Global shortcut management for the consolidated kitty-tools app.
 //!
-//! Manages 3 shortcuts: clipboard toggle, selection translate, screenshot translate.
+//! Manages global shortcuts: clipboard, launcher, selection translate, screenshot translate.
 //! Uses `tauri_plugin_global_shortcut` for cross-platform hotkey registration.
 //! Translate shortcuts emit events that lib.rs handles via the translate pipeline.
 
+use std::collections::HashSet;
 use std::str::FromStr;
 use std::sync::Mutex;
 
@@ -18,6 +19,29 @@ use crate::window;
 static CURRENT_CLIPBOARD_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_SELECTION_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_SCREENSHOT_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
+static CURRENT_LAUNCHER_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
+
+/// 保存前校验：非空快捷键不得与其它项重复（启动器可为空以关闭）。
+pub fn validate_hotkey_config(config: &crate::config::AppConfig) -> Result<(), String> {
+    let mut seen: HashSet<&str> = HashSet::new();
+    for (_label, s) in [
+        ("剪贴板历史", config.clipboard_shortcut.trim()),
+        ("划词翻译", config.hotkey_selection.trim()),
+        ("截图翻译", config.hotkey_screenshot.trim()),
+    ] {
+        if s.is_empty() {
+            return Err("剪贴板与翻译相关快捷键不能为空".to_string());
+        }
+        if !seen.insert(s) {
+            return Err(format!("快捷键不能重复：{}", s));
+        }
+    }
+    let ls = config.launcher_shortcut.trim();
+    if !ls.is_empty() && !seen.insert(ls) {
+        return Err(format!("启动器快捷键与已有项重复：{}", ls));
+    }
+    Ok(())
+}
 
 // ── Clipboard shortcut ──────────────────────────────────────────────────
 
@@ -143,21 +167,71 @@ fn unregister_translate_shortcuts_internal<R: Runtime>(app: &tauri::AppHandle<R>
     }
 }
 
+// ── Launcher shortcut ───────────────────────────────────────────────────
+
+/// Register the launcher toggle shortcut, or unregister if `shortcut` is empty.
+pub fn register_launcher_shortcut<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    shortcut: &str,
+) -> Result<(), String> {
+    let global_shortcut = app.global_shortcut();
+    let previous = lock_poisoned(&CURRENT_LAUNCHER_SHORTCUT).clone();
+
+    if shortcut.is_empty() {
+        if let Some(ref prev) = previous {
+            if let Ok(parsed) = Shortcut::from_str(prev) {
+                let _ = global_shortcut.unregister(parsed);
+            }
+        }
+        *lock_poisoned(&CURRENT_LAUNCHER_SHORTCUT) = None;
+        return Ok(());
+    }
+
+    if previous.as_deref() == Some(shortcut) {
+        return Ok(());
+    }
+
+    let parsed_shortcut = shortcut
+        .parse::<Shortcut>()
+        .map_err(|error| format!("启动器快捷键格式无效：{error}"))?;
+
+    if let Some(ref previous) = previous {
+        if let Ok(prev_parsed) = previous.parse::<Shortcut>() {
+            let _ = global_shortcut.unregister(prev_parsed);
+        }
+    }
+    let _ = global_shortcut.unregister(parsed_shortcut);
+
+    global_shortcut
+        .on_shortcut(parsed_shortcut, |app, _shortcut, event| {
+            if event.state != ShortcutState::Pressed {
+                return;
+            }
+            window::toggle_launcher(app);
+        })
+        .map_err(|error| format!("启动器快捷键注册失败：{error}"))?;
+
+    *lock_poisoned(&CURRENT_LAUNCHER_SHORTCUT) = Some(shortcut.to_string());
+    Ok(())
+}
+
 // ── Sync all ────────────────────────────────────────────────────────────
 
-/// Register all 3 shortcuts based on the current config.
+/// Register all global shortcuts based on the current config.
 ///
 /// This is the main entry point called during app setup and after config changes.
 pub fn sync_all_hotkeys<R: Runtime>(
     app: &tauri::AppHandle<R>,
     config: &crate::config::AppConfig,
 ) -> Result<(), String> {
+    validate_hotkey_config(config)?;
     register_clipboard_shortcut(app, config.clipboard_shortcut.trim())?;
     register_translate_shortcuts(
         app,
         config.hotkey_selection.trim(),
         config.hotkey_screenshot.trim(),
     )?;
+    register_launcher_shortcut(app, config.launcher_shortcut.trim())?;
     Ok(())
 }
 
@@ -170,4 +244,5 @@ pub fn unregister_all<R: Runtime>(app: &tauri::AppHandle<R>) {
     *lock_poisoned(&CURRENT_CLIPBOARD_SHORTCUT) = None;
     *lock_poisoned(&CURRENT_SELECTION_SHORTCUT) = None;
     *lock_poisoned(&CURRENT_SCREENSHOT_SHORTCUT) = None;
+    *lock_poisoned(&CURRENT_LAUNCHER_SHORTCUT) = None;
 }

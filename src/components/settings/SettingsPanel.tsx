@@ -700,6 +700,7 @@ export default function SettingsPanel() {
                       otherHotkeys={[
                         { label: '截图翻译', value: config.hotkeyScreenshot },
                         { label: '剪贴板历史', value: config.clipboardShortcut },
+                        { label: '启动器', value: config.launcherShortcut },
                       ]}
                     />
                     <HotkeyInput
@@ -711,6 +712,7 @@ export default function SettingsPanel() {
                       otherHotkeys={[
                         { label: '划词翻译', value: config.hotkeySelection },
                         { label: '剪贴板历史', value: config.clipboardShortcut },
+                        { label: '启动器', value: config.launcherShortcut },
                       ]}
                     />
                     <HotkeyInput
@@ -722,6 +724,19 @@ export default function SettingsPanel() {
                       otherHotkeys={[
                         { label: '划词翻译', value: config.hotkeySelection },
                         { label: '截图翻译', value: config.hotkeyScreenshot },
+                        { label: '启动器', value: config.launcherShortcut },
+                      ]}
+                    />
+                    <HotkeyInput
+                      id="hotkey-launcher"
+                      label="启动器"
+                      value={config.launcherShortcut}
+                      defaultValue={DEFAULT_CONFIG.launcherShortcut}
+                      onChange={async (v) => updateConfig({ launcherShortcut: v })}
+                      otherHotkeys={[
+                        { label: '划词翻译', value: config.hotkeySelection },
+                        { label: '截图翻译', value: config.hotkeyScreenshot },
+                        { label: '剪贴板历史', value: config.clipboardShortcut },
                       ]}
                     />
                   </div>

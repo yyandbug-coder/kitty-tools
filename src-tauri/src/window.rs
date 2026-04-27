@@ -1,6 +1,6 @@
 //! Window management for the consolidated kitty-tools app.
 //!
-//! Manages 6 windows: clipboard-popup, floating, region-select,
+//! Manages 7 windows: clipboard-popup, launcher, floating, region-select,
 //! translate-workspace, settings, and onboarding. Provides platform-specific
 //! show/hide/toggle logic for macOS (activation policy, frontmost app tracking)
 //! and Windows (SetForegroundWindow).
@@ -15,6 +15,7 @@ use tauri::{Emitter, Manager, Runtime, WebviewUrl, WebviewWindow, WindowEvent};
 // ── Window label constants ──────────────────────────────────────────────
 
 pub const WINDOW_CLIPBOARD_POPUP: &str = "clipboard-popup";
+pub const WINDOW_LAUNCHER: &str = "launcher";
 pub const WINDOW_FLOATING: &str = "floating";
 pub const WINDOW_REGION_SELECT: &str = "region-select";
 pub const WINDOW_TRANSLATE_WORKSPACE: &str = "translate-workspace";
@@ -211,6 +212,92 @@ pub fn toggle_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
         } else {
             show_clipboard_popup(app);
         }
+    }
+}
+
+// ── Launcher (command palette) window ─────────────────────────────────
+
+/// 创建启动器：透明、无装饰、置顶、类似剪贴板面板的呼出式面板。
+pub fn get_or_create_launcher_window<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> tauri::Result<WebviewWindow<R>> {
+    if let Some(w) = app.get_webview_window(WINDOW_LAUNCHER) {
+        return Ok(w);
+    }
+    let window = WebviewWindow::builder(app, WINDOW_LAUNCHER, webview_url("html/launcher.html"))
+        .title("Kitty Tools · 启动器")
+        .inner_size(680.0, 480.0)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .visible(false)
+        .shadow(false)
+        .center()
+        .build()?;
+    Ok(window)
+}
+
+/// 显示启动器并聚焦。
+pub fn show_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
+    #[cfg(target_os = "macos")]
+    {
+        remember_frontmost_application();
+        let _ = app.show();
+        activate_current_application();
+    }
+
+    let _ = get_or_create_launcher_window(app);
+
+    if let Some(window) = app.get_webview_window(WINDOW_LAUNCHER) {
+        let _ = window.show();
+
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(hwnd) = window.hwnd() {
+                unsafe {
+                    use windows::Win32::Foundation::HWND;
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE,
+                    };
+                    let hwnd = HWND(hwnd.0 as *mut _);
+                    if IsIconic(hwnd).as_bool() {
+                        let _ = ShowWindow(hwnd, SW_RESTORE);
+                    }
+                    let _ = SetForegroundWindow(hwnd);
+                }
+            }
+        }
+        let _ = window.set_focus();
+    }
+    let _ = app.emit("focus-launcher-panel", ());
+}
+
+/// 隐藏启动器。
+pub fn hide_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(window) = app.get_webview_window(WINDOW_LAUNCHER) {
+        let _ = window.hide();
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app.hide();
+        restore_previous_application();
+    }
+}
+
+/// 按可见性切换启动器显示。
+pub fn toggle_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(window) = app.get_webview_window(WINDOW_LAUNCHER) {
+        let visible = window.is_visible().unwrap_or(false);
+        if visible {
+            hide_launcher(app);
+        } else {
+            show_launcher(app);
+        }
+    } else {
+        show_launcher(app);
     }
 }
 
@@ -488,6 +575,7 @@ pub fn ensure_tray_only_app<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
     {
         for label in [
             WINDOW_CLIPBOARD_POPUP,
+            WINDOW_LAUNCHER,
             WINDOW_FLOATING,
             WINDOW_REGION_SELECT,
             WINDOW_TRANSLATE_WORKSPACE,

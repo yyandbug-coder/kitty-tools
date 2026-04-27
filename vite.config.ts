@@ -54,6 +54,7 @@ export default defineConfig(async ({ command }) => ({
         'region-select': resolve(rootDir, 'html/region-select.html'),
         'translate-workspace': resolve(rootDir, 'html/translate-workspace.html'),
         onboarding: resolve(rootDir, 'html/onboarding.html'),
+        launcher: resolve(rootDir, 'html/launcher.html'),
       },
       output: {
         manualChunks(id) {

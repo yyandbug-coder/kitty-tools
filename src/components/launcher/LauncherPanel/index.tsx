@@ -1,6 +1,6 @@
 /**
  * 启动器面板：不透明窗口 + 与划词翻译浮窗一致的实心背景与分区样式；
- * 输入关键词筛选内置动作、系统应用、URL、路径、书签、本地文件等，回车执行当前选中项；
+ * 输入关键词筛选内置动作、系统快捷项、已安装应用（Windows 开始菜单 / macOS 应用程序）、URL、路径、书签等；find/open 前缀按 Alfred 习惯搜文件（揭示目录 / 打开文件）；
  * 标题栏可固定（失焦不自动隐藏）与打开应用设置。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -22,7 +22,6 @@ import type { LauncherItem } from '@/types'
 import LauncherResultItem from '@/components/launcher/LauncherResultItem'
 
 const PAGE_STEP = 10
-const FULL_QUERY_DEBOUNCE_MS = 200
 const FIND_OPEN_DEBOUNCE_MS = 160
 
 function LauncherPanel() {
@@ -57,7 +56,7 @@ function LauncherPanel() {
     listVirtualizer.scrollToIndex(idx, { align: 'auto' })
   }, [items, selected, listVirtualizer])
 
-  /** 空串 / find·open：防抖后走 launcher_query（文件 walk 仅在此类前缀下由后端执行）；其它关键词：instant + 防抖全量（与 instant 一致，无混合文件 walk）。 */
+  /** 空串 / find·open：防抖后走 launcher_query（含慢速文件 walk）；其它关键词：仅 launcher_query_instant（与全量结果一致，避免重复 IPC）。 */
   useEffect(() => {
     if (!loaded) {
       return
@@ -143,27 +142,7 @@ function LauncherPanel() {
           handleError(e, q)
         }),
     )
-
-    const t = window.setTimeout(() => {
-      track(
-        invoke<LauncherItem[]>('launcher_query', { query: q })
-          .then((res) => {
-            if (searchGenRef.current !== gen) {
-              return
-            }
-            if (queryForResultRef.current !== q) {
-              return
-            }
-            setItems(res)
-            setSelected(0)
-          })
-          .catch((e) => {
-            handleError(e, q)
-          }),
-      )
-    }, FULL_QUERY_DEBOUNCE_MS)
     return () => {
-      window.clearTimeout(t)
       setListLoading(false)
     }
   }, [query, loaded])
@@ -379,7 +358,7 @@ function LauncherPanel() {
                     <>
                       <p className="font-medium text-foreground/80">暂无条目</p>
                       <p className="mt-1.5 text-xs text-muted-foreground">
-                        输入应用名、URL、路径或关键词即可搜索；也可使用 find / open 搜本地文件。
+                        输入应用名、URL、路径或关键词即可搜索（含本机已安装应用）；使用 find / open 前缀可搜配置目录及开始菜单/应用程序内的文件。
                       </p>
                     </>
                   ) : (
@@ -461,8 +440,8 @@ function LauncherPanel() {
               <span>关闭。</span>
             </span>
             <span className="block sm:inline sm:before:content-['·_'] [&_[data-slot=kbd]]:h-4 [&_[data-slot=kbd]]:min-h-4 [&_[data-slot=kbd]]:px-1 [&_[data-slot=kbd]]:text-[10px] sm:[&_[data-slot=kbd]]:text-xs">
-              输入 <Kbd>find</Kbd> + 关键词：搜文件并打开所在目录；
-              <Kbd>open</Kbd> + 关键词：搜文件并打开文件。
+              输入 <Kbd>find</Kbd> + 关键词：在资源管理器/访达中揭示命中项所在文件夹（类似 Alfred Reveal）；
+              <Kbd>open</Kbd> + 关键词：打开匹配文件。
             </span>
           </p>
         </div>

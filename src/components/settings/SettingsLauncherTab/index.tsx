@@ -70,9 +70,11 @@ export default function SettingsLauncherTab({
             本地文件搜索
           </CardTitle>
           <p className="text-xs text-muted-foreground leading-relaxed">
+            普通搜索会从本机<strong className="font-medium text-foreground">已安装应用</strong>（Windows 开始菜单快捷方式、macOS「应用程序」）中匹配名称，无需此前缀。
             在指定目录内按<strong className="font-medium text-foreground">文件名</strong>
-            包含关键词搜索；须先在输入框输入 <span className="font-mono text-foreground/90">find </span>/
-            <span className="font-mono text-foreground/90">open </span>再加关键词才会搜本地文件；在输入框中输入{' '}
+            包含关键词搜索时，须先在输入框输入 <span className="font-mono text-foreground/90">find </span>/
+            <span className="font-mono text-foreground/90">open </span>
+            再加关键词；<span className="font-mono text-foreground/90">find</span> 会合并开始菜单/应用程序等默认范围（与 Alfred 常用 reveal/open 范围类似）。在输入框中输入{' '}
             <span className="font-mono text-foreground/90">find </span>+ 关键词为仅文件搜索，选中后
             <strong className="font-medium text-foreground">打开该文件所在目录</strong>；输入{' '}
             <span className="font-mono text-foreground/90">open </span>+ 关键词为仅文件搜索，选中后

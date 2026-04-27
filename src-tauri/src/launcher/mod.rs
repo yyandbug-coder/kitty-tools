@@ -1,5 +1,9 @@
-//! 启动器（命令面板）：聚合内置动作、URL、本地路径、浏览器书签与本地文件搜索。
+//! 启动器（命令面板）：聚合内置动作、URL、本地路径、浏览器书签、已安装应用与按前缀的本地文件搜索。
+//!
+//! `find` / `open` 前缀行为对齐常见 Alfred 工作流：`find` → 在资源管理器/访达中**揭示**命中项的父文件夹；
+//! `open` → **打开**命中文件（或 `.lnk` / `.app` 等，由系统默认方式处理）。
 
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -14,6 +18,7 @@ use crate::window;
 
 mod bookmarks;
 mod files;
+mod installed_apps;
 mod system_apps;
 
 use files::FileOpenMode;
@@ -24,8 +29,8 @@ enum FileKeyword {
     Open,
 }
 
-/// 仅当 `find` / `open` 作为首词且后跟空白时，进入仅「文件」搜索，不再混合其它来源。
-/// `find`：打开结果所在目录；`open`：打开文件；剩余串为文件名片段。
+/// 仅当 `find` / `open` 作为首词且后跟空白时，进入仅「文件」搜索，不再混合其它来源（与 Alfred 的 reveal / open 分工一致）。
+/// `find`：揭示父文件夹；`open`：打开文件；剩余串为文件名匹配子串。
 fn try_parse_file_command(q: &str) -> Option<(FileKeyword, String)> {
     let t = q.trim();
     let b = t.as_bytes();
@@ -82,7 +87,7 @@ pub async fn launcher_query(
         .map_err(|e| e.to_string())
 }
 
-/// 与 `launcher_query` 在「非 find/open 前缀」时结果一致；均不含混合关键词下的本地文件名 walk。
+/// 与 `launcher_query` 共用同一实现；保留独立命令名以便前端对「普通关键词」只调本接口，对 `find`/`open` 调 `launcher_query`。
 #[tauri::command]
 pub async fn launcher_query_instant(
     state: State<'_, Mutex<AppConfig>>,
@@ -102,9 +107,10 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
             FileKeyword::Find => FileOpenMode::OpenParentDirectory,
             FileKeyword::Open => FileOpenMode::OpenFile,
         };
+        let file_roots = merged_launcher_file_search_paths(config);
         let mut out = files::file_items_for_query(
             config.launcher_file_search_enabled,
-            &config.launcher_file_search_paths,
+            &file_roots,
             &config.launcher_file_search_excluded_dir_names,
             &rest,
             mode,
@@ -156,10 +162,12 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
         config.launcher_bookmarks_brave,
     );
     let system_hits = system_apps::items_for_query(&q, &q_lower);
+    let installed_hits = installed_apps::items_for_query(&q, &q_lower);
 
     let mut out: Vec<LauncherItem> = Vec::new();
     out.extend(bms);
     out.extend(system_hits);
+    out.extend(installed_hits);
     out.extend(builtins_matched);
 
     if is_probable_url(q) {
@@ -191,6 +199,29 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
         );
     }
 
+    out
+}
+
+/// 用户配置的搜索目录 + 平台默认「应用/快捷方式」目录（仅用于 `find`/`open` 文件遍历，避免与普通关键词混合扫盘）。
+fn merged_launcher_file_search_paths(config: &AppConfig) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for s in &config.launcher_file_search_paths {
+        let t = s.trim();
+        if t.is_empty() {
+            continue;
+        }
+        let key = t.to_lowercase();
+        if seen.insert(key) {
+            out.push(t.to_string());
+        }
+    }
+    for p in installed_apps::default_find_open_root_strings() {
+        let key = p.to_lowercase();
+        if seen.insert(key) {
+            out.push(p);
+        }
+    }
     out
 }
 

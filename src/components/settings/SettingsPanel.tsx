@@ -1,5 +1,5 @@
 // 设置面板 - 应用全局设置（剪贴板/翻译/交互/外观/关于）
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import toast from 'react-hot-toast'
@@ -18,7 +18,6 @@ import {
   RotateCcw,
   Info,
   CircleHelp,
-  Sparkles,
   ArrowRightLeft,
   Power,
   Palette,
@@ -63,10 +62,8 @@ import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import SecretField from '@/components/shared/SecretField'
 import CustomColorPicker from '@/components/CustomColorPicker'
 import { cn } from '@/lib/utils'
-import { formatShortcutForDisplay } from '@/lib/platform'
 
 const SETTINGS_TAB = {
-  welcome: 'welcome',
   general: 'general',
   clipboard: 'clipboard',
   translate: 'translate',
@@ -79,11 +76,9 @@ interface ITabItem {
   value: string
   icon: typeof Settings
   label: string
-  firstRunOnly?: boolean
 }
 
 const TAB_ITEMS: ITabItem[] = [
-  { value: SETTINGS_TAB.welcome, icon: Sparkles, label: '入门引导', firstRunOnly: true },
   { value: SETTINGS_TAB.general, icon: Settings, label: '通用' },
   { value: SETTINGS_TAB.clipboard, icon: ClipboardList, label: '剪贴板' },
   { value: SETTINGS_TAB.translate, icon: Globe, label: '翻译' },
@@ -102,25 +97,9 @@ export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState<string>(SETTINGS_TAB.general)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [launcherExcludeDirInput, setLauncherExcludeDirInput] = useState('')
-  const hasShownFirstRunTabRef = useRef(false)
   useTheme(config.theme)
 
   useEffect(() => { getVersion().then(setAppVersion).catch(() => setAppVersion('unknown')) }, [])
-
-  useLayoutEffect(() => {
-    if (!loaded) return
-    if (config.firstRun && !hasShownFirstRunTabRef.current) {
-      hasShownFirstRunTabRef.current = true
-      setActiveTab(SETTINGS_TAB.welcome)
-    }
-    if (!config.firstRun) hasShownFirstRunTabRef.current = false
-  }, [loaded, config.firstRun])
-
-  useLayoutEffect(() => {
-    if (!config.firstRun && activeTab === SETTINGS_TAB.welcome) {
-      setActiveTab(SETTINGS_TAB.general)
-    }
-  }, [config.firstRun, activeTab])
 
   const runTranslateConnectionTest = useCallback(async () => {
     setTestFeedback(null)
@@ -241,57 +220,17 @@ export default function SettingsPanel() {
           )}
         >
           <TabsList className="inline-flex h-auto w-max max-w-none flex-nowrap justify-start gap-1 p-1 mx-4 mt-3">
-            {TAB_ITEMS.map((tab) =>
-              tab.firstRunOnly && !config.firstRun ? null : (
-                <TabsTrigger key={tab.value} value={tab.value}>
-                  <tab.icon className="size-4 opacity-80" />
-                  {tab.label}
-                </TabsTrigger>
-              )
-            )}
+            {TAB_ITEMS.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                <tab.icon className="size-4 opacity-80" />
+                {tab.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 
         <ScrollArea className="flex-1 mt-2">
           <div className="p-4 space-y-6">
-            {/* 入门引导 */}
-            {config.firstRun ? (
-              <TabsContent value={SETTINGS_TAB.welcome} className="mt-0">
-                <Card className="border-primary/35 bg-primary/5">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                      <Sparkles className="size-4 text-primary" />
-                      欢迎使用 Kitty Tools
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-muted-foreground">
-                    <p>
-                      应用会常驻<strong className="font-medium text-foreground">系统托盘</strong>，
-                      关闭本窗口不会退出程序。划词与截图翻译可使用全局快捷键，也可从托盘菜单进入「翻译工作台」。
-                    </p>
-                    <p className="text-xs leading-relaxed">
-                      当前快捷键：划词{' '}
-                      <span className="font-mono text-foreground/90">
-                        {formatShortcutForDisplay(config.hotkeySelection)}
-                      </span>
-                      {' · '}截图{' '}
-                      <span className="font-mono text-foreground/90">
-                        {formatShortcutForDisplay(config.hotkeyScreenshot)}
-                      </span>
-                      {' · '}剪贴板{' '}
-                      <span className="font-mono text-foreground/90">
-                        {formatShortcutForDisplay(config.clipboardShortcut)}
-                      </span>
-                    </p>
-                    <p>请在下文选择翻译引擎、按需填写密钥，并确认快捷键是否与其他软件冲突。</p>
-                    <Button size="sm" className="w-fit" onClick={() => void updateConfig({ firstRun: false })}>
-                      完成初次设置
-                    </Button>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            ) : null}
-
             {/* 剪贴板 */}
             <TabsContent value={SETTINGS_TAB.clipboard} className="mt-0 space-y-5">
               <Card>

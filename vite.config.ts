@@ -30,7 +30,8 @@ export default defineConfig(async ({ command }) => ({
   server: {
     port: 1420,
     strictPort: true,
-    open: '/html/index.html',
+    // Tauri 用内置 WebView 加载 dev 地址，勿自动打开系统浏览器
+    open: false,
     host: host || false,
     hmr: host
       ? {

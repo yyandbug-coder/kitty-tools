@@ -1,6 +1,8 @@
 // 快捷键录制组件 - 捕获键盘组合键并转换为 global-hotkey 格式
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
+import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { formatShortcutForDisplay } from '@/lib/platform'
 
 /** 将 KeyboardEvent.code 转为 global-hotkey 可解析的键名 */
@@ -138,9 +140,13 @@ export default function HotkeyInput({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-medium">{label}</p>
-          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-            {formatShortcutForDisplay(value)}
-          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+            <ShortcutKbd
+              formatted={formatShortcutForDisplay(value) || null}
+              emptyMessage="—"
+              className="text-foreground"
+            />
+          </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button
@@ -179,11 +185,17 @@ export default function HotkeyInput({
       </div>
       {recording ? (
         <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-          按下新组合键；<kbd className="rounded border px-1">Esc</kbd> 取消。需含修饰键。
+          按下新组合键；<Kbd>Esc</Kbd> 取消。需含修饰键。
         </p>
       ) : (
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-          需同时按修饰键与字母键，例如 {formatShortcutForDisplay(defaultValue)}。
+        <p className="mt-2 flex flex-wrap items-center gap-1 text-[11px] leading-relaxed text-muted-foreground">
+          <span>需同时按修饰键与字母键，例如</span>
+          <ShortcutKbd
+            formatted={formatShortcutForDisplay(defaultValue) || null}
+            className="text-foreground"
+            emptyMessage="—"
+          />
+          。
         </p>
       )}
       {err ? <p className="mt-1.5 text-xs leading-5 text-destructive">{err}</p> : null}

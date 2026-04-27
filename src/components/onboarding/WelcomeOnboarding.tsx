@@ -1,5 +1,5 @@
 // 欢迎引导页 - 首次使用时分步介绍启动器、剪贴板、翻译等，并含本地可交互的启动器「模拟搜索」
-import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useAppConfig } from '@/hooks/useAppConfig'
@@ -92,10 +92,46 @@ function MockLauncherSearchDemo() {
   )
 }
 
+const SKIP_COOLDOWN_SEC = 15
+
 export default function WelcomeOnboarding() {
   const { config, updateConfig } = useAppConfig()
   const [step, setStep] = useState(0)
   const [completing, setCompleting] = useState(false)
+  const [skipSecondsLeft, setSkipSecondsLeft] = useState(SKIP_COOLDOWN_SEC)
+  const skipTimerRef = useRef<number | null>(null)
+
+  const clearSkipTimer = useCallback(() => {
+    if (skipTimerRef.current !== null) {
+      window.clearInterval(skipTimerRef.current)
+      skipTimerRef.current = null
+    }
+  }, [])
+
+  const startSkipCountdown = useCallback(() => {
+    clearSkipTimer()
+    setSkipSecondsLeft(SKIP_COOLDOWN_SEC)
+    const id = window.setInterval(() => {
+      setSkipSecondsLeft((n) => {
+        if (n <= 1) {
+          if (skipTimerRef.current !== null) {
+            window.clearInterval(skipTimerRef.current)
+            skipTimerRef.current = null
+          }
+          return 0
+        }
+        return n - 1
+      })
+    }, 1000)
+    skipTimerRef.current = id
+  }, [clearSkipTimer])
+
+  useEffect(() => {
+    startSkipCountdown()
+    return () => {
+      clearSkipTimer()
+    }
+  }, [startSkipCountdown, clearSkipTimer])
 
   const launcherKeys = config.launcherShortcut ? formatShortcutForDisplay(config.launcherShortcut) : null
   const clipboardKeys = config.clipboardShortcut ? formatShortcutForDisplay(config.clipboardShortcut) : null
@@ -248,21 +284,22 @@ export default function WelcomeOnboarding() {
     return () => window.removeEventListener('keydown', onKey)
   }, [goNext, goPrev])
 
-  // 与 translate-workspace 等窗口一致：再次 show 时不销毁 webview；后端 emit 时回到第 1 步
+  // 与 translate-workspace 等窗口一致：再次 show 时不销毁 webview；后端 emit 时回到第 1 步并重置跳过倒计时
   useEffect(() => {
     let unlisten: UnlistenFn | undefined
     void listen('onboarding-did-open', () => {
       setStep(0)
       setCompleting(false)
+      startSkipCountdown()
     }).then((fn) => {
       unlisten = fn
     })
     return () => {
       unlisten?.()
     }
-  }, [])
+  }, [startSkipCountdown])
 
-  const handleComplete = async () => {
+  const runFinish = async () => {
     if (completing) return
     setCompleting(true)
     try {
@@ -272,6 +309,17 @@ export default function WelcomeOnboarding() {
       toast.error('初始化失败，请重试')
       setCompleting(false)
     }
+  }
+
+  /** 最后一步「进入应用」：不等待跳过倒计时 */
+  const handleEnterApp = () => {
+    void runFinish()
+  }
+
+  /** 顶部「跳过」：须倒计时结束 */
+  const handleSkip = () => {
+    if (skipSecondsLeft > 0) return
+    void runFinish()
   }
 
   const current = steps[step]
@@ -295,10 +343,11 @@ export default function WelcomeOnboarding() {
             variant="ghost"
             size="sm"
             className="shrink-0 text-xs text-muted-foreground"
-            onClick={handleComplete}
-            disabled={completing}
+            onClick={handleSkip}
+            disabled={completing || skipSecondsLeft > 0}
+            aria-label={skipSecondsLeft > 0 ? `${skipSecondsLeft} 秒后可跳过` : '跳过引导'}
           >
-            跳过
+            {skipSecondsLeft > 0 ? `跳过（${skipSecondsLeft}s）` : '跳过'}
           </Button>
         </div>
         <nav
@@ -336,30 +385,28 @@ export default function WelcomeOnboarding() {
               </div>
             </CardHeader>
             <CardContent className="text-sm">{current.panel}</CardContent>
-            <CardFooter className="flex flex-col gap-3 border-t border-border/60 sm:flex-row sm:items-center sm:justify-between">
+            <CardFooter className="flex flex-nowrap items-center justify-between gap-2 border-t border-border/60 p-4 sm:px-6">
               <Button
                 type="button"
                 variant="outline"
                 size="default"
                 onClick={goPrev}
                 disabled={isFirst || completing}
-                className="w-full sm:w-auto"
+                className="min-h-9 min-w-0 flex-1"
               >
                 <ChevronLeft className="size-4" />
                 上一步
               </Button>
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                {!isLast ? (
-                  <Button type="button" onClick={goNext} disabled={completing} className="w-full sm:min-w-28">
-                    下一步
-                    <ChevronRight className="size-4" />
-                  </Button>
-                ) : (
-                  <Button type="button" onClick={handleComplete} disabled={completing} className="w-full sm:min-w-36">
-                    {completing ? '正在保存…' : '进入应用'}
-                  </Button>
-                )}
-              </div>
+              {!isLast ? (
+                <Button type="button" onClick={goNext} disabled={completing} className="min-h-9 min-w-0 flex-1">
+                  下一步
+                  <ChevronRight className="size-4" />
+                </Button>
+              ) : (
+                <Button type="button" onClick={handleEnterApp} disabled={completing} className="min-h-9 min-w-0 flex-1">
+                  {completing ? '正在保存…' : '进入应用'}
+                </Button>
+              )}
             </CardFooter>
           </Card>
         </div>

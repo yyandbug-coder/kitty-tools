@@ -65,7 +65,8 @@ function TabsContent({
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn("flex-1 text-sm outline-none", className)}
+      // forceMount 时 Radix 的 Presence 会始终 present，不会加 hidden，非活动面板会堆叠在页面上
+      className={cn("flex-1 text-sm outline-none", "data-[state=inactive]:hidden", className)}
       {...props}
     />
   )

@@ -28,17 +28,14 @@ function TranslateWorkspaceApp() {
 
   if (!loaded) {
     return (
-      <>
-        <div className="flex h-full min-h-screen w-full items-center justify-center bg-background">
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative size-8">
-              <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
-            </div>
-            <span className="text-xs text-muted-foreground">加载配置中…</span>
+      <div className="flex h-full min-h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative size-8">
+            <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
           </div>
+          <span className="text-xs text-muted-foreground">加载配置中…</span>
         </div>
-        <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
-      </>
+      </div>
     )
   }
 

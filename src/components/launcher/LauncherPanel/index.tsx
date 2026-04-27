@@ -309,7 +309,27 @@ function LauncherPanel() {
           >
             <div className="box-border w-full min-w-0 max-w-full flex-col p-1.5" role="listbox" aria-label="结果">
               {items.length === 0 ? (
-                <p className="text-muted-foreground px-2 py-6 text-center text-sm">无匹配项</p>
+                <div
+                  role="status"
+                  className="text-muted-foreground px-3 py-8 text-center text-sm leading-relaxed"
+                >
+                  {query.trim() === '' ? (
+                    <>
+                      <p className="font-medium text-foreground/80">暂无条目</p>
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        输入应用名、URL、路径或关键词即可搜索；也可使用 find / open 搜本地文件。
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-foreground/80">无匹配项</p>
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        可换关键词，或输入 <span className="whitespace-nowrap font-mono text-[11px]">find</span> /{' '}
+                        <span className="whitespace-nowrap font-mono text-[11px]">open</span> 后加空格再搜文件名。
+                      </p>
+                    </>
+                  )}
+                </div>
               ) : (
                 <div className="relative w-full min-w-0" style={{ minHeight: totalListSize, height: totalListSize }}>
                   {listVirtualizer.getVirtualItems().map((v) => {

@@ -31,12 +31,42 @@ const SettingsAboutTab = lazy(() => import('@/components/settings/SettingsAboutT
 
 function SettingsTabFallback() {
   return (
-    <div className="flex min-h-[120px] items-center justify-center py-8">
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="正在加载该设置分类"
+      className="flex min-h-[140px] flex-col items-center justify-center gap-2 py-10"
+    >
       <div className="relative size-6">
         <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
       </div>
+      <span className="text-xs text-muted-foreground">加载中…</span>
     </div>
   )
+}
+
+/** 悬停标签时预取 chunk，减轻首次点击时的等待感 */
+function prefetchSettingsTabChunk(tab: SettingsTabId) {
+  switch (tab) {
+    case SETTINGS_TAB.clipboard:
+      void import('@/components/settings/SettingsClipboardTab')
+      break
+    case SETTINGS_TAB.translate:
+      void import('@/components/settings/SettingsTranslateTab')
+      break
+    case SETTINGS_TAB.shortcuts:
+      void import('@/components/settings/SettingsShortcutsTab')
+      break
+    case SETTINGS_TAB.launcher:
+      void import('@/components/settings/SettingsLauncherTab')
+      break
+    case SETTINGS_TAB.about:
+      void import('@/components/settings/SettingsAboutTab')
+      break
+    default:
+      break
+  }
 }
 
 export default function SettingsPanel() {
@@ -48,7 +78,22 @@ export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState<SettingsTabId>(SETTINGS_TAB.general)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [launcherExcludeDirInput, setLauncherExcludeDirInput] = useState('')
+  /** 曾打开过的 Tab 保持挂载，避免切回时丢失滚动位置与未提交的局部状态 */
+  const [visitedTabs, setVisitedTabs] = useState<Set<SettingsTabId>>(
+    () => new Set<SettingsTabId>([SETTINGS_TAB.general]),
+  )
   useTheme(config.theme)
+
+  const handleTabChange = useCallback((value: string) => {
+    const id = value as SettingsTabId
+    setActiveTab(id)
+    setVisitedTabs((prev) => {
+      if (prev.has(id)) return prev
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => setAppVersion('unknown'))
@@ -92,7 +137,16 @@ export default function SettingsPanel() {
     }
   }, [config])
 
-  if (!loaded) return <div className="p-4 text-muted-foreground">加载中...</div>
+  if (!loaded) {
+    return (
+      <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 p-6">
+        <div className="relative size-7">
+          <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
+        </div>
+        <span className="text-xs text-muted-foreground">加载设置中…</span>
+      </div>
+    )
+  }
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
@@ -103,7 +157,7 @@ export default function SettingsPanel() {
         </h1>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTabId)} className="flex-1 flex flex-col min-h-0">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
         <div
           className={cn(
             'max-w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain',
@@ -112,8 +166,12 @@ export default function SettingsPanel() {
         >
           <TabsList className="inline-flex h-auto w-max max-w-none flex-nowrap justify-start gap-1 p-1 mx-4 mt-3">
             {SETTINGS_TAB_ITEMS.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value}>
-                <tab.icon className="size-4 opacity-80" />
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                onPointerEnter={() => prefetchSettingsTabChunk(tab.value)}
+              >
+                <tab.icon className="size-4 opacity-80" aria-hidden />
                 {tab.label}
               </TabsTrigger>
             ))}
@@ -122,16 +180,16 @@ export default function SettingsPanel() {
 
         <ScrollArea className="flex-1 mt-2">
           <div className="p-4 space-y-6">
-            <TabsContent value={SETTINGS_TAB.clipboard} className="mt-0 space-y-5">
-              {activeTab === SETTINGS_TAB.clipboard ? (
+            <TabsContent value={SETTINGS_TAB.clipboard} className="mt-0 space-y-5" forceMount>
+              {visitedTabs.has(SETTINGS_TAB.clipboard) ? (
                 <Suspense fallback={<SettingsTabFallback />}>
                   <SettingsClipboardTab config={config} updateConfig={updateConfig} />
                 </Suspense>
               ) : null}
             </TabsContent>
 
-            <TabsContent value={SETTINGS_TAB.translate} className="mt-0 space-y-5">
-              {activeTab === SETTINGS_TAB.translate ? (
+            <TabsContent value={SETTINGS_TAB.translate} className="mt-0 space-y-5" forceMount>
+              {visitedTabs.has(SETTINGS_TAB.translate) ? (
                 <Suspense fallback={<SettingsTabFallback />}>
                   <SettingsTranslateTab
                     config={config}
@@ -144,16 +202,16 @@ export default function SettingsPanel() {
               ) : null}
             </TabsContent>
 
-            <TabsContent value={SETTINGS_TAB.shortcuts} className="mt-0">
-              {activeTab === SETTINGS_TAB.shortcuts ? (
+            <TabsContent value={SETTINGS_TAB.shortcuts} className="mt-0" forceMount>
+              {visitedTabs.has(SETTINGS_TAB.shortcuts) ? (
                 <Suspense fallback={<SettingsTabFallback />}>
                   <SettingsShortcutsTab config={config} updateConfig={updateConfig} />
                 </Suspense>
               ) : null}
             </TabsContent>
 
-            <TabsContent value={SETTINGS_TAB.launcher} className="mt-0 space-y-5">
-              {activeTab === SETTINGS_TAB.launcher ? (
+            <TabsContent value={SETTINGS_TAB.launcher} className="mt-0 space-y-5" forceMount>
+              {visitedTabs.has(SETTINGS_TAB.launcher) ? (
                 <Suspense fallback={<SettingsTabFallback />}>
                   <SettingsLauncherTab
                     config={config}
@@ -166,14 +224,14 @@ export default function SettingsPanel() {
               ) : null}
             </TabsContent>
 
-            <TabsContent value={SETTINGS_TAB.general} className="mt-0 space-y-5">
-              {activeTab === SETTINGS_TAB.general ? (
+            <TabsContent value={SETTINGS_TAB.general} className="mt-0 space-y-5" forceMount>
+              {visitedTabs.has(SETTINGS_TAB.general) ? (
                 <SettingsGeneralTab config={config} updateConfig={updateConfig} />
               ) : null}
             </TabsContent>
 
-            <TabsContent value={SETTINGS_TAB.about} className="mt-0">
-              {activeTab === SETTINGS_TAB.about ? (
+            <TabsContent value={SETTINGS_TAB.about} className="mt-0" forceMount>
+              {visitedTabs.has(SETTINGS_TAB.about) ? (
                 <Suspense fallback={<SettingsTabFallback />}>
                   <SettingsAboutTab appVersion={appVersion} onRequestReset={() => setResetConfirmOpen(true)} />
                 </Suspense>

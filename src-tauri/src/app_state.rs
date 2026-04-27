@@ -22,6 +22,8 @@ pub struct AppState {
     pub floating_interacting: Arc<AtomicBool>,
     /// 剪贴板弹窗正在交互（拖拽等），短暂抑制失焦自动隐藏。
     pub clipboard_interacting: Arc<AtomicBool>,
+    /// 启动器正在交互（拖拽等），短暂抑制失焦自动隐藏。
+    pub launcher_interacting: Arc<AtomicBool>,
 }
 
 /// Holds the current in-progress translation result for the floating window.

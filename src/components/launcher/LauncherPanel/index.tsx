@@ -1,9 +1,9 @@
 /**
  * 启动器面板：不透明窗口 + 与划词翻译浮窗一致的实心背景与分区样式；
  * 输入关键词筛选内置动作、系统快捷项、已安装应用（Windows 开始菜单 / macOS 应用程序）、URL、路径、书签等；find/open 前缀按 Alfred 习惯搜文件（揭示目录 / 打开文件）；
- * 标题栏左侧为应用图标与「启动器」标题；右侧为帮助（悬停说明快捷键与 find/open）、固定与设置。
+ * 标题行与搜索条外圈通过 start_launcher_drag 原生拖动（与剪贴板/翻译浮层一致）；工具栏、搜索框等为 data-no-drag。
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -183,6 +183,21 @@ function LauncherPanel() {
     }
   }, [])
 
+  const handleDragPointerDown = useCallback(async (event: PointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    if (target.closest('[data-no-drag="true"]')) {
+      return
+    }
+    if (event.button !== 0) {
+      return
+    }
+    try {
+      await invoke('start_launcher_drag')
+    } catch (e) {
+      toastInvokeError('无法开始拖动窗口', e)
+    }
+  }, [])
+
   useEffect(() => {
     let un: UnlistenFn | undefined
     void listen('focus-launcher-panel', () => {
@@ -276,7 +291,10 @@ function LauncherPanel() {
         className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden bg-background"
         onKeyDown={onKeyDown}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-3 py-2.5 sm:px-4 sm:py-3">
+        <div
+          className="flex shrink-0 items-center justify-between border-b border-border/70 px-3 py-2.5 sm:px-4 sm:py-3"
+          onPointerDown={handleDragPointerDown}
+        >
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
             <AppLogoIcon className="size-7 shrink-0 sm:size-8" alt="" aria-hidden />
             <p className="min-w-0 truncate text-sm font-semibold tracking-tight">启动器</p>
@@ -351,40 +369,44 @@ function LauncherPanel() {
             </Button>
           </div>
         </div>
-        <div className="flex shrink-0 border-b border-border/70 bg-muted/35 px-4 py-3">
         <div
-          className={cn(
-            'flex w-full min-w-0 items-center rounded-lg border border-input bg-background px-2.5 py-1.5 shadow-sm',
-            'ring-offset-background focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-0',
-          )}
+          className="flex shrink-0 border-b border-border/70 bg-muted/35 px-4 py-3"
+          onPointerDown={handleDragPointerDown}
         >
-          <Input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索功能、URL 或本地路径…"
-            className="h-8 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
-            autoFocus
-            aria-label="启动器搜索"
-            spellCheck={false}
-          />
-          <span
-            className="text-muted-foreground flex min-w-0 max-w-[45%] shrink-0 items-center justify-end gap-1.5 border-l border-border/60 pl-2.5 text-xs tabular-nums"
-            aria-live="polite"
-            aria-busy={listLoading}
+          <div
+            className={cn(
+              'flex w-full min-w-0 items-center rounded-lg border border-input bg-background px-2.5 py-1.5 shadow-sm',
+              'ring-offset-background focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-0',
+            )}
+            data-no-drag="true"
           >
-            {listLoading ? (
-              <Loader2
-                className="size-3.5 shrink-0 motion-reduce:animate-none motion-reduce:opacity-70 motion-reduce:grayscale animate-spin"
-                aria-hidden
-              />
-            ) : null}
-            <span className="min-w-0 truncate">
-              {items.length} 项{listLoading ? ' · 更新中' : ''}
+            <Input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索功能、URL 或本地路径…"
+              className="h-8 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
+              autoFocus
+              aria-label="启动器搜索"
+              spellCheck={false}
+            />
+            <span
+              className="text-muted-foreground flex min-w-0 max-w-[45%] shrink-0 items-center justify-end gap-1.5 border-l border-border/60 pl-2.5 text-xs tabular-nums"
+              aria-live="polite"
+              aria-busy={listLoading}
+            >
+              {listLoading ? (
+                <Loader2
+                  className="size-3.5 shrink-0 motion-reduce:animate-none motion-reduce:opacity-70 motion-reduce:grayscale animate-spin"
+                  aria-hidden
+                />
+              ) : null}
+              <span className="min-w-0 truncate">
+                {items.length} 项{listLoading ? ' · 更新中' : ''}
+              </span>
             </span>
-          </span>
+          </div>
         </div>
-      </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
           <div

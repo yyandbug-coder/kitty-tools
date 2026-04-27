@@ -303,7 +303,7 @@ pub fn show_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
     let _ = app.emit("focus-launcher-panel", ());
 }
 
-/// 失焦时按配置决定是否自动隐藏（与 `launcher_hide_on_unfocus` 一致，未固定时隐藏）。
+/// 失焦时按配置决定是否自动隐藏；拖拽瞬间失焦不隐藏（与剪贴板/翻译浮层一致，见 `launcher_interacting`）。
 fn register_launcher_handlers<R: Runtime>(window: &WebviewWindow<R>, app: &tauri::AppHandle<R>) {
     let app_handle = app.clone();
     let had_true_focus = Arc::new(AtomicBool::new(false));
@@ -311,9 +311,15 @@ fn register_launcher_handlers<R: Runtime>(window: &WebviewWindow<R>, app: &tauri
     window.on_window_event(move |event| {
         match event {
             WindowEvent::Focused(true) => {
+                let app_state = app_handle.state::<crate::app_state::AppState>();
+                app_state.launcher_interacting.store(false, Ordering::SeqCst);
                 had_true_focus.store(true, Ordering::SeqCst);
             }
             WindowEvent::Focused(false) => {
+                let app_state = app_handle.state::<crate::app_state::AppState>();
+                if app_state.launcher_interacting.swap(false, Ordering::SeqCst) {
+                    return;
+                }
                 let hide_on_unfocus = {
                     let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
                     let guard = crate::app_state::lock_poisoned(&*cfg_state);

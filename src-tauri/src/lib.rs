@@ -68,6 +68,16 @@ fn start_clipboard_drag<R: Runtime>(app: tauri::AppHandle<R>, state: tauri::Stat
     Ok(())
 }
 
+/// 启动器窗口拖拽：设置交互标记并启动原生拖拽，避免失焦按配置误隐藏。
+#[tauri::command]
+fn start_launcher_drag<R: Runtime>(app: tauri::AppHandle<R>, state: tauri::State<'_, app_state::AppState>) -> Result<(), String> {
+    state.launcher_interacting.store(true, Ordering::SeqCst);
+    if let Some(w) = app.get_webview_window(window::WINDOW_LAUNCHER) {
+        w.start_dragging().map_err(|e| format!("start_dragging: {}", e))?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn exit_after_flush<R: Runtime>(app: tauri::AppHandle<R>) {
     tray::mark_exit_flush_ack();
@@ -571,6 +581,7 @@ pub fn run() {
             region_capture: Mutex::new(None),
             floating_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             clipboard_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            launcher_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
             // Clipboard commands
@@ -600,6 +611,7 @@ pub fn run() {
             show_translate_workspace_window,
             start_floating_drag,
             start_clipboard_drag,
+            start_launcher_drag,
             launcher::launcher_query,
             launcher::launcher_execute,
         ])

@@ -25,11 +25,17 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const unlisten = listen<AppConfig>('config-updated', (e) => {
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+    void listen<AppConfig>('config-updated', (e) => {
       setConfig(e.payload)
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unlisten = fn
     })
     return () => {
-      unlisten.then((fn) => fn())
+      cancelled = true
+      unlisten?.()
     }
   }, [])
 

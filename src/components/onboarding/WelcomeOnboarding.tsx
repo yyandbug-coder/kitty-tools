@@ -12,16 +12,16 @@ export default function WelcomeOnboarding() {
   const [completing, setCompleting] = useState(false)
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    const id = window.setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          clearInterval(timer)
+          window.clearInterval(id)
           return 0
         }
         return prev - 1
       })
     }, 1000)
-    return () => clearInterval(timer)
+    return () => window.clearInterval(id)
   }, [])
 
   const handleComplete = async () => {

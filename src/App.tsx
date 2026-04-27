@@ -58,10 +58,26 @@ export default function App() {
     let cancelled = false
     let unlisten: (() => void) | undefined
     void listen('app-exit-requested', async () => {
-      try { await flushClipboardHistoryToDisk() } catch (error) { console.error('退出前落盘失败:', error) }
-      try { await invoke('exit_after_flush') } catch (error) { console.error('exit_after_flush 调用失败:', error) }
-    }).then((fn) => { if (cancelled) fn(); else unlisten = fn })
-    return () => { cancelled = true; unlisten?.() }
+      try {
+        await flushClipboardHistoryToDisk()
+      } catch (error) {
+        console.error('退出前落盘失败:', error)
+        toast.error('保存剪贴板历史失败，部分数据可能未写入。应用即将退出。', { duration: 5000 })
+      }
+      try {
+        await invoke('exit_after_flush')
+      } catch (error) {
+        console.error('exit_after_flush 调用失败:', error)
+        toast.error('退出指令失败，若窗口未关闭请从任务管理器结束进程。', { duration: 4500 })
+      }
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unlisten = fn
+    })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
   }, [flushClipboardHistoryToDisk])
 
   // System theme watcher
@@ -74,9 +90,20 @@ export default function App() {
 
   // Focus search input when panel is shown via hotkey/tray
   useEffect(() => {
+    let cancelled = false
+    let unlisten: (() => void) | undefined
     const focus = () => searchInputRef.current?.focus({ preventScroll: true })
-    const unlisten = listen('focus-clipboard-panel', () => { focus(); setTimeout(focus, 100) })
-    return () => { unlisten.then(fn => fn()) }
+    void listen('focus-clipboard-panel', () => {
+      focus()
+      setTimeout(focus, 100)
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unlisten = fn
+    })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
   }, [])
 
   // 失焦自动隐藏已由 Rust 原生 WindowEvent::Focused(false) 驱动（与浮动翻译窗口一致）

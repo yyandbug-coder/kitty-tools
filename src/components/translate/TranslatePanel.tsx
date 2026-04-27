@@ -112,10 +112,8 @@ export default function TranslatePanel() {
 
   const handleScreenshot = async () => {
     try {
-      await invoke('start_screenshot_translate', {
-        sourceLang: config.sourceLang,
-        targetLang: config.targetLang,
-      })
+      // 语言由后端 AppConfig 决定（与已保存配置一致）；勿传无效参数以免误导维护者
+      await invoke('start_screenshot_translate')
     } catch (err) {
       applyError(typeof err === 'string' ? err : String(err))
     }

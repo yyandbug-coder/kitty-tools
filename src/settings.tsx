@@ -15,7 +15,7 @@ import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import '@/assets/styles/tailwind/index.css'
 
 function SettingsApp() {
-  const { config } = useAppConfig()
+  const { config, loaded } = useAppConfig()
   const [systemPrefersDark, setSystemPrefersDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
@@ -30,6 +30,22 @@ function SettingsApp() {
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode, config.backgroundOpacity) as CSSProperties,
     [config.appThemePreset, config.customHue, isDarkMode, config.backgroundOpacity],
   )
+
+  if (!loaded) {
+    return (
+      <>
+        <div className="flex h-full min-h-screen w-full items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative size-8">
+              <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
+            </div>
+            <span className="text-xs text-muted-foreground">加载配置中…</span>
+          </div>
+        </div>
+        <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+      </>
+    )
+  }
 
   return (
     <div

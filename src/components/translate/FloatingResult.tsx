@@ -241,7 +241,7 @@ export default function FloatingResult() {
           <div className="flex items-center gap-1" data-no-drag="true">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant={config.floatingPinned ? 'default' : 'ghost'} size="icon-sm" onClick={handleTogglePin} data-no-drag="true">
+                <Button variant={config.floatingPinned ? 'default' : 'ghost'} size="icon" onClick={handleTogglePin} data-no-drag="true">
                   <Pin className={cn('size-4', config.floatingPinned && 'fill-current')} />
                 </Button>
               </TooltipTrigger>
@@ -249,7 +249,7 @@ export default function FloatingResult() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={() => void handleOpenSettings()} data-no-drag="true">
+                <Button variant="ghost" size="icon" onClick={() => void handleOpenSettings()} data-no-drag="true">
                   <Settings className="size-4" />
                 </Button>
               </TooltipTrigger>
@@ -267,11 +267,12 @@ export default function FloatingResult() {
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
+                className="shrink-0"
                 onClick={handleSwapLanguages}
                 disabled={config.sourceLang === 'auto' && config.targetLang === 'auto'}
               >
-                <ArrowRightLeft className="size-3.5" />
+                <ArrowRightLeft className="size-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>交换语言</TooltipContent>
@@ -296,12 +297,12 @@ export default function FloatingResult() {
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
-                      className="shrink-0"
+                      size="icon"
+                      className="size-7 shrink-0"
                       onClick={() => void handleCopy(sourceText, 'source')}
                       disabled={!sourceText.trim()}
                     >
-                      {copied === 'source' ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+                      {copied === 'source' ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{copied === 'source' ? '已复制原文' : '复制原文'}</TooltipContent>
@@ -340,12 +341,12 @@ export default function FloatingResult() {
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
-                      className="shrink-0"
+                      size="icon"
+                      className="size-7 shrink-0"
                       onClick={() => void handleCopy(translatedText, 'target')}
                       disabled={!translatedText.trim()}
                     >
-                      {copied === 'target' ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+                      {copied === 'target' ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{copied === 'target' ? '已复制译文' : '复制译文'}</TooltipContent>

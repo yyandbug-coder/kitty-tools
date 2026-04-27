@@ -240,20 +240,18 @@ function LauncherPanel() {
     }
   }
 
-  if (!loaded) {
-    return (
-      <div className="box-border flex h-full min-h-0 w-full min-w-0 max-w-full items-center justify-center overflow-x-hidden p-4">
-        <p className="text-muted-foreground text-sm">加载中…</p>
-      </div>
-    )
-  }
-
   const totalListSize = listVirtualizer.getTotalSize()
 
   return (
     <div className="box-border flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden p-3 sm:p-4">
       <div
-        className="bg-background/90 dark:bg-background/80 flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden overflow-x-clip rounded-xl border border-border/80 shadow-2xl backdrop-blur-md"
+        className={cn(
+          'relative flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden overflow-x-clip rounded-xl',
+          '[background:linear-gradient(165deg,color-mix(in_oklch,var(--theme-accent,var(--ring))_18%,transparent),transparent_52%),color-mix(in_oklch,var(--background)_var(--window-alpha),transparent)]',
+          'border border-[color-mix(in_oklch,var(--border)_44%,transparent)]',
+          'shadow-[0_20px_72px_color-mix(in_oklch,var(--background)_32%,transparent),inset_0_1px_0_color-mix(in_oklch,white_20%,transparent)]',
+          'backdrop-blur-[20px]',
+        )}
         onKeyDown={onKeyDown}
       >
         <div className="min-w-0 max-w-full shrink-0 border-b border-border/60 px-3 py-2 sm:px-4 sm:py-2.5">

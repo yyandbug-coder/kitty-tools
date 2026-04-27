@@ -11,11 +11,14 @@ import {
 } from 'lucide-react'
 import type { LauncherItem } from '@/types'
 import { cn } from '@/lib/utils'
+import { isMacOs } from '@/lib/platform'
 import SourceAppIcon from '@/components/clipboard/SourceAppIcon'
 
 export interface LauncherResultItemProps {
   item: LauncherItem
   id?: string
+  /** 在列表中的从 0 开始的序号；前 9 项右侧展示 ⌘/Ctrl+数字 */
+  listIndex: number
   selected: boolean
   onMouseEnter: () => void
   onActivate: () => void
@@ -42,11 +45,14 @@ function launcherKindPlaceholder(item: LauncherItem) {
 export default function LauncherResultItem({
   item,
   id,
+  listIndex,
   selected,
   onMouseEnter,
   onActivate,
 }: LauncherResultItemProps) {
   const path = item.iconPath?.trim() ?? ''
+  const showShortcut = listIndex >= 0 && listIndex < 9
+  const shortcutLabel = isMacOs() ? `⌘${listIndex + 1}` : `Ctrl+${listIndex + 1}`
 
   return (
     <button
@@ -55,12 +61,12 @@ export default function LauncherResultItem({
       role="option"
       aria-selected={selected}
       className={cn(
-        'box-border flex w-full min-w-0 max-w-full items-start gap-2.5 overflow-hidden rounded-lg border px-2.5 py-1.5 text-start',
+        'box-border flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-lg border px-2.5 py-1.5 text-start',
         'transition-[background-color,border-color,box-shadow,color] duration-150 select-none',
         'border-transparent bg-transparent',
         'hover:bg-muted/80 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/55 focus-visible:outline-none',
         'dark:hover:bg-muted/40',
-        'min-h-9 sm:min-h-10',
+        'min-h-9 items-center sm:min-h-10',
         selected &&
           cn(
             'border-primary/55 bg-primary/16 text-foreground shadow-[inset_4px_0_0_0_hsl(var(--primary))]',
@@ -71,7 +77,7 @@ export default function LauncherResultItem({
       onClick={onActivate}
       onMouseEnter={onMouseEnter}
     >
-      <span className="mt-0.5 flex shrink-0 items-center justify-center" aria-hidden>
+      <span className="flex shrink-0 items-center justify-center self-center" aria-hidden>
         {path ? (
           <SourceAppIcon path={path} title={item.title} sizePx={28} className="rounded-md" />
         ) : (
@@ -95,6 +101,17 @@ export default function LauncherResultItem({
           {item.subtitle}
         </span>
       </span>
+      {showShortcut ? (
+        <span
+          className={cn(
+            'shrink-0 tabular-nums text-[10px] font-semibold tracking-tight sm:text-[11px]',
+            selected ? 'text-primary' : 'text-muted-foreground',
+          )}
+          aria-hidden
+        >
+          {shortcutLabel}
+        </span>
+      ) : null}
     </button>
   )
 }

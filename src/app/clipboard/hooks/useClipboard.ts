@@ -238,6 +238,26 @@ export function useClipboard(config: AppConfig) {
     }
     const { filtered: currentFiltered, displayed: currentDisplayed, selectedIndex: currentIdx, pasteOnEnter } = stateRef.current
     const maxIndex = Math.max(currentFiltered.length - 1, 0)
+    const mod = e.metaKey || e.ctrlKey
+    if (mod) {
+      const digit = e.key
+      if (digit.length === 1 && digit >= '1' && digit <= '9') {
+        e.preventDefault()
+        const slot = Number.parseInt(digit, 10) - 1
+        if (currentFiltered.length === 0 || slot > maxIndex) return
+        userBrowsingRef.current = true
+        setSelectedIndex(slot)
+        if (slot >= currentDisplayed.length) {
+          setVisibleCount(Math.ceil((slot + 1) / PAGE_SIZE) * PAGE_SIZE)
+        }
+        if (pasteOnEnter) {
+          userBrowsingRef.current = false
+          const item = currentFiltered[slot]
+          if (item) void handlePaste(item)
+        }
+        return
+      }
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       userBrowsingRef.current = true

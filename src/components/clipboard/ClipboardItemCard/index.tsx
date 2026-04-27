@@ -18,6 +18,7 @@ import {
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
 import { formatFileSize, sumFileByteSizes } from '@/lib/format-bytes'
+import { isMacOs } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 
 const LIST_TEXT_PREVIEW_MAX_CHARS = 120
@@ -66,6 +67,8 @@ export default memo(function ClipboardItemCard({
   const primaryText =
     rawText.length > LIST_TEXT_PREVIEW_MAX_CHARS ? rawText.slice(0, LIST_TEXT_PREVIEW_MAX_CHARS) : rawText
   const imageMeta = formatImageMeta(item)
+  const showQuickShortcut = index >= 0 && index < 9
+  const quickShortcutLabel = isMacOs() ? `⌘${index + 1}` : `Ctrl+${index + 1}`
 
   return (
     <ContextMenu>
@@ -141,6 +144,17 @@ export default memo(function ClipboardItemCard({
           </div>
 
           <div className="flex shrink-0 flex-col items-end justify-center gap-0.5 text-right">
+            {showQuickShortcut ? (
+              <span
+                className={cn(
+                  'tabular-nums text-[10px] font-semibold leading-none tracking-tight',
+                  isSelected ? 'text-primary' : 'text-muted-foreground',
+                )}
+                aria-hidden
+              >
+                {quickShortcutLabel}
+              </span>
+            ) : null}
             <div className="flex items-center justify-end gap-1" title={item.favorited ? '已收藏' : undefined}>
               {item.favorited ? <Star className="size-3 shrink-0 fill-amber-400 text-amber-500" aria-hidden /> : null}
               <span

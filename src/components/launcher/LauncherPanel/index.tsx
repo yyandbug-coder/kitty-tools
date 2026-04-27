@@ -304,9 +304,9 @@ function LauncherPanel() {
                       <Kbd>↑</Kbd>
                       <Kbd>↓</Kbd>
                     </KbdGroup>
-                    选择 · <Kbd>PageUp</Kbd>/<Kbd>PageDown</Kbd> 翻页 · <Kbd>Home</Kbd>/<Kbd>End</Kbd> 至首条/末条 ·{' '}
+                    选择 · <Kbd>PageUp</Kbd>/<Kbd>PageDown</Kbd> 翻页 · <Kbd>Home</Kbd>/<Kbd>End</Kbd> 至首条/末条 · 前 9 条右侧为{' '}
                     {isMacOs() ? <Kbd>⌘</Kbd> : <Kbd>Ctrl</Kbd>}
-                    <Kbd>1</Kbd>～<Kbd>9</Kbd> 打开列表第 1～9 项 · <Kbd>Enter</Kbd> 打开当前项 · <Kbd>Esc</Kbd> 关闭窗口。
+                    <Kbd>1</Kbd>～<Kbd>9</Kbd> · <Kbd>Enter</Kbd> 打开当前项 · <Kbd>Esc</Kbd> 关闭窗口。
                   </p>
                 </div>
                 <div className="border-t border-border/60 pt-2">
@@ -449,6 +449,7 @@ function LauncherPanel() {
                           <LauncherResultItem
                             id={`launcher-option-${v.index}`}
                             item={item}
+                            listIndex={v.index}
                             selected={v.index === selected}
                             onMouseEnter={() => setSelected(v.index)}
                             onActivate={() => {

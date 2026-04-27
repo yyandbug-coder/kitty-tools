@@ -2,6 +2,7 @@
  * 数据库服务 - 封装 SQLite 数据库连接的初始化和访问
  * 使用单例模式确保全局只创建一个数据库连接
  */
+import dayjs from 'dayjs'
 import Database from '@tauri-apps/plugin-sql'
 
 const DB_PATH = 'sqlite:kitty-settings.db'
@@ -63,7 +64,7 @@ export async function saveClipboardHistoryToDb(value: string): Promise<void> {
 
 async function saveKeyValueToDb(key: string, value: string): Promise<void> {
   const db = await getDb()
-  const now = Date.now()
+  const now = dayjs().valueOf()
   await db.execute(
     `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)
      ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3`,

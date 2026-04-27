@@ -62,45 +62,49 @@ export default function FloatingResult() {
     let cancelled = false
     let unlistenResult: UnlistenFn | undefined
     let unlistenLoading: UnlistenFn | undefined
-    ;(async () => {
+
+    void (async () => {
       try {
-        unlistenResult = await listen<EventPayload>('translate-selection-result', (event) => {
-          setLoading(false)
-          const text = event.payload?.text ?? ''
-          const translated = event.payload?.translated ?? ''
-          setSourceText(text)
-          if (event.payload?.error) {
-            setError(event.payload.error)
-            setTranslatedText('')
-            setDetectedSourceLang(null)
-          } else {
-            setError(null)
-            setTranslatedText(translated)
-            const sl = event.payload?.sourceLang
-            setDetectedSourceLang(sl && sl !== 'auto' ? sl : null)
-            if (config.autoCopy && translated.trim()) {
-              void navigator.clipboard.writeText(translated).catch(() => {})
+        const [fnResult, fnLoading] = await Promise.all([
+          listen<EventPayload>('translate-selection-result', (event) => {
+            setLoading(false)
+            const text = event.payload?.text ?? ''
+            const translated = event.payload?.translated ?? ''
+            setSourceText(text)
+            if (event.payload?.error) {
+              setError(event.payload.error)
+              setTranslatedText('')
+              setDetectedSourceLang(null)
+            } else {
+              setError(null)
+              setTranslatedText(translated)
+              const sl = event.payload?.sourceLang
+              setDetectedSourceLang(sl && sl !== 'auto' ? sl : null)
+              if (config.autoCopy && translated.trim()) {
+                void navigator.clipboard.writeText(translated).catch(() => {})
+              }
             }
-          }
-        })
-
-        unlistenLoading = await listen<string>('translate-selection-start', (event) => {
-          setSourceText(event.payload)
-          setTranslatedText('')
-          setLoading(true)
-          setError(null)
-          setDetectedSourceLang(null)
-        })
-
+          }),
+          listen<string>('translate-selection-start', (event) => {
+            setSourceText(event.payload)
+            setTranslatedText('')
+            setLoading(true)
+            setError(null)
+            setDetectedSourceLang(null)
+          }),
+        ])
         if (cancelled) {
-          unlistenResult()
-          unlistenLoading()
+          fnResult()
+          fnLoading()
           return
         }
-
+        unlistenResult = fnResult
+        unlistenLoading = fnLoading
         await invoke('floating_ready')
       } catch (e) {
-        toastInvokeError('浮动翻译窗口未就绪', e)
+        if (!cancelled) {
+          toastInvokeError('浮动翻译窗口未就绪', e)
+        }
       }
     })()
 

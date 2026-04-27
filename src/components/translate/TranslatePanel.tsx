@@ -31,36 +31,46 @@ export default function TranslatePanel() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 监听截图/划词翻译结果，回显到面板
+  // 监听截图/划词翻译结果，回显到面板（与 ConfigProvider 相同：listen resolve 时若已卸载则立即解绑）
   useEffect(() => {
     let cancelled = false
     let unlistenResult: UnlistenFn | undefined
     let unlistenStart: UnlistenFn | undefined
-    ;(async () => {
-      unlistenStart = await listen<string>('translate-selection-start', (event) => {
-        if (event.payload) {
-          setInputText(typeof event.payload === 'string' ? event.payload : '')
-          setLoadingState(true)
-        }
-      })
-      unlistenResult = await listen<ScreenshotResultPayload>('translate-selection-result', (event) => {
-        const p = event.payload
-        if (p?.error) {
-          applyError(p.error)
-        } else if (p?.translatedText) {
-          setInputText(p.sourceText ?? '')
-          applyResult({
-            sourceText: p.sourceText ?? '',
-            translatedText: p.translatedText,
-            sourceLang: p.sourceLang ?? '',
-            targetLang: p.targetLang ?? '',
-            provider: '',
-          })
-        }
-      })
-      if (cancelled) { unlistenResult?.(); unlistenStart?.() }
-    })()
-    return () => { cancelled = true; unlistenResult?.(); unlistenStart?.() }
+
+    void listen<string>('translate-selection-start', (event) => {
+      if (event.payload) {
+        setInputText(typeof event.payload === 'string' ? event.payload : '')
+        setLoadingState(true)
+      }
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unlistenStart = fn
+    })
+
+    void listen<ScreenshotResultPayload>('translate-selection-result', (event) => {
+      const p = event.payload
+      if (p?.error) {
+        applyError(p.error)
+      } else if (p?.translatedText) {
+        setInputText(p.sourceText ?? '')
+        applyResult({
+          sourceText: p.sourceText ?? '',
+          translatedText: p.translatedText,
+          sourceLang: p.sourceLang ?? '',
+          targetLang: p.targetLang ?? '',
+          provider: '',
+        })
+      }
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unlistenResult = fn
+    })
+
+    return () => {
+      cancelled = true
+      unlistenStart?.()
+      unlistenResult?.()
+    }
   }, [applyResult, applyError, setLoadingState])
 
   useEffect(() => {

@@ -221,9 +221,9 @@ export default function WelcomeOnboarding() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return
-      }
+      const t = e.target
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return
+      if (t instanceof HTMLElement && t.isContentEditable) return
       if (e.key === 'ArrowLeft') {
         e.preventDefault()
         goPrev()

@@ -512,13 +512,26 @@ pub fn get_or_create_region_select_window<R: Runtime>(
 
 /// Show the region-select overlay, sized to virtual desktop bounds.
 pub fn show_region_overlay<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    use tauri::{PhysicalPosition, PhysicalSize, Position, Size};
-
     let w = get_or_create_region_select_window(app)?;
     let (vx, vy, vw, vh) = crate::screenshot::virtual_screen_bounds()
         .map_err(|e| tauri::Error::from(std::io::Error::other(e)))?;
-    w.set_position(Position::Physical(PhysicalPosition::new(vx, vy)))?;
-    w.set_size(Size::Physical(PhysicalSize::new(vw, vh)))?;
+
+    // macOS: `display_info` / CGDisplayBounds 为点坐标；Tauri 的 Physical 为设备像素，
+    // 误用 Physical 会在 Retina 下把窗口缩小约 1/scale，导致遮罩只盖住部分屏幕。
+    #[cfg(target_os = "macos")]
+    {
+        use core_graphics::display::CGDisplay;
+        use tauri::{LogicalPosition, LogicalSize, Position, Size};
+        let top_y = CGDisplay::main().pixels_high() as f64 - (vy as f64 + vh as f64);
+        w.set_position(Position::Logical(LogicalPosition::new(vx as f64, top_y)))?;
+        w.set_size(Size::Logical(LogicalSize::new(vw as f64, vh as f64)))?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        use tauri::{PhysicalPosition, PhysicalSize, Position, Size};
+        w.set_position(Position::Physical(PhysicalPosition::new(vx, vy)))?;
+        w.set_size(Size::Physical(PhysicalSize::new(vw, vh)))?;
+    }
     w.show()?;
     w.set_focus()?;
     Ok(())

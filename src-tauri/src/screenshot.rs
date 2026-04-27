@@ -1,13 +1,13 @@
 use screenshots::image::{
-    imageops::{crop_imm, resize, FilterType},
+    imageops::{crop_imm, overlay, resize, FilterType},
     DynamicImage, ImageFormat, Rgba, RgbaImage,
 };
+use rayon::prelude::*;
 use std::io::Cursor;
 
 const MIN_WH: u32 = 8;
 
-pub fn virtual_screen_bounds() -> Result<(i32, i32, u32, u32), String> {
-    let screens = screenshots::Screen::all().map_err(|e| format!("枚举显示器失败: {}", e))?;
+fn bounds_from_screens(screens: &[screenshots::Screen]) -> Result<(i32, i32, u32, u32), String> {
     if screens.is_empty() {
         return Err("未找到可用显示器".to_string());
     }
@@ -15,7 +15,7 @@ pub fn virtual_screen_bounds() -> Result<(i32, i32, u32, u32), String> {
     let mut min_y = i32::MAX;
     let mut max_x = i32::MIN;
     let mut max_y = i32::MIN;
-    for s in &screens {
+    for s in screens {
         let d = s.display_info;
         min_x = min_x.min(d.x);
         min_y = min_y.min(d.y);
@@ -30,11 +30,48 @@ pub fn virtual_screen_bounds() -> Result<(i32, i32, u32, u32), String> {
     ))
 }
 
+pub fn virtual_screen_bounds() -> Result<(i32, i32, u32, u32), String> {
+    let screens = screenshots::Screen::all().map_err(|e| format!("枚举显示器失败: {}", e))?;
+    bounds_from_screens(&screens)
+}
+
+struct CompositeJob {
+    screen: screenshots::Screen,
+    local_x: i32,
+    local_y: i32,
+    iw: u32,
+    ih: u32,
+    ox: i32,
+    oy: i32,
+}
+
+fn capture_and_normalize_job(job: CompositeJob) -> Result<(i32, i32, RgbaImage), String> {
+    let CompositeJob {
+        screen,
+        local_x,
+        local_y,
+        iw,
+        ih,
+        ox,
+        oy,
+    } = job;
+    let mut rgba = screen
+        .capture_area(local_x, local_y, iw, ih)
+        .map_err(|e| format!("截取区域失败: {}", e))?;
+    // macOS Retina：`capture_area` 的宽高按 display_info（点）传入，CG 返回的位图常为物理分辨率；
+    // 不缩放到 (iw,ih) 会无法写入画布，截图为花屏/空白，OCR/图片翻译识别不到文字。
+    if rgba.width() != iw || rgba.height() != ih {
+        rgba = resize(&rgba, iw, ih, FilterType::Triangle);
+    }
+    Ok((ox, oy, rgba))
+}
+
 pub fn composite_virtual_region_rgba(
     gx: i32,
     gy: i32,
     width: u32,
     height: u32,
+    screens: &[screenshots::Screen],
 ) -> Result<RgbaImage, String> {
     if width < MIN_WH || height < MIN_WH {
         return Err(format!("选区过小（至少 {}×{} 像素）", MIN_WH, MIN_WH));
@@ -45,9 +82,7 @@ pub fn composite_virtual_region_rgba(
     let gx2 = gx + gw;
     let gy2 = gy + gh;
 
-    let screens = screenshots::Screen::all().map_err(|e| format!("枚举显示器失败: {}", e))?;
-    let mut pieces: Vec<(i32, i32, RgbaImage)> = Vec::new();
-
+    let mut jobs: Vec<CompositeJob> = Vec::new();
     for screen in screens {
         let d = screen.display_info;
         let sx2 = d.x + d.width as i32;
@@ -63,26 +98,37 @@ pub fn composite_virtual_region_rgba(
         let local_y = iy1 - d.y;
         let iw = (ix2 - ix1) as u32;
         let ih = (iy2 - iy1) as u32;
-        let mut rgba = screen
-            .capture_area(local_x, local_y, iw, ih)
-            .map_err(|e| format!("截取区域失败: {}", e))?;
-        // macOS Retina：`capture_area` 的宽高按 display_info（点）传入，CG 返回的位图常为物理分辨率；
-        // 不缩放到 (iw,ih) 会无法写入画布，截图为花屏/空白，OCR/图片翻译识别不到文字。
-        if rgba.width() != iw || rgba.height() != ih {
-            rgba = resize(&rgba, iw, ih, FilterType::Triangle);
-        }
         let ox = ix1 - gx;
         // Windows / Linux：display_info 的 y 自上而下增大；macOS CG：y 自下而上增大。
-        // 画布第 0 行应对齐虚拟桌面「视觉最上方」，Windows 用 iy1-gy，macOS 需用 gy+gh-iy2。
         #[cfg(target_os = "macos")]
         let oy = gy + gh - iy2;
         #[cfg(not(target_os = "macos"))]
         let oy = iy1 - gy;
-        pieces.push((ox, oy, rgba));
+        jobs.push(CompositeJob {
+            screen: *screen,
+            local_x,
+            local_y,
+            iw,
+            ih,
+            ox,
+            oy,
+        });
     }
 
-    if pieces.is_empty() {
+    if jobs.is_empty() {
         return Err("所选区域不在任何显示器内".to_string());
+    }
+
+    // 多显示器时并行截取；macOS CG 单屏截屏本身较慢，多屏并行可缩短等待；单屏则直接跑避免 rayon 调度。
+    let mut pieces = Vec::with_capacity(jobs.len());
+    if jobs.len() == 1 {
+        pieces.push(capture_and_normalize_job(jobs.into_iter().next().unwrap())?);
+    } else {
+        let piece_results: Vec<Result<(i32, i32, RgbaImage), String>> =
+            jobs.into_par_iter().map(capture_and_normalize_job).collect();
+        for r in piece_results {
+            pieces.push(r?);
+        }
     }
 
     let mut canvas = RgbaImage::new(width, height);
@@ -90,21 +136,16 @@ pub fn composite_virtual_region_rgba(
         *p = Rgba([0u8, 0u8, 0u8, 0u8]);
     }
     for (ox, oy, piece) in pieces {
-        for (px, py, pixel) in piece.enumerate_pixels() {
-            let cx = ox + px as i32;
-            let cy = oy + py as i32;
-            if cx >= 0 && cy >= 0 && (cx as u32) < width && (cy as u32) < height {
-                canvas.put_pixel(cx as u32, cy as u32, *pixel);
-            }
-        }
+        overlay(&mut canvas, &piece, ox as i64, oy as i64);
     }
 
     Ok(canvas)
 }
 
 pub fn capture_virtual_desktop_rgba() -> Result<RgbaImage, String> {
-    let (vx, vy, vw, vh) = virtual_screen_bounds()?;
-    composite_virtual_region_rgba(vx, vy, vw, vh)
+    let screens = screenshots::Screen::all().map_err(|e| format!("枚举显示器失败: {}", e))?;
+    let (vx, vy, vw, vh) = bounds_from_screens(&screens)?;
+    composite_virtual_region_rgba(vx, vy, vw, vh, &screens)
 }
 
 pub fn crop_from_viewport_mapping(

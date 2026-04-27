@@ -1,5 +1,6 @@
 /**
- * 启动器面板：输入关键词筛选内置动作、系统应用、URL、路径、书签、本地文件等，回车执行当前选中项；
+ * 启动器面板：不透明窗口 + 与划词翻译浮窗一致的实心背景与分区样式；
+ * 输入关键词筛选内置动作、系统应用、URL、路径、书签、本地文件等，回车执行当前选中项；
  * 标题栏可固定（失焦不自动隐藏）与打开应用设置。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -245,154 +246,141 @@ function LauncherPanel() {
   const totalListSize = listVirtualizer.getTotalSize()
 
   return (
-    <div className="box-border flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden">
-      <div
-        className={cn(
-          'relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden overflow-x-clip rounded-xl',
-          '[background:linear-gradient(165deg,color-mix(in_oklch,var(--theme-accent,var(--ring))_18%,transparent),transparent_52%),color-mix(in_oklch,var(--background)_var(--window-alpha),transparent)]',
-          'border border-[color-mix(in_oklch,var(--border)_44%,transparent)]',
-          'shadow-[0_20px_72px_color-mix(in_oklch,var(--background)_32%,transparent),inset_0_1px_0_color-mix(in_oklch,white_20%,transparent)]',
-          'backdrop-blur-[20px]',
-        )}
-        onKeyDown={onKeyDown}
-      >
-        <div className="min-w-0 max-w-full shrink-0 border-b border-border/60 px-3 py-2 sm:px-4 sm:py-2.5">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-muted-foreground text-[11px] font-medium sm:text-xs">启动器</p>
-            <div className="flex shrink-0 items-center gap-1" data-no-drag="true">
-              <Button
-                type="button"
-                variant={config.launcherHideOnUnfocus ? 'ghost' : 'default'}
-                size="icon-sm"
-                onClick={() => void updateConfig({ launcherHideOnUnfocus: !config.launcherHideOnUnfocus })}
-                aria-label={config.launcherHideOnUnfocus ? '固定面板' : '取消固定'}
-                title={config.launcherHideOnUnfocus ? '固定面板（失焦不自动关闭）' : '取消固定（失焦时自动关闭）'}
-              >
-                <Pin className={cn('size-4', !config.launcherHideOnUnfocus && 'fill-current')} />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => void handleOpenSettings()}
-                aria-label="打开设置"
-                title="打开设置"
-              >
-                <Settings className="size-4" />
-              </Button>
+    <div
+      className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden bg-background"
+      onKeyDown={onKeyDown}
+    >
+      <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-4 py-3">
+        <p className="text-sm font-semibold tracking-tight">启动器</p>
+        <div className="flex shrink-0 items-center gap-1" data-no-drag="true">
+          <Button
+            type="button"
+            variant={config.launcherHideOnUnfocus ? 'ghost' : 'default'}
+            size="icon-sm"
+            onClick={() => void updateConfig({ launcherHideOnUnfocus: !config.launcherHideOnUnfocus })}
+            aria-label={config.launcherHideOnUnfocus ? '固定面板' : '取消固定'}
+            title={config.launcherHideOnUnfocus ? '固定面板（失焦不自动关闭）' : '取消固定（失焦时自动关闭）'}
+          >
+            <Pin className={cn('size-4', !config.launcherHideOnUnfocus && 'fill-current')} />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => void handleOpenSettings()}
+            aria-label="打开设置"
+            title="打开设置"
+          >
+            <Settings className="size-4" />
+          </Button>
+        </div>
+      </div>
+      <div className="flex shrink-0 border-b border-border/70 bg-muted/35 px-4 py-3">
+        <div
+          className={cn(
+            'flex w-full min-w-0 items-center rounded-lg border border-input bg-background px-2.5 py-1.5 shadow-sm',
+            'ring-offset-background focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-0',
+          )}
+        >
+          <Input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索功能、URL 或本地路径…"
+            className="h-8 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
+            autoFocus
+            aria-label="启动器搜索"
+            spellCheck={false}
+          />
+          <span
+            className="text-muted-foreground shrink-0 border-l border-border/60 pl-2.5 text-xs tabular-nums"
+            aria-live="polite"
+          >
+            {items.length} 项
+          </span>
+        </div>
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
+          <div
+            ref={scrollParentRef}
+            className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-clip overflow-y-auto overscroll-y-contain"
+            role="presentation"
+          >
+            <div className="box-border w-full min-w-0 max-w-full flex-col p-1.5" role="listbox" aria-label="结果">
+              {items.length === 0 ? (
+                <p className="text-muted-foreground px-2 py-6 text-center text-sm">无匹配项</p>
+              ) : (
+                <div className="relative w-full min-w-0" style={{ minHeight: totalListSize, height: totalListSize }}>
+                  {listVirtualizer.getVirtualItems().map((v) => {
+                    const item = items[v.index]
+                    if (!item) {
+                      return null
+                    }
+                    return (
+                      <div
+                        key={v.key}
+                        data-index={v.index}
+                        ref={listVirtualizer.measureElement}
+                        className="absolute top-0 left-0 w-full min-w-0 max-w-full"
+                        style={{ transform: `translateY(${v.start}px)` }}
+                      >
+                        <div className="w-full min-w-0 max-w-full contain-[inline-size]">
+                          <LauncherResultItem
+                            id={`launcher-option-${v.index}`}
+                            item={item}
+                            selected={v.index === selected}
+                            onMouseEnter={() => setSelected(v.index)}
+                            onActivate={() => {
+                              setSelected(v.index)
+                              executeAt(v.index)
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
-          <div
-            className={cn(
-              'flex items-center rounded-lg border border-input bg-muted/50 px-2.5 py-1.5 shadow-sm',
-              'ring-offset-background',
-              'focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-0',
-              'dark:bg-muted/40',
-            )}
-          >
-            <Input
-              ref={inputRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索功能、URL 或本地路径…"
-              className="h-7 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0 sm:h-8"
-              autoFocus
-              aria-label="启动器搜索"
-              spellCheck={false}
-            />
-            <span
-              className="text-muted-foreground shrink-0 border-l border-border/60 pl-2.5 text-[11px] tabular-nums sm:text-xs"
-              aria-live="polite"
-            >
-              {items.length} 项
+          <p className="text-muted-foreground min-w-0 max-w-full shrink-0 wrap-break-word border-t border-border/50 px-3 py-1.5 text-[10px] sm:text-xs leading-relaxed">
+            <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-1 align-middle [&_[data-slot=kbd]]:h-4 [&_[data-slot=kbd]]:min-h-4 [&_[data-slot=kbd]]:px-1 [&_[data-slot=kbd]]:text-[10px] sm:[&_[data-slot=kbd]]:text-xs">
+              <KbdGroup>
+                <Kbd>↑</Kbd>
+                <Kbd>↓</Kbd>
+              </KbdGroup>
+              <span>选择</span>
+              <span aria-hidden>·</span>
+              <Kbd>PageUp</Kbd>
+              <span>/</span>
+              <Kbd>PageDown</Kbd>
+              <span>翻页</span>
+              <span aria-hidden>·</span>
+              <Kbd>Home</Kbd>
+              <span>/</span>
+              <Kbd>End</Kbd>
+              <span>至首/尾</span>
+              <span aria-hidden>·</span>
+              {isMacOs() ? <Kbd>⌘</Kbd> : <Kbd>Ctrl</Kbd>}
+              <span>+</span>
+              <Kbd>1</Kbd>
+              <span>～</span>
+              <Kbd>9</Kbd>
+              <span>打开对应项</span>
+              <span aria-hidden>·</span>
+              <Kbd>Enter</Kbd>
+              <span>打开</span>
+              <span aria-hidden>·</span>
+              <Kbd>Esc</Kbd>
+              <span>关闭。</span>
             </span>
-          </div>
+            <span className="block sm:inline sm:before:content-['·_'] [&_[data-slot=kbd]]:h-4 [&_[data-slot=kbd]]:min-h-4 [&_[data-slot=kbd]]:px-1 [&_[data-slot=kbd]]:text-[10px] sm:[&_[data-slot=kbd]]:text-xs">
+              输入 <Kbd>find</Kbd> + 关键词：搜文件并打开所在目录；
+              <Kbd>open</Kbd> + 关键词：搜文件并打开文件。
+            </span>
+          </p>
         </div>
-        <div
-          ref={scrollParentRef}
-          className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-clip overflow-y-auto overscroll-y-contain"
-          role="presentation"
-        >
-          <div
-            className="box-border w-full min-w-0 max-w-full flex-col p-1.5"
-            role="listbox"
-            aria-label="结果"
-          >
-            {items.length === 0 ? (
-              <p className="text-muted-foreground px-2 py-6 text-center text-sm">无匹配项</p>
-            ) : (
-              <div
-                className="relative w-full min-w-0"
-                style={{ minHeight: totalListSize, height: totalListSize }}
-              >
-                {listVirtualizer.getVirtualItems().map((v) => {
-                  const item = items[v.index]
-                  if (!item) {
-                    return null
-                  }
-                  return (
-                    <div
-                      key={v.key}
-                      data-index={v.index}
-                      ref={listVirtualizer.measureElement}
-                      className="absolute top-0 left-0 w-full min-w-0 max-w-full"
-                      style={{ transform: `translateY(${v.start}px)` }}
-                    >
-                      <div className="w-full min-w-0 max-w-full contain-[inline-size]">
-                        <LauncherResultItem
-                          id={`launcher-option-${v.index}`}
-                          item={item}
-                          selected={v.index === selected}
-                          onMouseEnter={() => setSelected(v.index)}
-                          onActivate={() => {
-                            setSelected(v.index)
-                            executeAt(v.index)
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-        <p className="text-muted-foreground min-w-0 max-w-full shrink-0 wrap-break-word border-t border-border/50 px-3 py-1.5 text-[10px] sm:text-xs leading-relaxed">
-          <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-1 align-middle [&_[data-slot=kbd]]:h-4 [&_[data-slot=kbd]]:min-h-4 [&_[data-slot=kbd]]:px-1 [&_[data-slot=kbd]]:text-[10px] sm:[&_[data-slot=kbd]]:text-xs">
-            <KbdGroup>
-              <Kbd>↑</Kbd>
-              <Kbd>↓</Kbd>
-            </KbdGroup>
-            <span>选择</span>
-            <span aria-hidden>·</span>
-            <Kbd>PageUp</Kbd>
-            <span>/</span>
-            <Kbd>PageDown</Kbd>
-            <span>翻页</span>
-            <span aria-hidden>·</span>
-            <Kbd>Home</Kbd>
-            <span>/</span>
-            <Kbd>End</Kbd>
-            <span>至首/尾</span>
-            <span aria-hidden>·</span>
-            {isMacOs() ? <Kbd>⌘</Kbd> : <Kbd>Ctrl</Kbd>}
-            <span>+</span>
-            <Kbd>1</Kbd>
-            <span>～</span>
-            <Kbd>9</Kbd>
-            <span>打开对应项</span>
-            <span aria-hidden>·</span>
-            <Kbd>Enter</Kbd>
-            <span>打开</span>
-            <span aria-hidden>·</span>
-            <Kbd>Esc</Kbd>
-            <span>关闭。</span>
-          </span>
-          <span className="block sm:inline sm:before:content-['·_'] [&_[data-slot=kbd]]:h-4 [&_[data-slot=kbd]]:min-h-4 [&_[data-slot=kbd]]:px-1 [&_[data-slot=kbd]]:text-[10px] sm:[&_[data-slot=kbd]]:text-xs">
-            输入 <Kbd>find</Kbd> + 关键词：搜文件并打开所在目录；
-            <Kbd>open</Kbd> + 关键词：搜文件并打开文件。
-          </span>
-        </p>
       </div>
     </div>
   )

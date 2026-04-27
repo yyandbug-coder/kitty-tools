@@ -1,4 +1,4 @@
-// 剪贴板模块入口：与设置主应用分离，由 html/clipboard-popup.html / Tauri 窗口 clipboard-popup 加载
+// 剪贴板模块入口：不透明窗口（与划词翻译浮窗一致），由 html/clipboard-popup.html 加载
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ConfigProvider } from '@/hooks/ConfigProvider'

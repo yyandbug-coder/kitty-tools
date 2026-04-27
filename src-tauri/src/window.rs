@@ -87,12 +87,36 @@ fn webview_url(path: &str) -> WebviewUrl {
     WebviewUrl::App(path.into())
 }
 
+// ── Windows 11：无边框透明窗口的系统圆角（与标准标题栏窗口一致，避免直角外框与 CSS 圆角错位）
+#[cfg(target_os = "windows")]
+fn apply_windows_borderless_round_corners<R: Runtime>(window: &WebviewWindow<R>) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUNDSMALL,
+    };
+
+    let Ok(raw) = window.hwnd() else {
+        return;
+    };
+    let hwnd = HWND(raw.0 as *mut _);
+    // 与前端 `rounded-xl`（--radius-xl）尺度接近；`DWMWCP_ROUND` 偏大易与玻璃壳圆角错位
+    let preference = DWMWCP_ROUNDSMALL;
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            std::ptr::from_ref(&preference).cast(),
+            std::mem::size_of_val(&preference) as u32,
+        );
+    }
+}
+
 // ── Clipboard popup window ──────────────────────────────────────────────
 
 /// Get or create the clipboard popup window.
 ///
-/// Transparent, no decorations, always_on_top, skip_taskbar, not resizable,
-/// initially invisible. Used as the Alfred-style clipboard history panel.
+/// 不透明（与划词翻译浮窗一致）、无装饰、置顶、跳过任务栏、不可调大小，
+/// 初始隐藏。用于 Alfred 风格剪贴板历史面板。
 pub fn get_or_create_clipboard_popup_window<R: Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> tauri::Result<WebviewWindow<R>> {
@@ -103,12 +127,10 @@ pub fn get_or_create_clipboard_popup_window<R: Runtime>(
         .title("Kitty Tools · 剪贴板")
         .inner_size(1080.0, 720.0)
         .decorations(false)
-        .transparent(true)
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(false)
         .visible(false)
-        .shadow(false)
         .center()
         .build()?;
     register_clipboard_popup_handlers(&window, app);
@@ -217,7 +239,7 @@ pub fn toggle_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
 
 // ── Launcher (command palette) window ─────────────────────────────────
 
-/// 创建启动器：透明、无装饰、置顶、类似剪贴板面板的呼出式面板。
+/// 创建启动器：不透明（与划词翻译浮窗一致）、无装饰、置顶、可调整大小。
 pub fn get_or_create_launcher_window<R: Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> tauri::Result<WebviewWindow<R>> {
@@ -235,13 +257,11 @@ pub fn get_or_create_launcher_window<R: Runtime>(
         .title("Kitty Tools · 启动器")
         .inner_size(iw, ih)
         .decorations(false)
-        .transparent(true)
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(true)
         .min_inner_size(360.0, 280.0)
         .visible(false)
-        .shadow(false)
         .center()
         .build()?;
     register_launcher_handlers(&window, app);
@@ -623,6 +643,7 @@ pub fn get_or_create_onboarding_window<R: Runtime>(
 
     #[cfg(target_os = "windows")]
     {
+        apply_windows_borderless_round_corners(&window);
         let _ = window.set_skip_taskbar(true);
     }
 

@@ -1,4 +1,4 @@
-// 启动器入口：由 html/launcher.html 加载；应用与设置/剪贴板一致的主题变量与 dark 类，保证主色与暗黑模式一致
+// 启动器入口：由 html/launcher.html 加载；不透明窗口 + bg-background，与划词翻译浮窗一致
 import React, { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import ReactDOM from 'react-dom/client'
@@ -53,7 +53,10 @@ function LauncherApp() {
 
   return (
     <div
-      className={cn('h-full min-h-0 w-full min-w-0 text-foreground', isDarkMode && 'dark')}
+      className={cn(
+        'flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
+        isDarkMode && 'dark',
+      )}
       data-kitty-theme-scope
       data-theme={config.appThemePreset}
       style={appStyle}

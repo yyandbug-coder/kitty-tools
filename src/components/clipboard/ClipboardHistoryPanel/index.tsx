@@ -1,4 +1,4 @@
-// 剪贴板历史浮层 - Alfred 风格弹出式剪贴板管理器
+// 剪贴板历史浮层 - Alfred 风格弹出式剪贴板管理器（不透明窗口，样式与划词翻译浮窗一致）
 // 双栏布局：左侧列表（分页）+ 右侧预览面板；由 html/clipboard-popup.html 加载 app/clipboard/main.tsx
 import type { CSSProperties, PointerEvent } from 'react'
 import type { AppTheme } from '@/types'
@@ -11,7 +11,7 @@ import { useClipboard } from '@/app/clipboard/hooks/useClipboard'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import type { ClipboardItem } from '@/types'
 import { APP_DISPLAY_NAME } from '@/lib/app-meta'
-import { getThemeRuntimeStyle, getSearchShellStyle } from '@/lib/theme'
+import { getThemeRuntimeStyle } from '@/lib/theme'
 import ClipboardItemCard from '@/components/clipboard/ClipboardItemCard'
 import ClipboardHistoryListSkeleton from '@/components/clipboard/ClipboardHistoryListSkeleton'
 import { Button } from '@/components/ui/button'
@@ -37,11 +37,6 @@ export default function ClipboardHistoryPanel() {
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode, config.backgroundOpacity) as CSSProperties,
     [config.appThemePreset, config.customHue, isDarkMode, config.backgroundOpacity]
   )
-  const searchShellStyle = useMemo(
-    () => getSearchShellStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
-    [config.appThemePreset, config.customHue, isDarkMode]
-  )
-
   const {
     history, isHistoryLoading, search, setSearch, showFavoritesOnly, setShowFavoritesOnly,
     favoritedTotal, filtered, displayed, hasMore, loadMore, selectedItem, selectedIndex,
@@ -203,7 +198,7 @@ export default function ClipboardHistoryPanel() {
     <div
       ref={keyboardRootRef}
       className={cn(
-        'h-full w-full min-h-0 text-foreground outline-none',
+        'flex h-full w-full min-h-0 flex-col overflow-hidden bg-background text-foreground outline-none',
         isDarkMode && 'dark',
         config.clipboardDisableTextSelection && 'select-none'
       )}
@@ -214,116 +209,97 @@ export default function ClipboardHistoryPanel() {
       tabIndex={0}
     >
       <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
-      <div
-        className={cn(
-          '[background:linear-gradient(165deg,color-mix(in_oklch,var(--theme-accent,var(--ring))_18%,transparent),transparent_52%),color-mix(in_oklch,var(--background)_var(--window-alpha),transparent)] border border-[color-mix(in_oklch,var(--border)_44%,transparent)] shadow-[0_20px_72px_color-mix(in_oklch,var(--background)_32%,transparent),inset_0_1px_0_color-mix(in_oklch,white_20%,transparent)] backdrop-blur-[20px]',
-          'relative flex h-full w-full min-h-0 overflow-hidden rounded-xl'
-        )}
-      >
-        <div className="flex min-w-0 flex-1">
-          {/* 左栏 - 列表 */}
-          <div
-            className={cn(
-              'flex min-w-0 flex-col',
-              config.clipboardShowPreview
-                ? 'grow basis-[70%] border-r border-[color-mix(in_oklch,var(--border)_26%,transparent)]'
-                : 'flex-1'
-            )}
-          >
-            <div className="min-h-0 flex-1 px-2.5 pb-2.5 pt-2.5">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+        {/* 左栏 - 列表（布局与划词翻译浮窗一致：实心背景 + 圆角卡片） */}
+        <div
+          className={cn(
+            'flex min-h-0 min-w-0 flex-col',
+            config.clipboardShowPreview ? 'grow basis-[70%] border-r border-border/70' : 'flex-1'
+          )}
+        >
+          <div className="min-h-0 flex-1 p-3">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm p-2">
               <div
-                className={cn(
-                  '[background:linear-gradient(180deg,color-mix(in_oklch,var(--theme-accent,var(--ring))_10%,transparent),transparent_30%),color-mix(in_oklch,var(--background)_var(--panel-alpha),transparent)] border border-[color-mix(in_oklch,var(--border)_30%,transparent)]',
-                  'flex h-full min-h-0 flex-col rounded-[22px] p-2'
-                )}
+                className="flex flex-wrap items-center gap-2 border-b border-border/70 px-2.5 py-2 sm:gap-2.5 sm:px-3"
+                onPointerDown={handleDragPointerDown}
               >
-                {/* 搜索栏（可拖动区域） */}
+                <div className="flex min-w-0 shrink-0 items-center gap-2">
+                  <AppLogoIcon className="size-8" alt="" aria-hidden />
+                  <span className="text-sm font-semibold tracking-tight">{APP_DISPLAY_NAME}</span>
+                </div>
                 <div
                   className={cn(
-                    'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
-                    'flex flex-wrap items-center gap-2 border-b px-2.5 py-2 sm:gap-2.5 sm:px-3'
+                    'flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-input bg-background px-2.5 shadow-sm sm:gap-2.5 sm:px-3',
+                    'ring-offset-background transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-ring/50 focus-within:ring-2 focus-within:ring-ring/25 focus-within:ring-offset-0',
                   )}
-                  onPointerDown={handleDragPointerDown}
+                  data-no-drag="true"
                 >
-                  <div className="flex min-w-0 shrink-0 items-center gap-2">
-                    <AppLogoIcon className="size-8" alt="" aria-hidden />
-                    <span className="text-sm font-semibold tracking-tight">{APP_DISPLAY_NAME}</span>
-                  </div>
+                  <Input
+                    ref={searchInputRef}
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="搜索文本、文件名或路径..."
+                    className={cn(
+                      'h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none ring-0 file:h-10',
+                      'appearance-none text-foreground outline-none [-webkit-appearance:none] placeholder:text-muted-foreground',
+                      'focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none focus:ring-0',
+                      'focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0',
+                      'md:text-sm',
+                      config.clipboardDisableTextSelection && 'select-text'
+                    )}
+                  />
                   <div
                     className={cn(
-                      'border border-[var(--search-shell-border)] bg-[var(--search-shell-bg)] backdrop-blur-[16px] backdrop-saturate-[140%] transition-[border-color,background-color,box-shadow] duration-[160ms] ease-out focus-within:border-[color-mix(in_oklch,var(--theme-accent,var(--ring))_42%,var(--border)_58%)] focus-within:shadow-[0_0_0_1px_var(--search-shell-focus-ring)]',
-                      'flex min-w-0 flex-1 items-center gap-2 rounded-[16px] px-2.5 sm:gap-2.5 sm:px-3'
+                      'border border-border/80 bg-secondary/80 text-muted-foreground',
+                      'max-w-[min(28vw,5.5rem)] shrink-0 truncate whitespace-nowrap rounded-md px-1.5 py-px text-[10px] leading-none tabular-nums sm:max-w-26',
+                      headerHistoryBadge.isAtCap && 'border-primary/50 bg-primary/10 text-foreground'
                     )}
-                    style={searchShellStyle}
-                    data-no-drag="true"
+                    title={headerHistoryBadge.title}
                   >
-                    <Input
-                      ref={searchInputRef}
-                      value={search}
-                      onChange={e => setSearch(e.target.value)}
-                      placeholder="搜索文本、文件名或路径..."
-                      className={cn(
-                        'h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none ring-0 file:h-10',
-                        'appearance-none text-foreground outline-none [-webkit-appearance:none] placeholder:text-muted-foreground',
-                        'focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none focus:ring-0',
-                        'focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0',
-                        'md:text-sm',
-                        config.clipboardDisableTextSelection && 'select-text'
-                      )}
-                    />
-                    <div
-                      className={cn(
-                        'bg-[color-mix(in_oklch,var(--secondary)_52%,transparent)] border border-[color-mix(in_oklch,var(--border)_36%,transparent)] text-[color-mix(in_oklch,var(--muted-foreground)_88%,transparent)]',
-                        'max-w-[min(28vw,5.5rem)] shrink-0 truncate whitespace-nowrap rounded-md px-1.5 py-px text-[10px] leading-none tabular-nums sm:max-w-26',
-                        headerHistoryBadge.isAtCap && 'border-[color-mix(in_oklch,var(--primary)_48%,var(--border)_52%)] bg-[color-mix(in_oklch,var(--primary)_14%,transparent)] text-[color-mix(in_oklch,var(--foreground)_92%,var(--primary)_8%)]'
-                      )}
-                      title={headerHistoryBadge.title}
-                    >
-                      {headerHistoryBadge.text}
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-1.5" data-no-drag="true">
-                    <Button
-                      variant={showFavoritesOnly ? 'default' : 'ghost'}
-                      size="icon-sm"
-                      onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                      aria-label={showFavoritesOnly ? '显示全部历史' : '仅显示收藏'}
-                      title={showFavoritesOnly ? '显示全部历史' : '仅显示收藏'}
-                    >
-                      <Star className={cn('size-4', showFavoritesOnly && 'fill-current')} />
-                    </Button>
-                    <Button
-                      variant={config.clipboardHideOnUnfocus ? 'ghost' : 'default'}
-                      size="icon-sm"
-                      onClick={() => updateConfig({ clipboardHideOnUnfocus: !config.clipboardHideOnUnfocus })}
-                      aria-label={config.clipboardHideOnUnfocus ? '固定面板' : '取消固定'}
-                      title={config.clipboardHideOnUnfocus ? '固定面板（不自动隐藏）' : '取消固定（失焦自动隐藏）'}
-                    >
-                      <Pin className={cn('size-4', !config.clipboardHideOnUnfocus && 'fill-current')} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => void handleOpenSettings()}
-                      aria-label="打开设置"
-                      title="打开设置"
-                    >
-                      <Settings className="size-4" />
-                    </Button>
+                    {headerHistoryBadge.text}
                   </div>
                 </div>
 
+                <div className="flex shrink-0 items-center gap-1.5" data-no-drag="true">
+                  <Button
+                    variant={showFavoritesOnly ? 'default' : 'ghost'}
+                    size="icon-sm"
+                    onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                    aria-label={showFavoritesOnly ? '显示全部历史' : '仅显示收藏'}
+                    title={showFavoritesOnly ? '显示全部历史' : '仅显示收藏'}
+                  >
+                    <Star className={cn('size-4', showFavoritesOnly && 'fill-current')} />
+                  </Button>
+                  <Button
+                    variant={config.clipboardHideOnUnfocus ? 'ghost' : 'default'}
+                    size="icon-sm"
+                    onClick={() => updateConfig({ clipboardHideOnUnfocus: !config.clipboardHideOnUnfocus })}
+                    aria-label={config.clipboardHideOnUnfocus ? '固定面板' : '取消固定'}
+                    title={config.clipboardHideOnUnfocus ? '固定面板（不自动隐藏）' : '取消固定（失焦自动隐藏）'}
+                  >
+                    <Pin className={cn('size-4', !config.clipboardHideOnUnfocus && 'fill-current')} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => void handleOpenSettings()}
+                    aria-label="打开设置"
+                    title="打开设置"
+                  >
+                    <Settings className="size-4" />
+                  </Button>
+                </div>
+              </div>
+
                 {/* 历史列表 */}
-                <ScrollArea ref={scrollAreaRef} className="h-full overflow-x-hidden">
+                <ScrollArea ref={scrollAreaRef} className="min-h-0 flex-1 overflow-x-hidden">
                   <div className="flex flex-col gap-2 px-1 pb-1 pt-2">
                     {isHistoryLoading ? (
                       <ClipboardHistoryListSkeleton />
                     ) : filtered.length === 0 ? (
                       <div
                         className={cn(
-                          'bg-[color-mix(in_oklch,var(--muted)_22%,transparent)] border border-dashed border-[color-mix(in_oklch,var(--border)_34%,transparent)]',
-                          'flex min-h-[220px] flex-col items-center justify-center rounded-[20px] px-8 text-center'
+                          'flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/25 px-8 text-center',
                         )}
                       >
                         <p className="text-base font-semibold text-foreground">
@@ -367,13 +343,8 @@ export default function ClipboardHistoryPanel() {
           {/* 右栏 - 预览面板 */}
           {config.clipboardShowPreview && (
             <div className="hidden min-h-0 min-w-75 max-w-90 shrink-0 basis-[30%] flex-col lg:flex">
-              <div className="min-h-0 flex-1 px-2.5 pb-2.5 pt-2.5">
-                <div
-                  className={cn(
-                    '[background:linear-gradient(180deg,color-mix(in_oklch,var(--theme-accent,var(--ring))_10%,transparent),transparent_30%),color-mix(in_oklch,var(--background)_var(--panel-alpha),transparent)] border border-[color-mix(in_oklch,var(--border)_30%,transparent)]',
-                    'flex h-full min-h-0 flex-col rounded-[22px] p-2'
-                  )}
-                >
+              <div className="min-h-0 flex-1 p-3">
+                <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm p-2">
                   <Suspense fallback={null}>
                     <ClipboardPreview
                       item={selectedItem}
@@ -385,7 +356,6 @@ export default function ClipboardHistoryPanel() {
               </div>
             </div>
           )}
-        </div>
       </div>
     </div>
   )

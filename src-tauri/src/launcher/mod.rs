@@ -1,11 +1,56 @@
-//! 启动器（命令面板）：聚合内置动作、URL、本地路径，后续可扩展文件索引与书签等。
+//! 启动器（命令面板）：聚合内置动作、URL、本地路径、浏览器书签与本地文件搜索。
 
 use std::path::Path;
+use std::sync::Mutex;
+
+use tauri::State;
 use tauri::AppHandle;
 use tauri::Runtime;
 use tauri_plugin_opener::OpenerExt;
 
+use crate::app_state::lock_poisoned;
+use crate::config::AppConfig;
 use crate::window;
+
+mod bookmarks;
+mod files;
+
+use files::FileOpenMode;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FileKeyword {
+    Find,
+    Open,
+}
+
+/// 仅当 `find` / `open` 作为首词且后跟空白时，进入仅「文件」搜索，不再混合其它来源。
+/// `find`：打开结果所在目录；`open`：打开文件；剩余串为文件名片段。
+fn try_parse_file_command(q: &str) -> Option<(FileKeyword, String)> {
+    let t = q.trim();
+    let b = t.as_bytes();
+    if b.len() < 4 {
+        return None;
+    }
+    if b[..4].eq_ignore_ascii_case(b"find") {
+        if b.len() == 4 {
+            return Some((FileKeyword::Find, String::new()));
+        }
+        if b[4] == b' ' || b[4] == b'\t' {
+            return Some((FileKeyword::Find, t[5..].trim().to_string()));
+        }
+        return None;
+    }
+    if b[..4].eq_ignore_ascii_case(b"open") {
+        if b.len() == 4 {
+            return Some((FileKeyword::Open, String::new()));
+        }
+        if b[4] == b' ' || b[4] == b'\t' {
+            return Some((FileKeyword::Open, t[5..].trim().to_string()));
+        }
+        return None;
+    }
+    None
+}
 
 /// 单条可展示、可执行的启动器项。
 #[derive(Debug, Clone, serde::Serialize)]
@@ -18,24 +63,80 @@ pub struct LauncherItem {
     pub payload: String,
 }
 
-/// 供前端 `invoke` 的查询：返回与关键词匹配的条目（含系统内置快捷项）。
+/// 供前端 `invoke` 的查询：返回与关键词匹配的条目（含内置、书签、文件等）。
 #[tauri::command]
-pub fn launcher_query(query: String) -> Vec<LauncherItem> {
+pub fn launcher_query(state: State<'_, Mutex<AppConfig>>, query: String) -> Vec<LauncherItem> {
+    let config = lock_poisoned(&*state).clone();
+    query_with_config(&config, query)
+}
+
+fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
     let q = query.trim();
+
+    if let Some((kw, rest)) = try_parse_file_command(q) {
+        let mode = match kw {
+            FileKeyword::Find => FileOpenMode::OpenParentDirectory,
+            FileKeyword::Open => FileOpenMode::OpenFile,
+        };
+        let mut out = files::file_items_for_query(
+            config.launcher_file_search_enabled,
+            &config.launcher_file_search_paths,
+            &rest,
+            mode,
+        );
+        if let FileKeyword::Open = kw {
+            if !rest.is_empty() && path_exists(&rest) {
+                out.insert(
+                    0,
+                    LauncherItem {
+                        id: "open-direct".into(),
+                        title: format!("打开 {rest}"),
+                        subtitle: "本地路径".into(),
+                        kind: "open_path".into(),
+                        payload: rest,
+                    },
+                );
+            }
+        }
+        return out;
+    }
+
     let q_lower = q.to_lowercase();
-    let mut out: Vec<LauncherItem> = Vec::new();
+    let mut builtins_matched: Vec<LauncherItem> = Vec::new();
 
     for item in built_in_list() {
         if q.is_empty() {
-            out.push(item);
+            builtins_matched.push(item);
             continue;
         }
         let title = item.title.to_lowercase();
         let sub = item.subtitle.to_lowercase();
         if title.contains(&q_lower) || sub.contains(&q_lower) {
-            out.push(item);
+            builtins_matched.push(item);
         }
     }
+
+    if q.is_empty() {
+        return builtins_matched;
+    }
+
+    let bms = bookmarks::bookmark_items_for_query(
+        q,
+        config.launcher_bookmarks_chrome,
+        config.launcher_bookmarks_edge,
+        config.launcher_bookmarks_brave,
+    );
+    let file_hits = files::file_items_for_query(
+        config.launcher_file_search_enabled,
+        &config.launcher_file_search_paths,
+        q,
+        FileOpenMode::OpenFile,
+    );
+
+    let mut out: Vec<LauncherItem> = Vec::new();
+    out.extend(bms);
+    out.extend(file_hits);
+    out.extend(builtins_matched);
 
     if is_probable_url(q) {
         out.insert(
@@ -50,7 +151,7 @@ pub fn launcher_query(query: String) -> Vec<LauncherItem> {
         );
     }
 
-    if !q.is_empty() && path_exists(q) {
+    if path_exists(q) {
         out.insert(
             0,
             LauncherItem {
@@ -123,7 +224,6 @@ fn built_in_list() -> Vec<LauncherItem> {
     v
 }
 
-/// 每平台放少量可立即打开的常用入口；后续可替换为开始菜单/Spotlight 索引结果。
 fn platform_quick_actions() -> Vec<LauncherItem> {
     #[cfg(target_os = "windows")]
     {

@@ -132,6 +132,21 @@ pub struct AppConfig {
     /// 失焦时自动隐藏启动器；为 false 时表示「固定」，失焦不关闭直至 Esc 或快捷键。
     #[serde(default = "default_true")]
     pub launcher_hide_on_unfocus: bool,
+    /// 启动器：是否包含 Google Chrome 书签（Chromium `Bookmarks`）。
+    #[serde(default)]
+    pub launcher_bookmarks_chrome: bool,
+    /// 启动器：是否包含 Microsoft Edge 书签。
+    #[serde(default)]
+    pub launcher_bookmarks_edge: bool,
+    /// 启动器：是否包含 Brave 书签。
+    #[serde(default)]
+    pub launcher_bookmarks_brave: bool,
+    /// 启动器：是否按文件名搜索本地文件（见 `launcher_file_search_paths`）。
+    #[serde(default = "default_launcher_file_search_enabled")]
+    pub launcher_file_search_enabled: bool,
+    /// 文件搜索根目录；空则使用系统「文档」目录。
+    #[serde(default)]
+    pub launcher_file_search_paths: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -148,6 +163,10 @@ fn default_clipboard_history_retention_days() -> u32 {
 
 fn default_background_opacity() -> u32 {
     72
+}
+
+fn default_launcher_file_search_enabled() -> bool {
+    true
 }
 
 impl Default for AppConfig {
@@ -194,6 +213,11 @@ impl Default for AppConfig {
             background_opacity: 72,
             launcher_shortcut: "Alt+Space".to_string(),
             launcher_hide_on_unfocus: true,
+            launcher_bookmarks_chrome: false,
+            launcher_bookmarks_edge: false,
+            launcher_bookmarks_brave: false,
+            launcher_file_search_enabled: true,
+            launcher_file_search_paths: Vec::new(),
         }
     }
 }

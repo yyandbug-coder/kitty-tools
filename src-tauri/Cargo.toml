@@ -53,6 +53,7 @@ lingua = { version = "1.8.0", default-features = false, features = [
     "spanish",
 ] }
 dirs = "6"
+walkdir = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-icons = "0.3.0"

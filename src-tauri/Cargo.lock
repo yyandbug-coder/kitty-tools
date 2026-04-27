@@ -2866,6 +2866,7 @@ dependencies = [
  "tauri-plugin-sql",
  "tokio",
  "uuid",
+ "walkdir",
  "windows 0.61.3",
  "windows-icons",
 ]

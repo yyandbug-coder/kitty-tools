@@ -201,8 +201,12 @@ function LauncherPanel() {
             )}
           </div>
         </ScrollArea>
-        <p className="text-muted-foreground border-t border-border/50 px-3 py-1.5 text-[10px] sm:text-xs">
-          ↑↓ 选择 · Enter 打开 · Esc 关闭 · 图钉为固定
+        <p className="text-muted-foreground border-t border-border/50 px-3 py-1.5 text-[10px] sm:text-xs leading-relaxed">
+          ↑↓ 选择 · Enter 打开 · Esc 关闭 · 图钉固定。
+          <span className="block sm:inline sm:before:content-['·_']">
+            输入 <kbd className="rounded border px-1">find </kbd> + 关键词：搜文件并打开所在目录；
+            <kbd className="rounded border px-1">open </kbd> + 关键词：搜文件并打开文件。
+          </span>
         </p>
       </div>
     </div>

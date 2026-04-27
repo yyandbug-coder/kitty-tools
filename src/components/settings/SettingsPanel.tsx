@@ -21,8 +21,12 @@ import {
   Sparkles,
   ArrowRightLeft,
   Power,
-  Palette
+  Palette,
+  Search,
+  FolderOpen,
+  X
 } from 'lucide-react'
+import { open } from '@tauri-apps/plugin-dialog'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useTheme } from '@/hooks/useTheme'
 import { DEFAULT_CONFIG, type TranslateProvider, type TranslateResult } from '@/types'
@@ -62,6 +66,7 @@ const SETTINGS_TAB = {
   clipboard: 'clipboard',
   translate: 'translate',
   shortcuts: 'shortcuts',
+  launcher: 'launcher',
   about: 'about'
 } as const
 
@@ -78,6 +83,7 @@ const TAB_ITEMS: ITabItem[] = [
   { value: SETTINGS_TAB.clipboard, icon: ClipboardList, label: '剪贴板' },
   { value: SETTINGS_TAB.translate, icon: Globe, label: '翻译' },
   { value: SETTINGS_TAB.shortcuts, icon: Keyboard, label: '交互' },
+  { value: SETTINGS_TAB.launcher, icon: Search, label: '启动器' },
   { value: SETTINGS_TAB.about, icon: Info, label: '关于' }
 ]
 
@@ -740,6 +746,135 @@ export default function SettingsPanel() {
                       ]}
                     />
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 启动器：书签来源与文件搜索 */}
+            <TabsContent value={SETTINGS_TAB.launcher} className="mt-0 space-y-5">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Search className="size-4" />
+                    浏览器书签
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    勾选后，启动器可搜索并打开对应浏览器的书签（读取本机 Chromium 格式 Bookmarks
+                    文件）。请确保已安装并使用该浏览器；可多选。
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium">Google Chrome</span>
+                    <Switch
+                      checked={config.launcherBookmarksChrome}
+                      onCheckedChange={(v) => void updateConfig({ launcherBookmarksChrome: v })}
+                      aria-label="Chrome 书签"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium">Microsoft Edge</span>
+                    <Switch
+                      checked={config.launcherBookmarksEdge}
+                      onCheckedChange={(v) => void updateConfig({ launcherBookmarksEdge: v })}
+                      aria-label="Edge 书签"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium">Brave</span>
+                    <Switch
+                      checked={config.launcherBookmarksBrave}
+                      onCheckedChange={(v) => void updateConfig({ launcherBookmarksBrave: v })}
+                      aria-label="Brave 书签"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <FolderOpen className="size-4" />
+                    本地文件搜索
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    在指定目录内按<strong className="font-medium text-foreground">文件名</strong>
+                    包含关键词搜索；无 <span className="font-mono text-foreground/90">find </span>/
+                    <span className="font-mono text-foreground/90">open </span>前缀时与启动器里其它项一起出现；在输入框中输入{' '}
+                    <span className="font-mono text-foreground/90">find </span>+ 关键词为仅文件搜索，选中后
+                    <strong className="font-medium text-foreground">打开该文件所在目录</strong>；输入{' '}
+                    <span className="font-mono text-foreground/90">open </span>+ 关键词为仅文件搜索，选中后
+                    <strong className="font-medium text-foreground">打开该文件</strong>。关键词至少 2 个字符。目录列表为空时使用系统「文档」文件夹。深度与扫描量已做上限，超大目录可能仍较慢。
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium">启用文件搜索</span>
+                    <Switch
+                      checked={config.launcherFileSearchEnabled}
+                      onCheckedChange={(v) => void updateConfig({ launcherFileSearchEnabled: v })}
+                      aria-label="启用启动器文件搜索"
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!config.launcherFileSearchEnabled}
+                      onClick={async () => {
+                        try {
+                          const dir = await open({ directory: true, multiple: false })
+                          if (typeof dir !== 'string' || !dir.trim()) return
+                          const paths = config.launcherFileSearchPaths
+                          if (paths.includes(dir)) return
+                          await updateConfig({ launcherFileSearchPaths: [...paths, dir] })
+                        } catch (e) {
+                          console.error(e)
+                        }
+                      }}
+                    >
+                      添加搜索目录
+                    </Button>
+                    {config.launcherFileSearchPaths.length > 0 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void updateConfig({ launcherFileSearchPaths: [] })}
+                      >
+                        清空列表（使用「文档」默认）
+                      </Button>
+                    ) : null}
+                  </div>
+                  {config.launcherFileSearchPaths.length > 0 ? (
+                    <ul className="border-border bg-muted/30 max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2 text-sm">
+                      {config.launcherFileSearchPaths.map((p) => (
+                        <li
+                          key={p}
+                          className="text-muted-foreground flex min-w-0 items-start justify-between gap-2 break-all"
+                        >
+                          <span className="min-w-0">{p}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            className="shrink-0"
+                            aria-label="移除目录"
+                            onClick={() =>
+                              void updateConfig({
+                                launcherFileSearchPaths: config.launcherFileSearchPaths.filter((x) => x !== p)
+                              })
+                            }
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-muted-foreground text-xs">未添加目录时，使用系统「文档」作为搜索根目录。</p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

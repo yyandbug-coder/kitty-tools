@@ -113,6 +113,16 @@ export interface AppConfig {
    * 为 false 时工具栏为「已固定」：失焦不关闭，与剪贴板固定一致。
    */
   launcherHideOnUnfocus: boolean;
+  /** 启动器：是否索引 Chrome 书签 */
+  launcherBookmarksChrome: boolean;
+  /** 启动器：是否索引 Edge 书签 */
+  launcherBookmarksEdge: boolean;
+  /** 启动器：是否索引 Brave 书签 */
+  launcherBookmarksBrave: boolean;
+  /** 启动器：是否启用本地文件名搜索 */
+  launcherFileSearchEnabled: boolean;
+  /** 文件搜索根目录列表；空则使用系统「文档」 */
+  launcherFileSearchPaths: string[];
 }
 
 export const SUPPORTED_LANGUAGES: Language[] = [
@@ -163,6 +173,11 @@ export const DEFAULT_CONFIG: AppConfig = {
   bidirectionalLangB: 'en',
   launcherShortcut: 'Alt+Space',
   launcherHideOnUnfocus: true,
+  launcherBookmarksChrome: false,
+  launcherBookmarksEdge: false,
+  launcherBookmarksBrave: false,
+  launcherFileSearchEnabled: true,
+  launcherFileSearchPaths: [],
 };
 
 export function getLanguageDisplayName(code: string): string {

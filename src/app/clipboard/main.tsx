@@ -1,4 +1,4 @@
-// 剪贴板弹窗窗口入口 - 与主应用（设置）分离，仅由 clipboard-popup 窗口加载
+// 剪贴板模块入口：与设置主应用分离，由 html/clipboard-popup.html / Tauri 窗口 clipboard-popup 加载
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ConfigProvider } from '@/hooks/ConfigProvider'

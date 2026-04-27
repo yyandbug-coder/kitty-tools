@@ -18,18 +18,18 @@ import type { AppConfig, ClipboardItem } from '@/types'
 import {
   clearClipboardImagePreviewCache,
   pruneClipboardImagePreviewCache,
-} from '@/app/lib/clipboard/clipboard-image-preview'
+} from '@/app/clipboard/lib/clipboard-image-preview'
 import {
   mergeClipboardHistoriesForSync,
   normalizeSyncMergedHistoryAsync,
   prependFingerprintDedupedClipboardHistory,
-} from '@/app/lib/clipboard/cloud-sync'
+} from '@/app/clipboard/lib/cloud-sync'
 import {
   parseNormalizeClipboardHistoryFromDbRawInWorker,
   serializeClipboardHistoryForDbInWorker,
-} from '@/app/lib/clipboard/clipboard-history-worker'
-import { filterHistoryByRetention } from '@/app/lib/clipboard/clipboard-retention'
-import { applyClipboardHistoryMaxSlice } from '@/app/lib/clipboard/history-settings'
+} from '@/app/clipboard/lib/clipboard-history-worker'
+import { filterHistoryByRetention } from '@/app/clipboard/lib/clipboard-retention'
+import { applyClipboardHistoryMaxSlice } from '@/app/clipboard/lib/history-settings'
 import { loadClipboardHistoryFromDb, saveClipboardHistoryToDb } from '@/services/database'
 
 const PAGE_SIZE = 20

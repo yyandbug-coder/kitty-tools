@@ -2,7 +2,7 @@
  * 从本地 JSON 解析剪贴板历史：支持「条目数组」或「含 history 数组的对象」。
  */
 import type { ClipboardItem, ClipboardType } from '@/types'
-import { ensureClipboardItemHasUuid, normalizeSyncMergedHistory } from '@/app/lib/clipboard/cloud-sync'
+import { ensureClipboardItemHasUuid, normalizeSyncMergedHistory } from '@/app/clipboard/lib/cloud-sync'
 
 function extractHistoryArray(parsed: unknown): unknown[] {
   if (Array.isArray(parsed)) {

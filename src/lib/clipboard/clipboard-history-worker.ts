@@ -120,7 +120,7 @@ function getWorker() {
   }
 
   clipboardHistoryWorker = new Worker(
-    new URL('../workers/clipboard-history.worker.ts', import.meta.url),
+    new URL('./clipboard-history.worker.ts', import.meta.url),
     { type: 'module' },
   )
 

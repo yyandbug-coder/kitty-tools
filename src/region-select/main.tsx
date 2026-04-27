@@ -1,9 +1,9 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+import React from 'react'
+import ReactDOM from 'react-dom/client'
 import { ConfigProvider } from '@/hooks/ConfigProvider'
-import ErrorBoundary from '@/components/shared/ErrorBoundary';
-import RegionSelect from '@/components/translate/RegionSelect';
-import '@/assets/styles/tailwind/index.css';
+import ErrorBoundary from '@/components/shared/ErrorBoundary'
+import RegionSelect from '@/components/translate/RegionSelect'
+import '@/assets/styles/tailwind/index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -13,4 +13,4 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       </ConfigProvider>
     </ErrorBoundary>
   </React.StrictMode>,
-);
+)

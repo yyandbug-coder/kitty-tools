@@ -596,20 +596,50 @@ pub fn show_translate_workspace<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri:
 
 // ── Onboarding window ───────────────────────────────────────────────────
 
-/// Show the onboarding window (first-run setup).
+/// Get or create the onboarding window（实例常驻、仅 hide；预载避免 dev 子页 404）
+///
+/// 560x480，**无系统标题栏**（`decorations(false)`）、不可调整大小、**始终置顶**。须在前端设 `data-tauri-drag-region` 以便拖动。
+/// 关闭请求一律忽略（须用前端完成/跳过调用 `hide()`）。
+pub fn get_or_create_onboarding_window<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> tauri::Result<WebviewWindow<R>> {
+    if let Some(w) = app.get_webview_window(WINDOW_ONBOARDING) {
+        return Ok(w);
+    }
+
+    let window = WebviewWindow::builder(
+        app,
+        WINDOW_ONBOARDING,
+        webview_url("html/onboarding.html"),
+    )
+    .title("Kitty Tools · 欢迎使用")
+    .inner_size(560.0, 480.0)
+    .decorations(false)
+    .resizable(false)
+    .always_on_top(true)
+    .center()
+    .visible(false)
+    .build()?;
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = window.set_skip_taskbar(true);
+    }
+
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+        }
+    });
+
+    Ok(window)
+}
+
+/// Show the onboarding window (first-run or「打开引导页」)
 pub fn show_onboarding_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let window = if let Some(w) = app.get_webview_window(WINDOW_ONBOARDING) {
-        w
-    } else {
-        WebviewWindow::builder(app, WINDOW_ONBOARDING, webview_url("html/onboarding.html"))
-            .title("Kitty Tools · 欢迎使用")
-            .inner_size(560.0, 480.0)
-            .decorations(true)
-            .resizable(false)
-            .center()
-            .visible(false)
-            .build()?
-    };
+    let window = get_or_create_onboarding_window(app)?;
+    let _ = app.emit("onboarding-did-open", serde_json::json!({}));
+    let _ = window.set_always_on_top(true);
     window.show()?;
     window.set_focus()?;
     Ok(())

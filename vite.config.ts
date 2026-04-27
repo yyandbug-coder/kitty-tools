@@ -10,6 +10,8 @@ const host = process.env.TAURI_DEV_HOST
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(async ({ command }) => ({
+  // 多 HTML 入口：必须用 mpa，否则 dev 时 SPA 回退会错判子页请求，onboarding 等子页易 404
+  appType: 'mpa',
   plugins: [
     react(),
     tailwindcss(),

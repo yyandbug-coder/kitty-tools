@@ -1,5 +1,7 @@
 // 欢迎引导页 - 首次使用时分步介绍启动器、剪贴板、翻译等，并含本地可交互的启动器「模拟搜索」
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,7 +20,7 @@ import {
   Languages,
   LayoutGrid,
   Search,
-  Sparkles,
+  Sparkles
 } from 'lucide-react'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { cn } from '@/lib/utils'
@@ -36,7 +38,7 @@ const MOCK_LAUNCHER_ROWS: { title: string; sub: string }[] = [
   { title: '设置', sub: '打开应用设置' },
   { title: '翻译工作区', sub: '打开浮窗与翻译' },
   { title: '剪贴板历史', sub: '呼出历史面板' },
-  { title: '在浏览器中打开官网', sub: '示例：输入 https://' },
+  { title: '在浏览器中打开官网', sub: '示例：输入 https://' }
 ]
 
 /** 不请求后端，仅本地过滤，演示「输入即筛选」与启动器交互感 */
@@ -46,9 +48,7 @@ function MockLauncherSearchDemo() {
   const rows = useMemo(() => {
     const t = q.trim().toLowerCase()
     if (!t) return MOCK_LAUNCHER_ROWS.slice(0, 3)
-    return MOCK_LAUNCHER_ROWS.filter(
-      (r) => r.title.toLowerCase().includes(t) || r.sub.toLowerCase().includes(t)
-    )
+    return MOCK_LAUNCHER_ROWS.filter((r) => r.title.toLowerCase().includes(t) || r.sub.toLowerCase().includes(t))
   }, [q])
 
   return (
@@ -97,18 +97,10 @@ export default function WelcomeOnboarding() {
   const [step, setStep] = useState(0)
   const [completing, setCompleting] = useState(false)
 
-  const launcherKeys = config.launcherShortcut
-    ? formatShortcutForDisplay(config.launcherShortcut)
-    : null
-  const clipboardKeys = config.clipboardShortcut
-    ? formatShortcutForDisplay(config.clipboardShortcut)
-    : null
-  const selectionKeys = config.hotkeySelection
-    ? formatShortcutForDisplay(config.hotkeySelection)
-    : null
-  const screenshotKeys = config.hotkeyScreenshot
-    ? formatShortcutForDisplay(config.hotkeyScreenshot)
-    : null
+  const launcherKeys = config.launcherShortcut ? formatShortcutForDisplay(config.launcherShortcut) : null
+  const clipboardKeys = config.clipboardShortcut ? formatShortcutForDisplay(config.clipboardShortcut) : null
+  const selectionKeys = config.hotkeySelection ? formatShortcutForDisplay(config.hotkeySelection) : null
+  const screenshotKeys = config.hotkeyScreenshot ? formatShortcutForDisplay(config.hotkeyScreenshot) : null
 
   const steps: StepMeta[] = useMemo(
     () => [
@@ -119,11 +111,19 @@ export default function WelcomeOnboarding() {
         icon: Sparkles,
         panel: (
           <div className="space-y-3 text-sm text-muted-foreground">
-            <p>关闭本页后，应用会继续在<strong className="text-foreground/90">托盘区</strong>运行（无任务栏/程序坞图标时，请留意托盘图标）。</p>
-            <p>所有快捷键都可在 <strong className="text-foreground/90">「设置」</strong> 中按习惯修改；本页展示的是你当前的配置键位。</p>
-            <p className="text-xs text-muted-foreground/90">小提示：使用键盘上的左右方向键也可切换步骤（在输入框外）。</p>
+            <p>
+              关闭本页后，应用会继续在<strong className="text-foreground/90">托盘区</strong>
+              运行（无任务栏/程序坞图标时，请留意托盘图标）。
+            </p>
+            <p>
+              所有快捷键都可在 <strong className="text-foreground/90">「设置」</strong>{' '}
+              中按习惯修改；本页展示的是你当前的配置键位。
+            </p>
+            <p className="text-xs text-muted-foreground/90">
+              小提示：使用键盘上的左右方向键也可切换步骤（在输入框外）。
+            </p>
           </div>
-        ),
+        )
       },
       {
         id: 'launcher',
@@ -138,12 +138,18 @@ export default function WelcomeOnboarding() {
               <ShortcutKbd formatted={launcherKeys} className="text-foreground" />
             </div>
             <ul className="list-inside list-disc space-y-1.5 pl-0.5 text-sm text-muted-foreground marker:text-primary">
-              <li>输入关键词筛选，<strong className="text-foreground/90">Enter</strong> 执行当前高亮项；用方向键在列表中移动。</li>
-              <li>点击标题栏图钉，可让窗口<strong className="text-foreground/90">失焦不自动关闭</strong>，方便多步操作（与剪贴板「固定」类似）。</li>
+              <li>
+                输入关键词筛选，<strong className="text-foreground/90">Enter</strong>{' '}
+                执行当前高亮项；用方向键在列表中移动。
+              </li>
+              <li>
+                点击标题栏图钉，可让窗口<strong className="text-foreground/90">失焦不自动关闭</strong>
+                ，方便多步操作（与剪贴板「固定」类似）。
+              </li>
             </ul>
             <MockLauncherSearchDemo />
           </div>
-        ),
+        )
       },
       {
         id: 'clipboard',
@@ -158,7 +164,7 @@ export default function WelcomeOnboarding() {
             </li>
             <li>可搜索、可预览；历史条数与保留天数在设置里可调（减轻隐私与空间顾虑）。</li>
           </ul>
-        ),
+        )
       },
       {
         id: 'translate',
@@ -173,7 +179,8 @@ export default function WelcomeOnboarding() {
                 <p className="mb-1 font-medium text-foreground">划词翻译</p>
                 <p>
                   在任意软件中<strong className="text-foreground/90">选中文字</strong>，再按{' '}
-                  <ShortcutKbd formatted={selectionKeys} className="text-foreground" /> 触发翻译（具体行为依当前翻译/浮窗实现）。
+                  <ShortcutKbd formatted={selectionKeys} className="text-foreground" />{' '}
+                  触发翻译（具体行为依当前翻译/浮窗实现）。
                 </p>
               </div>
             </div>
@@ -182,14 +189,16 @@ export default function WelcomeOnboarding() {
               <div>
                 <p className="mb-1 font-medium text-foreground">截图翻译</p>
                 <p>
-                  按 <ShortcutKbd formatted={screenshotKeys} className="text-foreground" /> 后框选屏幕区域，对图像做识别并翻译（需配置对应翻译/ OCR
-                  服务）。
+                  按 <ShortcutKbd formatted={screenshotKeys} className="text-foreground" />{' '}
+                  后框选屏幕区域，对图像做识别并翻译（需配置对应翻译/ OCR 服务）。
                 </p>
               </div>
             </div>
-            <p className="text-xs">翻译引擎、语言对与 API 密钥在「设置 → 翻译」中配置；首次使用建议先完成网络与密钥相关项。</p>
+            <p className="text-xs">
+              翻译引擎、语言对与 API 密钥在「设置 → 翻译」中配置；首次使用建议先完成网络与密钥相关项。
+            </p>
           </div>
-        ),
+        )
       },
       {
         id: 'finish',
@@ -199,10 +208,13 @@ export default function WelcomeOnboarding() {
         panel: (
           <div className="space-y-3 text-sm text-muted-foreground">
             <p>托盘菜单中通常包含：剪贴板、启动器、划词、截图、翻译工作区、设置、退出 等，与本次引导内容一致。</p>
-            <p>若你希望开机自动启动，可在 <strong className="text-foreground/90">设置</strong> 中开启自启动；完成下方按钮后，本页不会再自动弹出（除非你重置「首次运行」相关配置）。</p>
+            <p>
+              若你希望开机自动启动，可在 <strong className="text-foreground/90">设置</strong>{' '}
+              中开启自启动；完成下方按钮后，本页不会再自动弹出（除非你重置「首次运行」相关配置）。
+            </p>
           </div>
-        ),
-      },
+        )
+      }
     ],
     [launcherKeys, clipboardKeys, selectionKeys, screenshotKeys]
   )
@@ -236,13 +248,26 @@ export default function WelcomeOnboarding() {
     return () => window.removeEventListener('keydown', onKey)
   }, [goNext, goPrev])
 
+  // 与 translate-workspace 等窗口一致：再次 show 时不销毁 webview；后端 emit 时回到第 1 步
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined
+    void listen('onboarding-did-open', () => {
+      setStep(0)
+      setCompleting(false)
+    }).then((fn) => {
+      unlisten = fn
+    })
+    return () => {
+      unlisten?.()
+    }
+  }, [])
+
   const handleComplete = async () => {
     if (completing) return
     setCompleting(true)
     try {
       await updateConfig({ firstRun: false })
-      const { getCurrentWindow } = await import('@tauri-apps/api/window')
-      await getCurrentWindow().close()
+      await getCurrentWindow().hide()
     } catch {
       toast.error('初始化失败，请重试')
       setCompleting(false)
@@ -254,13 +279,15 @@ export default function WelcomeOnboarding() {
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground">
-      <header className="shrink-0 border-b border-border/60 bg-card/30 px-4 py-3 sm:px-6">
+      <header className="shrink-0 border-b border-border/60 bg-card/30 px-4 py-3 sm:px-6" data-tauri-drag-region>
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <AppLogoIcon className="size-9 shrink-0 sm:size-10" />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold sm:text-base">Kitty Tools</p>
-              <p className="text-[11px] text-muted-foreground sm:text-xs">新手指引 · {step + 1} / {steps.length}</p>
+              <p className="text-[11px] text-muted-foreground sm:text-xs">
+                新手指引 · {step + 1} / {steps.length}
+              </p>
             </div>
           </div>
           <Button
@@ -285,7 +312,7 @@ export default function WelcomeOnboarding() {
               onClick={() => setStep(i)}
               className={cn(
                 'h-2 w-2 rounded-full transition-all focus-visible:ring-2 focus-visible:ring-ring',
-                i === step ? 'w-6 bg-primary' : 'bg-muted-foreground/30 hover:bg-muted-foreground/50',
+                i === step ? 'w-6 bg-primary' : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
               )}
               aria-label={`第 ${i + 1} 步：${s.title}`}
               aria-current={i === step ? 'step' : undefined}
@@ -323,22 +350,12 @@ export default function WelcomeOnboarding() {
               </Button>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                 {!isLast ? (
-                  <Button
-                    type="button"
-                    onClick={goNext}
-                    disabled={completing}
-                    className="w-full sm:min-w-28"
-                  >
+                  <Button type="button" onClick={goNext} disabled={completing} className="w-full sm:min-w-28">
                     下一步
                     <ChevronRight className="size-4" />
                   </Button>
                 ) : (
-                  <Button
-                    type="button"
-                    onClick={handleComplete}
-                    disabled={completing}
-                    className="w-full sm:min-w-36"
-                  >
+                  <Button type="button" onClick={handleComplete} disabled={completing} className="w-full sm:min-w-36">
                     {completing ? '正在保存…' : '进入应用'}
                   </Button>
                 )}

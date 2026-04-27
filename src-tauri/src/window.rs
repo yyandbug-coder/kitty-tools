@@ -190,7 +190,7 @@ fn register_clipboard_popup_handlers<R: Runtime>(
                 }
                 let hide_on_unfocus = {
                     let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
-                    let hide = cfg_state.lock().unwrap().clipboard_hide_on_unfocus;
+                    let hide = crate::app_state::lock_poisoned(&*cfg_state).clipboard_hide_on_unfocus;
                     hide
                 };
                 if hide_on_unfocus && had_true_focus.load(Ordering::SeqCst) {
@@ -290,8 +290,8 @@ fn register_floating_window_handlers<R: Runtime>(
                 }
                 let pinned = {
                     let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
-                    let pinned = cfg_state.lock().unwrap().floating_pinned;
-                    pinned
+                    let p = crate::app_state::lock_poisoned(&*cfg_state).floating_pinned;
+                    p
                 };
 
                 if !pinned && had_true_focus.load(Ordering::SeqCst) {

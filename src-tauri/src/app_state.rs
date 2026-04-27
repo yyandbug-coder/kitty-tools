@@ -1,6 +1,16 @@
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use screenshots::image::RgbaImage;
+
+/// 持锁线程 panic 会导致 Mutex 中毒；用 `into_inner()` 恢复 guard，避免连带崩溃。
+pub(crate) fn lock_poisoned<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// `Arc<Mutex<T>>` 上的便捷封装。
+pub(crate) fn lock_poisoned_arc<T>(m: &Arc<Mutex<T>>) -> MutexGuard<'_, T> {
+    lock_poisoned(&**m)
+}
 
 /// Unified application state shared across all modules (translate, clipboard, etc.).
 pub struct AppState {

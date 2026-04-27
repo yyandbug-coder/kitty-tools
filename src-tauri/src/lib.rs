@@ -73,16 +73,15 @@ fn update_global_shortcut<R: Runtime>(app: tauri::AppHandle<R>, shortcut: String
 
 #[tauri::command]
 fn get_config(app: tauri::AppHandle) -> config::AppConfig {
-    let cfg = app.state::<Mutex<config::AppConfig>>().lock().unwrap().clone();
-    cfg
+    app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone()
 }
 
 #[tauri::command]
 fn save_config_cmd<R: Runtime>(app: tauri::AppHandle<R>, config: config::AppConfig) -> Result<config::AppConfig, String> {
     let saved = config::save_config(&config)?;
-    let state = app.state::<Mutex<config::AppConfig>>();
     {
-        let mut guard = state.lock().unwrap();
+        let cfg_mutex = app.state::<Mutex<config::AppConfig>>();
+        let mut guard = app_state::lock_poisoned(&*cfg_mutex);
         *guard = saved.clone();
     }
     let launch = saved.launch_on_startup;
@@ -108,8 +107,7 @@ async fn translate_text(
     source_lang: String,
     target_lang: String,
 ) -> Result<translate::api::TranslateResult, String> {
-    let state = app.state::<Mutex<config::AppConfig>>();
-    let cfg = state.lock().unwrap().clone();
+    let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
     let request = translate::api::resolve_translate_request(
         &TranslateRequest {
             text,
@@ -141,11 +139,10 @@ async fn test_translate_connection(
 
 #[tauri::command]
 async fn start_screenshot_translate(app: tauri::AppHandle) -> Result<(), String> {
-    let state = app.state::<Mutex<config::AppConfig>>();
-    let cfg = state.lock().unwrap().clone();
+    let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
     let app_state = app.state::<app_state::AppState>();
     {
-        let mut rp = app_state.region_pending.lock().unwrap();
+        let mut rp = app_state::lock_poisoned(&app_state.region_pending);
         *rp = Some(app_state::RegionPending::Translate {
             source_lang: cfg.source_lang.clone(),
             target_lang: cfg.target_lang.clone(),
@@ -159,11 +156,11 @@ async fn start_screenshot_translate(app: tauri::AppHandle) -> Result<(), String>
 fn region_overlay_cancel(app: tauri::AppHandle) {
     let app_state = app.state::<app_state::AppState>();
     {
-        let mut rp = app_state.region_pending.lock().unwrap();
+        let mut rp = app_state::lock_poisoned(&app_state.region_pending);
         *rp = None;
     }
     {
-        let mut rc = app_state.region_capture.lock().unwrap();
+        let mut rc = app_state::lock_poisoned(&app_state.region_capture);
         *rc = None;
     }
     window::hide_region_overlay(&app);
@@ -181,8 +178,8 @@ async fn region_overlay_complete(
 ) -> Result<(), String> {
     let app_state = app.state::<app_state::AppState>();
 
-    let region_pending = app_state.region_pending.lock().unwrap().take();
-    let full_capture = app_state.region_capture.lock().unwrap().take();
+    let region_pending = app_state::lock_poisoned(&app_state.region_pending).take();
+    let full_capture = app_state::lock_poisoned(&app_state.region_capture).take();
 
     let Some(app_state::RegionPending::Translate { source_lang, target_lang }) = region_pending
     else {
@@ -199,7 +196,7 @@ async fn region_overlay_complete(
 
     window::hide_region_overlay(&app);
 
-    let cfg = app.state::<Mutex<config::AppConfig>>().lock().unwrap().clone();
+    let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
     spawn_screenshot_translate_pipeline(&app, png_bytes, source_lang, target_lang, &cfg);
     Ok(())
 }
@@ -219,7 +216,7 @@ fn hide_floating_window(app: tauri::AppHandle) {
 #[tauri::command]
 fn floating_ready(app: tauri::AppHandle) {
     let app_state = app.state::<app_state::AppState>();
-    let pending = app_state.pending_translation.lock().unwrap().take();
+    let pending = app_state::lock_poisoned_arc(&app_state.pending_translation).take();
     if let Some(pt) = pending {
         let _ = app.emit("translate-selection-start", &pt.source_text);
         match pt.state.as_str() {
@@ -255,7 +252,7 @@ fn show_translate_workspace_window<R: Runtime>(app: tauri::AppHandle<R>) -> Resu
 // ── Translate pipeline helpers ──────────────────────────────────────────────
 
 fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
-    let cfg = app.state::<Mutex<config::AppConfig>>().lock().unwrap().clone();
+    let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
     let app_state = app.state::<app_state::AppState>();
 
     let resolved = translate::api::resolve_translate_request(
@@ -268,7 +265,7 @@ fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
     );
 
     {
-        let mut pt = app_state.pending_translation.lock().unwrap();
+        let mut pt = app_state::lock_poisoned_arc(&app_state.pending_translation);
         *pt = Some(app_state::PendingTranslation {
             state: "loading".to_string(),
             source_text: text.clone(),
@@ -300,7 +297,7 @@ fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
             Ok(result) => {
                 let state = app_clone.state::<app_state::AppState>();
                 {
-                    let mut pt = state.pending_translation.lock().unwrap();
+                    let mut pt = app_state::lock_poisoned_arc(&state.pending_translation);
                     *pt = Some(app_state::PendingTranslation {
                         state: "result".to_string(),
                         source_text: result.source_text.clone(),
@@ -319,7 +316,7 @@ fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
             Err(e) => {
                 let state = app_clone.state::<app_state::AppState>();
                 {
-                    let mut pt = state.pending_translation.lock().unwrap();
+                    let mut pt = app_state::lock_poisoned_arc(&state.pending_translation);
                     *pt = Some(app_state::PendingTranslation {
                         state: "error".to_string(),
                         source_text: text.clone(),
@@ -347,7 +344,7 @@ fn prepare_and_show_region_overlay<R: Runtime + 'static>(app: tauri::AppHandle<R
                 eprintln!("[kitty-tools] 截屏失败: {}", e);
                 let app_state = app.state::<app_state::AppState>();
                 {
-                    let mut rp = app_state.region_pending.lock().unwrap();
+                    let mut rp = app_state::lock_poisoned(&app_state.region_pending);
                     *rp = None;
                 }
                 let _ = app.emit("region-capture-failed", serde_json::json!({
@@ -358,7 +355,7 @@ fn prepare_and_show_region_overlay<R: Runtime + 'static>(app: tauri::AppHandle<R
         };
         let app_state = app.state::<app_state::AppState>();
         {
-            let mut rc = app_state.region_capture.lock().unwrap();
+            let mut rc = app_state::lock_poisoned(&app_state.region_capture);
             *rc = Some(capture);
         }
         let _ = window::show_region_overlay(&app);
@@ -376,7 +373,7 @@ fn spawn_screenshot_translate_pipeline<R: Runtime>(
     let app_state = app.state::<app_state::AppState>();
 
     {
-        let mut pt = app_state.pending_translation.lock().unwrap();
+        let mut pt = app_state::lock_poisoned_arc(&app_state.pending_translation);
         *pt = Some(app_state::PendingTranslation {
             state: "loading".to_string(),
             source_text: String::new(),
@@ -480,7 +477,7 @@ fn emit_translate_result<R: Runtime>(
 ) {
     let state = app.state::<app_state::AppState>();
     {
-        let mut pt = state.pending_translation.lock().unwrap();
+        let mut pt = app_state::lock_poisoned_arc(&state.pending_translation);
         *pt = Some(app_state::PendingTranslation {
             state: "result".to_string(),
             source_text: result.source_text.clone(),
@@ -501,7 +498,7 @@ fn emit_translate_error<R: Runtime>(app: &tauri::AppHandle<R>, error: String) {
     let state = app.state::<app_state::AppState>();
     let source_text;
     {
-        let mut pt = state.pending_translation.lock().unwrap();
+        let mut pt = app_state::lock_poisoned_arc(&state.pending_translation);
         source_text = pt.as_ref().map(|p| p.source_text.clone()).unwrap_or_default();
         if let Some(ref mut p) = *pt {
             p.state = "error".to_string();
@@ -592,7 +589,7 @@ pub fn run() {
             start_clipboard_drag,
         ])
         .setup(move |app| {
-            let cfg = app.state::<Mutex<config::AppConfig>>().lock().unwrap().clone();
+            let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
 
             // Build tray（复用已加载配置，避免再次读 SQLite）
             if let Err(e) = tray::build_tray(app.handle(), &cfg) {
@@ -631,11 +628,10 @@ pub fn run() {
             let app_handle = app.handle().clone();
             app.listen("hotkey-screenshot-translate", move |_| {
                 let app_clone = app_handle.clone();
-                let state = app_clone.state::<Mutex<config::AppConfig>>();
-                let cfg = state.lock().unwrap().clone();
+                let cfg = app_state::lock_poisoned(&*app_clone.state::<Mutex<config::AppConfig>>()).clone();
                 let app_state = app_clone.state::<app_state::AppState>();
                 {
-                    let mut rp = app_state.region_pending.lock().unwrap();
+                    let mut rp = app_state::lock_poisoned(&app_state.region_pending);
                     *rp = Some(app_state::RegionPending::Translate {
                         source_lang: cfg.source_lang.clone(),
                         target_lang: cfg.target_lang.clone(),

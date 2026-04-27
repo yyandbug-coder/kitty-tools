@@ -4,8 +4,9 @@
 //! `open` → **打开**命中文件（或 `.lnk` / `.app` 等，由系统默认方式处理）。
 
 use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use tauri::State;
 use tauri::AppHandle;
@@ -73,23 +74,11 @@ pub struct LauncherItem {
     pub icon_path: Option<String>,
 }
 
-/// 供前端 `invoke` 的查询：返回与关键词匹配的条目（内置、书签、应用等）。
+/// 供前端 `invoke` 的启动器查询（内置、书签、已安装应用、系统项等）。
 /// 本地文件名遍历仅在输入以 `find ` / `open ` 开头时执行（见 `try_parse_file_command`）。
-/// 在阻塞线程池执行，避免 `walkdir` 长时间占用线程池/拖慢界面。
+/// 在阻塞线程池执行，避免 `walkdir` 长时间占用异步运行时。
 #[tauri::command]
 pub async fn launcher_query(
-    state: State<'_, Mutex<AppConfig>>,
-    query: String,
-) -> Result<Vec<LauncherItem>, String> {
-    let config: AppConfig = lock_poisoned(&*state).clone();
-    tokio::task::spawn_blocking(move || query_with_config_impl(&config, query))
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// 与 `launcher_query` 共用同一实现；保留独立命令名以便前端对「普通关键词」只调本接口，对 `find`/`open` 调 `launcher_query`。
-#[tauri::command]
-pub async fn launcher_query_instant(
     state: State<'_, Mutex<AppConfig>>,
     query: String,
 ) -> Result<Vec<LauncherItem>, String> {
@@ -137,15 +126,13 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
     let q_lower = q.to_lowercase();
     let mut builtins_matched: Vec<LauncherItem> = Vec::new();
 
-    for item in built_in_list() {
+    for row in builtins_table() {
         if q.is_empty() {
-            builtins_matched.push(item);
+            builtins_matched.push(row.item.clone());
             continue;
         }
-        let title = item.title.to_lowercase();
-        let sub = item.subtitle.to_lowercase();
-        if title.contains(&q_lower) || sub.contains(&q_lower) {
-            builtins_matched.push(item);
+        if row.title_lower.contains(&q_lower) || row.sub_lower.contains(&q_lower) {
+            builtins_matched.push(row.item.clone());
         }
     }
 
@@ -202,8 +189,42 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
     out
 }
 
-/// 用户配置的搜索目录 + 平台默认「应用/快捷方式」目录（仅用于 `find`/`open` 文件遍历，避免与普通关键词混合扫盘）。
+struct MergedFileRootsCache {
+    fp: u64,
+    paths: Vec<String>,
+}
+
+static MERGED_FILE_ROOTS: Mutex<Option<MergedFileRootsCache>> = Mutex::new(None);
+
+fn launcher_file_roots_fingerprint(config: &AppConfig) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    for s in &config.launcher_file_search_paths {
+        s.hash(&mut h);
+    }
+    h.finish()
+}
+
+/// 用户配置的搜索目录 + 平台默认「应用/快捷方式」目录（仅用于 `find`/`open` 文件遍历）。
+/// 按配置路径指纹缓存，减少每次 `find`/`open` 查询的分配。
 fn merged_launcher_file_search_paths(config: &AppConfig) -> Vec<String> {
+    let fp = launcher_file_roots_fingerprint(config);
+    {
+        let g = MERGED_FILE_ROOTS.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = g.as_ref() {
+            if c.fp == fp {
+                return c.paths.clone();
+            }
+        }
+    }
+    let paths = compute_merged_file_search_paths(config);
+    *MERGED_FILE_ROOTS.lock().unwrap_or_else(|e| e.into_inner()) = Some(MergedFileRootsCache {
+        fp,
+        paths: paths.clone(),
+    });
+    paths
+}
+
+fn compute_merged_file_search_paths(config: &AppConfig) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     for s in &config.launcher_file_search_paths {
@@ -223,6 +244,57 @@ fn merged_launcher_file_search_paths(config: &AppConfig) -> Vec<String> {
         }
     }
     out
+}
+
+struct BuiltinRow {
+    item: LauncherItem,
+    title_lower: String,
+    sub_lower: String,
+}
+
+fn builtins_table() -> &'static [BuiltinRow] {
+    static ROWS: OnceLock<Vec<BuiltinRow>> = OnceLock::new();
+    ROWS.get_or_init(|| {
+        vec![
+            BuiltinRow {
+                item: LauncherItem {
+                    id: "action-settings".into(),
+                    title: "打开设置".into(),
+                    subtitle: "Kitty Tools 偏好与快捷键".into(),
+                    kind: "action".into(),
+                    payload: "settings".into(),
+                    icon_path: None,
+                },
+                title_lower: "打开设置".to_lowercase(),
+                sub_lower: "kitty tools 偏好与快捷键".to_lowercase(),
+            },
+            BuiltinRow {
+                item: LauncherItem {
+                    id: "action-workspace".into(),
+                    title: "翻译工作台".into(),
+                    subtitle: "文本与 OCR 翻译".into(),
+                    kind: "action".into(),
+                    payload: "translate_workspace".into(),
+                    icon_path: None,
+                },
+                title_lower: "翻译工作台".to_lowercase(),
+                sub_lower: "文本与 ocr 翻译".to_lowercase(),
+            },
+            BuiltinRow {
+                item: LauncherItem {
+                    id: "action-clipboard".into(),
+                    title: "剪贴板历史".into(),
+                    subtitle: "打开剪贴板记录面板".into(),
+                    kind: "action".into(),
+                    payload: "clipboard".into(),
+                    icon_path: None,
+                },
+                title_lower: "剪贴板历史".to_lowercase(),
+                sub_lower: "打开剪贴板记录面板".to_lowercase(),
+            },
+        ]
+    })
+    .as_slice()
 }
 
 fn path_exists(s: &str) -> bool {
@@ -252,35 +324,6 @@ fn normalize_url(s: &str) -> Option<String> {
         return Some(format!("https://{t}"));
     }
     None
-}
-
-fn built_in_list() -> Vec<LauncherItem> {
-    vec![
-        LauncherItem {
-            id: "action-settings".into(),
-            title: "打开设置".into(),
-            subtitle: "Kitty Tools 偏好与快捷键".into(),
-            kind: "action".into(),
-            payload: "settings".into(),
-            icon_path: None,
-        },
-        LauncherItem {
-            id: "action-workspace".into(),
-            title: "翻译工作台".into(),
-            subtitle: "文本与 OCR 翻译".into(),
-            kind: "action".into(),
-            payload: "translate_workspace".into(),
-            icon_path: None,
-        },
-        LauncherItem {
-            id: "action-clipboard".into(),
-            title: "剪贴板历史".into(),
-            subtitle: "打开剪贴板记录面板".into(),
-            kind: "action".into(),
-            payload: "clipboard".into(),
-            icon_path: None,
-        },
-    ]
 }
 
 /// 执行启动器项：先隐藏启动器窗口，再打开设置/工作区/剪贴板或系统打开器。

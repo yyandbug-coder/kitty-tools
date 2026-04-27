@@ -56,7 +56,7 @@ function LauncherPanel() {
     listVirtualizer.scrollToIndex(idx, { align: 'auto' })
   }, [items, selected, listVirtualizer])
 
-  /** 空串 / find·open：防抖后走 launcher_query（含慢速文件 walk）；其它关键词：仅 launcher_query_instant（与全量结果一致，避免重复 IPC）。 */
+  /** 空串 / find·open：防抖后查询（含慢速文件 walk）；其它关键词：立即查询（统一走 launcher_query）。 */
   useEffect(() => {
     if (!loaded) {
       return
@@ -127,7 +127,7 @@ function LauncherPanel() {
     }
 
     track(
-      invoke<LauncherItem[]>('launcher_query_instant', { query: q })
+      invoke<LauncherItem[]>('launcher_query', { query: q })
         .then((res) => {
           if (searchGenRef.current !== gen) {
             return

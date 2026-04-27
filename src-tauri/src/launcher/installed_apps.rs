@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use walkdir::WalkDir;
@@ -28,7 +28,7 @@ struct Cache {
     entries: Arc<Vec<CachedEntry>>,
 }
 
-static CACHE: Mutex<Option<Cache>> = Mutex::new(None);
+static CACHE: RwLock<Option<Cache>> = RwLock::new(None);
 
 fn stable_id(path: &str) -> String {
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -44,7 +44,7 @@ fn cache_stale(c: &Cache, now: Instant) -> bool {
 fn scan_or_cached() -> Arc<Vec<CachedEntry>> {
     let now = Instant::now();
     {
-        let g = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        let g = CACHE.read().unwrap_or_else(|e| e.into_inner());
         if let Some(c) = g.as_ref() {
             if !cache_stale(c, now) {
                 return Arc::clone(&c.entries);
@@ -54,7 +54,7 @@ fn scan_or_cached() -> Arc<Vec<CachedEntry>> {
 
     let fresh = Arc::new(scan_all_installed_entries());
 
-    let mut g = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    let mut g = CACHE.write().unwrap_or_else(|e| e.into_inner());
     let now = Instant::now();
     if let Some(c) = g.as_ref() {
         if !cache_stale(c, now) {

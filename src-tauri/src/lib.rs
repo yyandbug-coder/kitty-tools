@@ -601,7 +601,6 @@ pub fn run() {
             start_floating_drag,
             start_clipboard_drag,
             launcher::launcher_query,
-            launcher::launcher_query_instant,
             launcher::launcher_execute,
         ])
         .setup(move |app| {

@@ -73,6 +73,66 @@ function TranslateProviderHint({ provider }: { provider: TranslateProvider }) {
   }
 }
 
+/** 与翻译引擎旁帮助按钮一致的 Tooltip 内容样式 */
+const translateSettingsRichTooltipClass =
+  'max-w-[min(calc(100vw-1.5rem),22rem)] space-y-2 text-[11px] leading-relaxed sm:max-w-sm sm:text-xs'
+
+function SourceTargetLangHintContent() {
+  return (
+    <div className="space-y-2 text-muted-foreground">
+      <p>
+        以下为<strong className="font-semibold text-popover-foreground">默认翻译方向</strong>
+        ：工作台、划词/截图的初始请求均使用此组合。
+      </p>
+      <p>
+        与「双向自动互译」同时存在时：本项决定界面上的<strong className="font-medium text-popover-foreground">源/目标</strong>
+        ；后者仅在请求里使用<strong className="font-medium text-popover-foreground">自动检测</strong>
+        时，才在互译语言甲与乙之间自动选向。
+      </p>
+    </div>
+  )
+}
+
+function BidirectionalAutoHintContent() {
+  return (
+    <div className="space-y-2 text-muted-foreground">
+      <p>
+        开启后，当请求中<strong className="font-semibold text-popover-foreground">至少一端为「自动检测」</strong>
+        时，由本地判断文本语种，并仅在您配置的<strong className="font-medium text-popover-foreground">语言甲与乙</strong>
+        之间选择翻译方向。
+      </p>
+      <p>
+        关闭时<strong className="font-medium text-popover-foreground">不做</strong>
+        甲/乙选向，含「自动」的请求将直接交给各翻译引擎，请尽量设置明确的源/目标。
+      </p>
+      <p>
+        划词与截图（OCR 后）同样按此规则；百度「图片翻译」直出无本地原文识别时，仍以当前源/目标为准。
+      </p>
+    </div>
+  )
+}
+
+function OcrOpenaiCardHintContent() {
+  const link =
+    'font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary'
+  return (
+    <div className="space-y-2 text-muted-foreground">
+      <p>
+        当前翻译引擎为 <strong className="font-semibold text-popover-foreground">OpenAI</strong>{' '}
+        时，截图翻译需先把画面上的字识别成文本再交给模型翻译。使用百度、谷歌或有道时不会出现本项。
+      </p>
+      <p>
+        OpenAI 路线仅做<strong className="font-medium text-popover-foreground">文本</strong>
+        翻译；截图需单独配置云端 OCR。可优先使用百度
+        <a className={link} href="https://cloud.baidu.com/doc/OCR/s/zk3h7xz52" target="_blank" rel="noreferrer">
+          通用文字识别（标准版）
+        </a>
+        ；未配置或失败时可走 Google Cloud Vision（与翻译 API Key 同钥，见下方）。
+      </p>
+    </div>
+  )
+}
+
 export interface SettingsTranslateTabProps {
   config: AppConfig
   updateConfig: (updates: Partial<AppConfig>) => Promise<void>
@@ -131,7 +191,7 @@ export default function SettingsTranslateTab({
                 side="left"
                 align="start"
                 sideOffset={8}
-                className="max-w-[min(calc(100vw-1.5rem),22rem)] space-y-2 text-[11px] leading-relaxed sm:max-w-sm sm:text-xs"
+                className={translateSettingsRichTooltipClass}
               >
                 <TranslateProviderHint provider={config.translateProvider} />
               </TooltipContent>
@@ -235,12 +295,33 @@ export default function SettingsTranslateTab({
           )}
 
           <div className="mt-4 flex flex-col gap-2 border-t border-border/60 pt-4">
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              以下为<strong className="font-medium text-foreground">默认翻译方向</strong>
-             （工作台、划词/截图的初始请求均使用此组合）。与下方「双向自动互译」同时存在：前者决定界面上的
-              源/目标，后者仅在使用<strong className="font-medium text-foreground">自动检测</strong>
-              时决定是否在语言甲/乙之间自动选向。
-            </p>
+            <div className="flex min-w-0 items-start gap-1">
+              <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-muted-foreground">
+                设置工作区、划词与截图的<strong className="font-medium text-foreground">默认源/目标语言</strong>，详情见帮助。
+              </p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 shrink-0 text-muted-foreground"
+                    aria-label="源与目标语言说明"
+                    data-no-drag="true"
+                  >
+                    <CircleHelp className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  variant="rich"
+                  side="left"
+                  align="start"
+                  sideOffset={8}
+                  className={translateSettingsRichTooltipClass}
+                >
+                  <SourceTargetLangHintContent />
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <div className="flex gap-3">
               <div className="space-y-1.5 flex-1">
                 <label className="text-xs text-muted-foreground">源语言</label>
@@ -286,16 +367,36 @@ export default function SettingsTranslateTab({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium">
-            <ArrowRightLeft className="size-4" />
-            双向自动互译
-          </CardTitle>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            开启后，当请求中<strong className="font-medium text-foreground">至少一端为「自动检测」</strong>
-            时，由本地判断文本语种，并仅在您配置的<strong className="font-medium text-foreground">语言甲与乙</strong>
-            之间选择翻译方向。关闭时<strong className="font-medium text-foreground">不做</strong>
-            甲/乙选向，含「自动」的请求将直接交给各翻译引擎，请尽量设置明确的源/目标。
-          </p>
+          <div className="flex min-w-0 items-start gap-1">
+            <div className="min-w-0 flex-1">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <ArrowRightLeft className="size-4 shrink-0" />
+                双向自动互译
+              </CardTitle>
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 shrink-0 text-muted-foreground"
+                  aria-label="双向自动互译说明"
+                  data-no-drag="true"
+                >
+                  <CircleHelp className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                variant="rich"
+                side="left"
+                align="start"
+                sideOffset={8}
+                className={translateSettingsRichTooltipClass}
+              >
+                <BidirectionalAutoHintContent />
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
@@ -336,8 +437,7 @@ export default function SettingsTranslateTab({
               </div>
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              仅当本开关为开启且上述源/目标组合触发自动方向解析时，甲/乙方参与；划词与截图（OCR
-              后）同样按此规则。选择百度「图片翻译」直出时无本地原文识别，仍以当前源/目标为准。
+              仅当本开关为开启且源/目标含「自动」时，甲/乙参与选向；详情见标题旁帮助。
             </p>
           </div>
         </CardContent>
@@ -346,19 +446,43 @@ export default function SettingsTranslateTab({
       {config.translateProvider === 'openai' ? (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <ScanText className="size-4" />
-              截图翻译 · OCR 配置
-            </CardTitle>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              当前翻译引擎为 <strong className="font-medium text-foreground">OpenAI</strong>
-              时，截图翻译需先把画面上的字识别成文本再交给模型翻译。使用百度、谷歌或有道时不会出现本项。
-            </p>
+            <div className="flex min-w-0 items-start gap-1">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <ScanText className="size-4 shrink-0" />
+                  截图翻译 · OCR 配置
+                </CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  当前引擎为 OpenAI 时须配置 OCR，详见帮助。
+                </p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 shrink-0 text-muted-foreground"
+                    aria-label="截图与 OCR 配置说明"
+                    data-no-drag="true"
+                  >
+                    <CircleHelp className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  variant="rich"
+                  side="left"
+                  align="start"
+                  sideOffset={8}
+                  className={translateSettingsRichTooltipClass}
+                >
+                  <OcrOpenaiCardHintContent />
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              OpenAI 路线仅做<strong className="font-medium text-foreground">文本</strong>
-              翻译；截图需单独配置云端 OCR。可优先使用百度「
+              百度文档：
               <a
                 className="text-primary underline-offset-2 hover:underline"
                 href="https://cloud.baidu.com/doc/OCR/s/zk3h7xz52"
@@ -367,7 +491,6 @@ export default function SettingsTranslateTab({
               >
                 通用文字识别（标准版）
               </a>
-              」；未配置或失败时可走 Google Cloud Vision（请求地址内置，下方填写 API Key）。
             </p>
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-foreground">百度智能云 · 通用文字识别</span>

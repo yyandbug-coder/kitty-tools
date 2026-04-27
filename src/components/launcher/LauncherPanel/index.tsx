@@ -22,20 +22,35 @@ function LauncherPanel() {
   const [items, setItems] = useState<LauncherItem[]>([])
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const queryForResultRef = useRef(query)
+  queryForResultRef.current = query
 
-  const runQuery = useCallback((q: string) => {
-    void invoke<LauncherItem[]>('launcher_query', { query: q })
-      .then(setItems)
-      .catch((e) => {
-        console.error(e)
-        toast.error('无法加载结果')
-        setItems([])
-      })
-  }, [])
-
+  /** 非空时防抖，避免每键都触发 `launcher_query` 全盘/多目录 walk 导致卡顿；空串立即拉默认列表。 */
   useEffect(() => {
-    runQuery(query)
-  }, [query, runQuery])
+    const q = query
+    const run = (queryStr: string) => {
+      void invoke<LauncherItem[]>('launcher_query', { query: queryStr })
+        .then((res) => {
+          if (queryForResultRef.current === queryStr) {
+            setItems(res)
+          }
+        })
+        .catch((e) => {
+          if (queryForResultRef.current !== queryStr) {
+            return
+          }
+          console.error(e)
+          toast.error('无法加载结果')
+          setItems([])
+        })
+    }
+    if (q.length === 0) {
+      run('')
+      return
+    }
+    const t = window.setTimeout(() => run(q), 220)
+    return () => window.clearTimeout(t)
+  }, [query])
 
   useEffect(() => {
     setSelected(0)
@@ -154,16 +169,25 @@ function LauncherPanel() {
               </Button>
             </div>
           </div>
-          <Input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索功能、URL 或本地路径…"
-            className="h-9 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 sm:h-10"
-            autoFocus
-            aria-label="启动器搜索"
-            spellCheck={false}
-          />
+          <div
+            className={cn(
+              'flex items-center rounded-lg border border-input bg-muted/50 px-2.5 py-1.5 shadow-sm',
+              'ring-offset-background',
+              'focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-0',
+              'dark:bg-muted/40',
+            )}
+          >
+            <Input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索功能、URL 或本地路径…"
+              className="h-7 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0 sm:h-8"
+              autoFocus
+              aria-label="启动器搜索"
+              spellCheck={false}
+            />
+          </div>
         </div>
         <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col p-1.5" role="listbox" aria-label="结果">

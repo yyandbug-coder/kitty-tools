@@ -64,10 +64,16 @@ pub struct LauncherItem {
 }
 
 /// 供前端 `invoke` 的查询：返回与关键词匹配的条目（含内置、书签、文件等）。
+/// 在阻塞线程池执行，避免 `walkdir` 长时间占用主路径/拖慢界面。
 #[tauri::command]
-pub fn launcher_query(state: State<'_, Mutex<AppConfig>>, query: String) -> Vec<LauncherItem> {
-    let config = lock_poisoned(&*state).clone();
-    query_with_config(&config, query)
+pub async fn launcher_query(
+    state: State<'_, Mutex<AppConfig>>,
+    query: String,
+) -> Result<Vec<LauncherItem>, String> {
+    let config: AppConfig = lock_poisoned(&*state).clone();
+    tokio::task::spawn_blocking(move || query_with_config(&config, query))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {

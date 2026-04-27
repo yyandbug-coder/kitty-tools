@@ -67,6 +67,16 @@ export interface YoudaoProviderConfig {
   appSecret: string;
 }
 
+/** 启动器文件搜索：默认跳过的目录名（单级匹配，忽略大小写），与后端 `default_launcher_file_search_excluded_dir_names` 一致 */
+export const DEFAULT_LAUNCHER_FILE_SEARCH_EXCLUDED_DIR_NAMES: string[] = [
+  'node_modules',
+  'dist',
+  'target',
+  '.git',
+  'build',
+  'bower_components',
+];
+
 /** 启动器单行结果（后端 `launcher_query`） */
 export interface LauncherItem {
   id: string;
@@ -123,6 +133,8 @@ export interface AppConfig {
   launcherFileSearchEnabled: boolean;
   /** 文件搜索根目录列表；空则使用系统「文档」 */
   launcherFileSearchPaths: string[];
+  /** 遍历时跳过的目录名（仅匹配路径中一级文件夹名，忽略大小写） */
+  launcherFileSearchExcludedDirNames: string[];
 }
 
 export const SUPPORTED_LANGUAGES: Language[] = [
@@ -178,6 +190,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   launcherBookmarksBrave: false,
   launcherFileSearchEnabled: true,
   launcherFileSearchPaths: [],
+  launcherFileSearchExcludedDirNames: [...DEFAULT_LAUNCHER_FILE_SEARCH_EXCLUDED_DIR_NAMES],
 };
 
 export function getLanguageDisplayName(code: string): string {

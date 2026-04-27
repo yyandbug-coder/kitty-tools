@@ -88,6 +88,7 @@ fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
         let mut out = files::file_items_for_query(
             config.launcher_file_search_enabled,
             &config.launcher_file_search_paths,
+            &config.launcher_file_search_excluded_dir_names,
             &rest,
             mode,
         );
@@ -138,6 +139,7 @@ fn query_with_config(config: &AppConfig, query: String) -> Vec<LauncherItem> {
     let file_hits = files::file_items_for_query(
         config.launcher_file_search_enabled,
         &config.launcher_file_search_paths,
+        &config.launcher_file_search_excluded_dir_names,
         q,
         FileOpenMode::OpenFile,
     );

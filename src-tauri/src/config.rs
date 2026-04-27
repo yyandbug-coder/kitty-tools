@@ -147,6 +147,9 @@ pub struct AppConfig {
     /// 文件搜索根目录；空则使用系统「文档」目录。
     #[serde(default)]
     pub launcher_file_search_paths: Vec<String>,
+    /// 遍历时若某级目录名与此列表**忽略大小写**相同则跳过其整棵子树（如 `node_modules`、`dist`）。
+    #[serde(default = "default_launcher_file_search_excluded_dir_names")]
+    pub launcher_file_search_excluded_dir_names: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -167,6 +170,17 @@ fn default_background_opacity() -> u32 {
 
 fn default_launcher_file_search_enabled() -> bool {
     true
+}
+
+fn default_launcher_file_search_excluded_dir_names() -> Vec<String> {
+    vec![
+        "node_modules".to_string(),
+        "dist".to_string(),
+        "target".to_string(),
+        ".git".to_string(),
+        "build".to_string(),
+        "bower_components".to_string(),
+    ]
 }
 
 impl Default for AppConfig {
@@ -218,6 +232,7 @@ impl Default for AppConfig {
             launcher_bookmarks_brave: false,
             launcher_file_search_enabled: true,
             launcher_file_search_paths: Vec::new(),
+            launcher_file_search_excluded_dir_names: default_launcher_file_search_excluded_dir_names(),
         }
     }
 }

@@ -29,7 +29,12 @@ import {
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useTheme } from '@/hooks/useTheme'
-import { DEFAULT_CONFIG, type TranslateProvider, type TranslateResult } from '@/types'
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_LAUNCHER_FILE_SEARCH_EXCLUDED_DIR_NAMES,
+  type TranslateProvider,
+  type TranslateResult
+} from '@/types'
 import { HISTORY_MAX_ITEMS_OPTIONS, HISTORY_RETENTION_OPTIONS } from '@/app/clipboard/lib/history-settings'
 import { PRESET_THEMES, getThemeOption, MIN_BACKGROUND_OPACITY, MAX_BACKGROUND_OPACITY } from '@/lib/theme'
 import { Button } from '@/components/ui/button'
@@ -94,6 +99,7 @@ export default function SettingsPanel() {
   const [appVersion, setAppVersion] = useState('')
   const [activeTab, setActiveTab] = useState<string>(SETTINGS_TAB.general)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+  const [launcherExcludeDirInput, setLauncherExcludeDirInput] = useState('')
   const hasShownFirstRunTabRef = useRef(false)
   useTheme(config.theme)
 
@@ -804,7 +810,9 @@ export default function SettingsPanel() {
                     <span className="font-mono text-foreground/90">find </span>+ 关键词为仅文件搜索，选中后
                     <strong className="font-medium text-foreground">打开该文件所在目录</strong>；输入{' '}
                     <span className="font-mono text-foreground/90">open </span>+ 关键词为仅文件搜索，选中后
-                    <strong className="font-medium text-foreground">打开该文件</strong>。关键词至少 2 个字符。目录列表为空时使用系统「文档」文件夹。多根目录会并行扫描；仅添加常用文件夹可明显加快。整盘搜索仍可能较慢。
+                    <strong className="font-medium text-foreground">打开该文件</strong>。关键词至少 2 个字符。目录列表为空时使用系统「文档」文件夹。多根目录会并行扫描；仅添加常用文件夹可明显加快。整盘搜索仍可能较慢。可在下方配置「排除的目录名」以跳过如{' '}
+                    <span className="font-mono text-foreground/90">node_modules</span>、
+                    <span className="font-mono text-foreground/90">dist</span> 等（仅按路径中<strong className="font-medium text-foreground">单级文件夹名</strong>匹配，大小写不敏感）。
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-0">
@@ -875,6 +883,107 @@ export default function SettingsPanel() {
                   ) : (
                     <p className="text-muted-foreground text-xs">未添加目录时，使用系统「文档」作为搜索根目录。</p>
                   )}
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">排除的目录名</p>
+                    <p className="text-muted-foreground text-xs leading-relaxed">
+                      与某一级文件夹名（不含路径）一致则<strong className="font-medium text-foreground/90">不进入</strong>
+                      该目录及其子文件。对以 <span className="font-mono">.</span> 开头的目录（如{' '}
+                      <span className="font-mono">.git</span>）除列表外，也会在深层默认跳过以点号开头的目录。
+                    </p>
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                      <Input
+                        className="min-w-0 flex-1"
+                        value={launcherExcludeDirInput}
+                        onChange={(e) => setLauncherExcludeDirInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const t = launcherExcludeDirInput.trim()
+                            if (!t) return
+                            const cur = config.launcherFileSearchExcludedDirNames
+                            if (cur.some((x) => x.toLowerCase() === t.toLowerCase())) {
+                              setLauncherExcludeDirInput('')
+                              return
+                            }
+                            void updateConfig({ launcherFileSearchExcludedDirNames: [...cur, t] })
+                            setLauncherExcludeDirInput('')
+                          }
+                        }}
+                        placeholder="例如 .next 或 out"
+                        disabled={!config.launcherFileSearchEnabled}
+                        autoComplete="off"
+                        spellCheck={false}
+                        aria-label="添加排除的目录名"
+                      />
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={!config.launcherFileSearchEnabled || !launcherExcludeDirInput.trim()}
+                          onClick={() => {
+                            const t = launcherExcludeDirInput.trim()
+                            if (!t) return
+                            const cur = config.launcherFileSearchExcludedDirNames
+                            if (cur.some((x) => x.toLowerCase() === t.toLowerCase())) {
+                              setLauncherExcludeDirInput('')
+                              return
+                            }
+                            void updateConfig({ launcherFileSearchExcludedDirNames: [...cur, t] })
+                            setLauncherExcludeDirInput('')
+                          }}
+                        >
+                          添加
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!config.launcherFileSearchEnabled}
+                          onClick={() =>
+                            void updateConfig({
+                              launcherFileSearchExcludedDirNames: [...DEFAULT_LAUNCHER_FILE_SEARCH_EXCLUDED_DIR_NAMES]
+                            })
+                          }
+                        >
+                          恢复默认
+                        </Button>
+                      </div>
+                    </div>
+                    {config.launcherFileSearchExcludedDirNames.length > 0 ? (
+                      <ul className="border-border bg-muted/30 max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2 text-sm">
+                        {config.launcherFileSearchExcludedDirNames.map((name) => (
+                          <li
+                            key={name}
+                            className="text-muted-foreground font-mono flex min-w-0 items-center justify-between gap-2"
+                          >
+                            <span className="min-w-0 truncate">{name}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              className="shrink-0"
+                              aria-label={`移除 ${name}`}
+                              disabled={!config.launcherFileSearchEnabled}
+                              onClick={() =>
+                                void updateConfig({
+                                  launcherFileSearchExcludedDirNames:
+                                    config.launcherFileSearchExcludedDirNames.filter((x) => x !== name)
+                                })
+                              }
+                            >
+                              <X className="size-3.5" />
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-muted-foreground text-xs">
+                        未配置时将为空；点击「恢复默认」可填回 node_modules、dist、target 等常见构建目录名。
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

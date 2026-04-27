@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use rayon::prelude::*;
 use walkdir::WalkDir;
@@ -25,6 +26,7 @@ pub enum FileOpenMode {
 pub fn file_items_for_query(
     enabled: bool,
     roots_cfg: &[String],
+    excluded_dir_names: &[String],
     query: &str,
     mode: FileOpenMode,
 ) -> Vec<Item> {
@@ -64,11 +66,31 @@ pub fn file_items_for_query(
     // 多根并行时每根走独立步数预算，与串行时「整盘 80 万步」同量级
     let max_scan_per_root = (MAX_SCAN_PER_ROOT * 16 / n as u64).max(28_000).min(120_000);
 
+    let exclude_dirs: Arc<HashSet<String>> = Arc::new(
+        excluded_dir_names
+            .iter()
+            .filter_map(|s| {
+                let t = s.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_lowercase())
+                }
+            })
+            .collect(),
+    );
+
     // 多核并行各根，避免在 D:\Apps 等子树上顺序堵死
     let mut all_paths: Vec<PathBuf> = work_roots
         .par_iter()
         .flat_map(|wr| {
-            walk_one_root(wr, &q_lower, per_root_cap, max_scan_per_root)
+            walk_one_root(
+                wr,
+                &q_lower,
+                per_root_cap,
+                max_scan_per_root,
+                Arc::clone(&exclude_dirs),
+            )
         })
         .collect();
 
@@ -150,20 +172,14 @@ fn walk_one_root(
     q_lower: &str,
     max_matches: usize,
     max_scan_for_this_root: u64,
+    exclude_dir_names: Arc<HashSet<String>>,
 ) -> Vec<PathBuf> {
     let mut matches = Vec::new();
     let mut local_scanned: u64 = 0;
     for entry in WalkDir::new(root)
         .into_iter()
         .filter_entry(|e| {
-            let n = e.file_name().to_string_lossy();
-            n != "node_modules"
-                && n != ".git"
-                && !n.eq_ignore_ascii_case("target")
-                && n != "bower_components"
-                && n != "dist"
-                && n != "build"
-                && !(e.depth() > 0 && n.starts_with('.') && n != ".")
+            walk_entry_allowed(e, &exclude_dir_names)
         })
     {
         if local_scanned >= max_scan_for_this_root {
@@ -184,6 +200,22 @@ fn walk_one_root(
         }
     }
     matches
+}
+
+/// 是否进入该目录项：按配置目录名过滤，并跳过深层以 `.` 开头的目录（除 `.` 自身）。
+fn walk_entry_allowed(
+    e: &walkdir::DirEntry,
+    exclude_dir_names: &HashSet<String>,
+) -> bool {
+    let n = e.file_name().to_string_lossy();
+    let lower = n.to_lowercase();
+    if exclude_dir_names.contains(&lower) {
+        return false;
+    }
+    if e.depth() > 0 && n.starts_with('.') && n != "." {
+        return false;
+    }
+    true
 }
 
 /// 仅按**文件名**（非路径）子串匹配；查词与文件名均作 Unicode 小写化，保证 `Vpn.md` 与 `vpn.md` 可互搜。

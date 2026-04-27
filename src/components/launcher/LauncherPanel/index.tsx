@@ -153,15 +153,9 @@ function LauncherPanel() {
                 size="icon-sm"
                 onClick={() => void updateConfig({ launcherHideOnUnfocus: !config.launcherHideOnUnfocus })}
                 aria-label={config.launcherHideOnUnfocus ? '固定面板' : '取消固定'}
-                title={
-                  config.launcherHideOnUnfocus
-                    ? '固定面板（失焦不自动关闭）'
-                    : '取消固定（失焦时自动关闭）'
-                }
+                title={config.launcherHideOnUnfocus ? '固定面板（失焦不自动关闭）' : '取消固定（失焦时自动关闭）'}
               >
-                <Pin
-                  className={cn('size-4', !config.launcherHideOnUnfocus && 'fill-current')}
-                />
+                <Pin className={cn('size-4', !config.launcherHideOnUnfocus && 'fill-current')} />
               </Button>
               <Button
                 type="button"
@@ -180,7 +174,7 @@ function LauncherPanel() {
               'flex items-center rounded-lg border border-input bg-muted/50 px-2.5 py-1.5 shadow-sm',
               'ring-offset-background',
               'focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-0',
-              'dark:bg-muted/40',
+              'dark:bg-muted/40'
             )}
           >
             <Input
@@ -206,11 +200,7 @@ function LauncherPanel() {
           className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-clip overflow-y-auto overscroll-y-contain"
           role="presentation"
         >
-          <div
-            className="box-border flex w-full min-w-0 max-w-full flex-col p-1.5"
-            role="listbox"
-            aria-label="结果"
-          >
+          <div className="box-border flex w-full min-w-0 max-w-full flex-col p-1.5" role="listbox" aria-label="结果">
             {items.length === 0 ? (
               <p className="text-muted-foreground px-2 py-6 text-center text-sm">无匹配项</p>
             ) : (
@@ -227,12 +217,12 @@ function LauncherPanel() {
                     role="option"
                     aria-selected={i === selected}
                     className={cn(
-                      'box-border flex w-full min-w-0 max-w-full flex-col items-stretch justify-center gap-0.5 overflow-hidden rounded-lg border border-transparent bg-transparent px-2.5 py-1.5 text-start text-sm font-medium',
+                      'box-border flex w-full min-w-0 max-w-full flex-col items-stretch justify-center gap-0.5 overflow-hidden rounded-lg border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-start',
                       'transition-colors select-none',
                       'hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
                       'dark:hover:bg-muted/50',
                       'h-auto min-h-9 sm:min-h-10',
-                      i === selected && 'bg-accent text-accent-foreground',
+                      i === selected && 'bg-accent text-accent-foreground'
                     )}
                     onClick={() => {
                       setSelected(i)
@@ -241,7 +231,7 @@ function LauncherPanel() {
                     onMouseEnter={() => setSelected(i)}
                   >
                     <span
-                      className="block w-full min-w-0 max-w-full truncate text-sm font-medium leading-tight"
+                      className="block w-full min-w-0 max-w-full truncate text-sm font-semibold leading-tight"
                       title={item.title}
                     >
                       {item.title}
@@ -249,7 +239,7 @@ function LauncherPanel() {
                     <span
                       className={cn(
                         'block w-full min-w-0 max-w-full truncate text-[11px] leading-snug sm:text-xs',
-                        i === selected ? 'text-accent-foreground/80' : 'text-muted-foreground',
+                        i === selected ? 'text-accent-foreground/80' : 'text-muted-foreground'
                       )}
                       title={item.subtitle}
                     >

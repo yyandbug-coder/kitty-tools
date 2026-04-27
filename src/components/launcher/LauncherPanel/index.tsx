@@ -10,7 +10,6 @@ import toast from 'react-hot-toast'
 import { Pin, Settings } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { toastInvokeError } from '@/lib/invoke-helpers'
@@ -132,19 +131,19 @@ function LauncherPanel() {
 
   if (!loaded) {
     return (
-      <div className="box-border flex h-full min-h-0 w-full min-w-0 items-center justify-center p-4">
+      <div className="box-border flex h-full min-h-0 w-full min-w-0 max-w-full items-center justify-center overflow-x-hidden p-4">
         <p className="text-muted-foreground text-sm">加载中…</p>
       </div>
     )
   }
 
   return (
-    <div className="box-border flex h-full min-h-0 w-full min-w-0 flex-col p-3 sm:p-4">
+    <div className="box-border flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden p-3 sm:p-4">
       <div
-        className="bg-background/90 dark:bg-background/80 flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-border/80 shadow-2xl backdrop-blur-md"
+        className="bg-background/90 dark:bg-background/80 flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden overflow-x-clip rounded-xl border border-border/80 shadow-2xl backdrop-blur-md"
         onKeyDown={onKeyDown}
       >
-        <div className="border-b border-border/60 px-3 py-2 sm:px-4 sm:py-2.5">
+        <div className="min-w-0 max-w-full shrink-0 border-b border-border/60 px-3 py-2 sm:px-4 sm:py-2.5">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-muted-foreground text-[11px] font-medium sm:text-xs">启动器</p>
             <div className="flex shrink-0 items-center gap-1" data-no-drag="true">
@@ -202,8 +201,16 @@ function LauncherPanel() {
             </span>
           </div>
         </div>
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="flex flex-col p-1.5" role="listbox" aria-label="结果">
+        {/* 不用 Radix ScrollArea：长子项 min-content 时 viewport 会横向撑开；原生纵向滚动 + 禁止横向滚更稳 */}
+        <div
+          className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-clip overflow-y-auto overscroll-y-contain"
+          role="presentation"
+        >
+          <div
+            className="box-border flex w-full min-w-0 max-w-full flex-col p-1.5"
+            role="listbox"
+            aria-label="结果"
+          >
             {items.length === 0 ? (
               <p className="text-muted-foreground px-2 py-6 text-center text-sm">无匹配项</p>
             ) : (
@@ -213,15 +220,18 @@ function LauncherPanel() {
                   ref={(el) => {
                     listItemRefs.current[i] = el
                   }}
-                  className="w-full min-w-0"
+                  className="w-full min-w-0 max-w-full contain-[inline-size]"
                 >
-                  <Button
+                  <button
                     type="button"
                     role="option"
-                    variant="ghost"
                     aria-selected={i === selected}
                     className={cn(
-                      'h-auto w-full min-h-9 flex-col items-stretch justify-center gap-0.5 px-2.5 py-1.5 sm:min-h-10',
+                      'box-border flex w-full min-w-0 max-w-full flex-col items-stretch justify-center gap-0.5 overflow-hidden rounded-lg border border-transparent bg-transparent px-2.5 py-1.5 text-start text-sm font-medium',
+                      'transition-colors select-none',
+                      'hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+                      'dark:hover:bg-muted/50',
+                      'h-auto min-h-9 sm:min-h-10',
                       i === selected && 'bg-accent text-accent-foreground',
                     )}
                     onClick={() => {
@@ -230,22 +240,28 @@ function LauncherPanel() {
                     }}
                     onMouseEnter={() => setSelected(i)}
                   >
-                    <span className="text-left text-sm font-medium leading-tight">{item.title}</span>
+                    <span
+                      className="block w-full min-w-0 max-w-full truncate text-sm font-medium leading-tight"
+                      title={item.title}
+                    >
+                      {item.title}
+                    </span>
                     <span
                       className={cn(
-                        'line-clamp-1 text-left text-[11px] leading-snug sm:text-xs',
+                        'block w-full min-w-0 max-w-full truncate text-[11px] leading-snug sm:text-xs',
                         i === selected ? 'text-accent-foreground/80' : 'text-muted-foreground',
                       )}
+                      title={item.subtitle}
                     >
                       {item.subtitle}
                     </span>
-                  </Button>
+                  </button>
                 </div>
               ))
             )}
           </div>
-        </ScrollArea>
-        <p className="text-muted-foreground border-t border-border/50 px-3 py-1.5 text-[10px] sm:text-xs leading-relaxed">
+        </div>
+        <p className="text-muted-foreground min-w-0 max-w-full shrink-0 wrap-break-word border-t border-border/50 px-3 py-1.5 text-[10px] sm:text-xs leading-relaxed">
           ↑↓ 选择 · Enter 打开 · Esc 关闭 · 图钉固定。
           <span className="block sm:inline sm:before:content-['·_']">
             输入 <kbd className="rounded border px-1">find </kbd> + 关键词：搜文件并打开所在目录；

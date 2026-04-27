@@ -5,11 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kitty Tools · 启动器</title>
     <style>
+      /* min-width:0 与横向裁剪：避免长路径/无换行子项把整页 min-content 撑得比视窗更宽 */
       html, body, #root {
         margin: 0;
+        box-sizing: border-box;
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         height: 100%;
         overflow: hidden;
+        overflow-x: hidden;
         background: transparent !important;
       }
     </style>

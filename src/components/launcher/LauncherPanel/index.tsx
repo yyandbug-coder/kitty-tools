@@ -9,7 +9,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import toast from 'react-hot-toast'
-import { Pin, Settings } from 'lucide-react'
+import { Loader2, Pin, Settings } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
@@ -30,6 +30,8 @@ function LauncherPanel() {
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<LauncherItem[]>([])
   const [selected, setSelected] = useState(0)
+  /** 有请求尚未返回（含防抖等待、快搜与全量搜）时用于列表区与角标旁反馈 */
+  const [listLoading, setListLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollParentRef = useRef<HTMLDivElement>(null)
   const queryForResultRef = useRef(query)
@@ -62,6 +64,21 @@ function LauncherPanel() {
     }
     const q = query
     const gen = ++searchGenRef.current
+    setListLoading(true)
+    let pending = 0
+    const doneOne = () => {
+      if (searchGenRef.current !== gen) {
+        return
+      }
+      pending -= 1
+      if (pending <= 0) {
+        setListLoading(false)
+      }
+    }
+    const track = (p: Promise<unknown>) => {
+      pending += 1
+      void p.finally(doneOne)
+    }
 
     const handleError = (e: unknown, queryStr: string) => {
       if (searchGenRef.current !== gen) {
@@ -78,42 +95,40 @@ function LauncherPanel() {
 
     if (q.trim() === '' || isFindOrOpenFileCommandQuery(q)) {
       const doFull = (queryStr: string) => {
-        void invoke<LauncherItem[]>('launcher_query', { query: queryStr })
-          .then((res) => {
-            if (searchGenRef.current !== gen) {
-              return
-            }
-            if (queryForResultRef.current !== queryStr) {
-              return
-            }
-            setItems(res)
-            setSelected(0)
-          })
-          .catch((e) => handleError(e, queryStr))
+        track(
+          invoke<LauncherItem[]>('launcher_query', { query: queryStr })
+            .then((res) => {
+              if (searchGenRef.current !== gen) {
+                return
+              }
+              if (queryForResultRef.current !== queryStr) {
+                return
+              }
+              setItems(res)
+              setSelected(0)
+            })
+            .catch((e) => {
+              handleError(e, queryStr)
+            }),
+        )
       }
       if (q.length === 0) {
         doFull(q)
-        return
+        return () => {
+          setListLoading(false)
+        }
       }
-      const t = window.setTimeout(() => doFull(q), FIND_OPEN_DEBOUNCE_MS)
-      return () => window.clearTimeout(t)
+      const t = window.setTimeout(() => {
+        doFull(q)
+      }, FIND_OPEN_DEBOUNCE_MS)
+      return () => {
+        window.clearTimeout(t)
+        setListLoading(false)
+      }
     }
 
-    void invoke<LauncherItem[]>('launcher_query_instant', { query: q })
-      .then((res) => {
-        if (searchGenRef.current !== gen) {
-          return
-        }
-        if (queryForResultRef.current !== q) {
-          return
-        }
-        setItems(res)
-        setSelected(0)
-      })
-      .catch((e) => handleError(e, q))
-
-    const t = window.setTimeout(() => {
-      void invoke<LauncherItem[]>('launcher_query', { query: q })
+    track(
+      invoke<LauncherItem[]>('launcher_query_instant', { query: q })
         .then((res) => {
           if (searchGenRef.current !== gen) {
             return
@@ -124,9 +139,33 @@ function LauncherPanel() {
           setItems(res)
           setSelected(0)
         })
-        .catch((e) => handleError(e, q))
+        .catch((e) => {
+          handleError(e, q)
+        }),
+    )
+
+    const t = window.setTimeout(() => {
+      track(
+        invoke<LauncherItem[]>('launcher_query', { query: q })
+          .then((res) => {
+            if (searchGenRef.current !== gen) {
+              return
+            }
+            if (queryForResultRef.current !== q) {
+              return
+            }
+            setItems(res)
+            setSelected(0)
+          })
+          .catch((e) => {
+            handleError(e, q)
+          }),
+      )
     }, FULL_QUERY_DEBOUNCE_MS)
-    return () => window.clearTimeout(t)
+    return () => {
+      window.clearTimeout(t)
+      setListLoading(false)
+    }
   }, [query, loaded])
 
   const executeAt = useCallback(
@@ -293,10 +332,19 @@ function LauncherPanel() {
             spellCheck={false}
           />
           <span
-            className="text-muted-foreground shrink-0 border-l border-border/60 pl-2.5 text-xs tabular-nums"
+            className="text-muted-foreground flex min-w-0 max-w-[45%] shrink-0 items-center justify-end gap-1.5 border-l border-border/60 pl-2.5 text-xs tabular-nums"
             aria-live="polite"
+            aria-busy={listLoading}
           >
-            {items.length} 项
+            {listLoading ? (
+              <Loader2
+                className="size-3.5 shrink-0 motion-reduce:animate-none motion-reduce:opacity-70 motion-reduce:grayscale animate-spin"
+                aria-hidden
+              />
+            ) : null}
+            <span className="min-w-0 truncate">
+              {items.length} 项{listLoading ? ' · 更新中' : ''}
+            </span>
           </span>
         </div>
       </div>
@@ -307,13 +355,27 @@ function LauncherPanel() {
             className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-clip overflow-y-auto overscroll-y-contain"
             role="presentation"
           >
-            <div className="box-border w-full min-w-0 max-w-full flex-col p-1.5" role="listbox" aria-label="结果">
+            <div
+              className="box-border w-full min-w-0 max-w-full flex-col p-1.5"
+              role="listbox"
+              aria-label="结果"
+              aria-busy={listLoading}
+            >
               {items.length === 0 ? (
                 <div
                   role="status"
                   className="text-muted-foreground px-3 py-8 text-center text-sm leading-relaxed"
                 >
-                  {query.trim() === '' ? (
+                  {listLoading ? (
+                    <div className="flex flex-col items-center justify-center gap-3 py-2">
+                      <Loader2
+                        className="size-7 shrink-0 motion-reduce:animate-none motion-reduce:opacity-70 animate-spin text-muted-foreground"
+                        aria-hidden
+                      />
+                      <p className="text-sm font-medium text-foreground/85">正在搜索…</p>
+                      <p className="text-xs text-muted-foreground">若需搜本地文件，可尝试 find 或 open 前缀</p>
+                    </div>
+                  ) : query.trim() === '' ? (
                     <>
                       <p className="font-medium text-foreground/80">暂无条目</p>
                       <p className="mt-1.5 text-xs text-muted-foreground">
@@ -331,7 +393,10 @@ function LauncherPanel() {
                   )}
                 </div>
               ) : (
-                <div className="relative w-full min-w-0" style={{ minHeight: totalListSize, height: totalListSize }}>
+                <div
+                  className={cn('relative w-full min-w-0', listLoading && 'opacity-[0.92] transition-opacity')}
+                  style={{ minHeight: totalListSize, height: totalListSize }}
+                >
                   {listVirtualizer.getVirtualItems().map((v) => {
                     const item = items[v.index]
                     if (!item) {

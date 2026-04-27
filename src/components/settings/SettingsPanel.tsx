@@ -1,5 +1,5 @@
 // 设置面板 - 应用全局设置（剪贴板/翻译/交互/外观/关于）
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import toast from 'react-hot-toast'
@@ -21,12 +21,23 @@ import {
 } from '@/components/ui/alert-dialog'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { SETTINGS_TAB, SETTINGS_TAB_ITEMS, type SettingsTabId } from '@/components/settings/constants'
-import SettingsClipboardTab from '@/components/settings/SettingsClipboardTab'
-import SettingsTranslateTab from '@/components/settings/SettingsTranslateTab'
-import SettingsShortcutsTab from '@/components/settings/SettingsShortcutsTab'
-import SettingsLauncherTab from '@/components/settings/SettingsLauncherTab'
 import SettingsGeneralTab from '@/components/settings/SettingsGeneralTab'
-import SettingsAboutTab from '@/components/settings/SettingsAboutTab'
+
+const SettingsClipboardTab = lazy(() => import('@/components/settings/SettingsClipboardTab'))
+const SettingsTranslateTab = lazy(() => import('@/components/settings/SettingsTranslateTab'))
+const SettingsShortcutsTab = lazy(() => import('@/components/settings/SettingsShortcutsTab'))
+const SettingsLauncherTab = lazy(() => import('@/components/settings/SettingsLauncherTab'))
+const SettingsAboutTab = lazy(() => import('@/components/settings/SettingsAboutTab'))
+
+function SettingsTabFallback() {
+  return (
+    <div className="flex min-h-[120px] items-center justify-center py-8">
+      <div className="relative size-6">
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
+      </div>
+    </div>
+  )
+}
 
 export default function SettingsPanel() {
   const { config, updateConfig, loaded } = useAppConfig()
@@ -112,39 +123,61 @@ export default function SettingsPanel() {
         <ScrollArea className="flex-1 mt-2">
           <div className="p-4 space-y-6">
             <TabsContent value={SETTINGS_TAB.clipboard} className="mt-0 space-y-5">
-              <SettingsClipboardTab config={config} updateConfig={updateConfig} />
+              {activeTab === SETTINGS_TAB.clipboard ? (
+                <Suspense fallback={<SettingsTabFallback />}>
+                  <SettingsClipboardTab config={config} updateConfig={updateConfig} />
+                </Suspense>
+              ) : null}
             </TabsContent>
 
             <TabsContent value={SETTINGS_TAB.translate} className="mt-0 space-y-5">
-              <SettingsTranslateTab
-                config={config}
-                updateConfig={updateConfig}
-                testing={testing}
-                testFeedback={testFeedback}
-                runTranslateConnectionTest={runTranslateConnectionTest}
-              />
+              {activeTab === SETTINGS_TAB.translate ? (
+                <Suspense fallback={<SettingsTabFallback />}>
+                  <SettingsTranslateTab
+                    config={config}
+                    updateConfig={updateConfig}
+                    testing={testing}
+                    testFeedback={testFeedback}
+                    runTranslateConnectionTest={runTranslateConnectionTest}
+                  />
+                </Suspense>
+              ) : null}
             </TabsContent>
 
             <TabsContent value={SETTINGS_TAB.shortcuts} className="mt-0">
-              <SettingsShortcutsTab config={config} updateConfig={updateConfig} />
+              {activeTab === SETTINGS_TAB.shortcuts ? (
+                <Suspense fallback={<SettingsTabFallback />}>
+                  <SettingsShortcutsTab config={config} updateConfig={updateConfig} />
+                </Suspense>
+              ) : null}
             </TabsContent>
 
             <TabsContent value={SETTINGS_TAB.launcher} className="mt-0 space-y-5">
-              <SettingsLauncherTab
-                config={config}
-                updateConfig={updateConfig}
-                launcherExcludedDirNames={launcherExcludedDirNames}
-                launcherExcludeDirInput={launcherExcludeDirInput}
-                setLauncherExcludeDirInput={setLauncherExcludeDirInput}
-              />
+              {activeTab === SETTINGS_TAB.launcher ? (
+                <Suspense fallback={<SettingsTabFallback />}>
+                  <SettingsLauncherTab
+                    config={config}
+                    updateConfig={updateConfig}
+                    launcherExcludedDirNames={launcherExcludedDirNames}
+                    launcherExcludeDirInput={launcherExcludeDirInput}
+                    setLauncherExcludeDirInput={setLauncherExcludeDirInput}
+                  />
+                </Suspense>
+              ) : null}
             </TabsContent>
 
             <TabsContent value={SETTINGS_TAB.general} className="mt-0 space-y-5">
-              <SettingsGeneralTab config={config} updateConfig={updateConfig} />
+              {activeTab === SETTINGS_TAB.general ? (
+                <SettingsGeneralTab config={config} updateConfig={updateConfig} />
+              ) : null}
             </TabsContent>
 
             <TabsContent value={SETTINGS_TAB.about} className="mt-0">
-              <SettingsAboutTab appVersion={appVersion} onRequestReset={() => setResetConfirmOpen(true)} />
+              {activeTab === SETTINGS_TAB.about ? (
+                <Suspense fallback={<SettingsTabFallback />}>
+                  <SettingsAboutTab appVersion={appVersion} onRequestReset={() => setResetConfirmOpen(true)} />
+                </Suspense>
+              ) : null}
             </TabsContent>
           </div>
         </ScrollArea>

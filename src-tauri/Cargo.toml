@@ -34,7 +34,16 @@ base64 = "0.22"
 
 # Translate
 reqwest = { version = "0.12", features = ["json", "multipart", "rustls-tls"], default-features = false }
-tokio = { version = "1", features = ["full"] }
+# 仅启用 HTTP/插件/sqlx/启动器 spawn_blocking 等所需子系统，避免 `full` 带来的多余代码
+tokio = { version = "1", default-features = false, features = [
+  "rt-multi-thread",
+  "macros",
+  "time",
+  "net",
+  "io-util",
+  "sync",
+  "fs",
+] }
 md5 = "0.7"
 sha2 = "0.10"
 rand = "0.8"

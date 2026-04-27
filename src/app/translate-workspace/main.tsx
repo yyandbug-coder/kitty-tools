@@ -1,12 +1,12 @@
 // 翻译工作台入口页面 - 包含标题栏和翻译面板
 // 应用主题色运行时样式，与剪贴板面板保持一致
-import React from 'react'
+import React, { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import ReactDOM from 'react-dom/client'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
-import { useState, useEffect, useMemo } from 'react'
 import { ConfigProvider } from '@/hooks/ConfigProvider'
 import { useAppConfig } from '@/hooks/useAppConfig'
+import { useKittyIsDarkMode } from '@/hooks/useKittyIsDarkMode'
 import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { formatShortcutForDisplay } from '@/lib/platform'
 import { getThemeRuntimeStyle } from '@/lib/theme'
@@ -20,16 +20,7 @@ import '@/assets/styles/tailwind/index.css'
 
 function TranslateWorkspaceApp() {
   const { config, loaded } = useAppConfig()
-  const [systemPrefersDark, setSystemPrefersDark] = useState(
-    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-  const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
+  const isDarkMode = useKittyIsDarkMode(config.theme)
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
     [config.appThemePreset, config.customHue, isDarkMode],

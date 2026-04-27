@@ -2,13 +2,14 @@
 // 双栏布局：左侧列表（分页）+ 右侧预览面板；由 html/clipboard-popup.html 加载 app/clipboard/main.tsx
 import type { CSSProperties, PointerEvent } from 'react'
 import type { AppTheme } from '@/types'
-import { lazy, Suspense, useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useRef, useEffect, useCallback, useMemo } from 'react'
 import toast, { Toaster } from 'react-hot-toast'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useClipboard } from '@/app/clipboard/hooks/useClipboard'
 import { useAppConfig } from '@/hooks/useAppConfig'
+import { useKittyIsDarkMode } from '@/hooks/useKittyIsDarkMode'
 import type { ClipboardItem } from '@/types'
 import { APP_DISPLAY_NAME } from '@/lib/app-meta'
 import { getThemeRuntimeStyle } from '@/lib/theme'
@@ -29,10 +30,7 @@ export default function ClipboardHistoryPanel() {
   const keyboardRootRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { config, loaded, updateConfig } = useAppConfig()
-  const [systemPrefersDark, setSystemPrefersDark] = useState(
-    () => window.matchMedia('(prefers-color-scheme: dark)').matches
-  )
-  const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
+  const isDarkMode = useKittyIsDarkMode(config.theme)
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
     [config.appThemePreset, config.customHue, isDarkMode]
@@ -75,14 +73,6 @@ export default function ClipboardHistoryPanel() {
       unlisten?.()
     }
   }, [flushClipboardHistoryToDisk])
-
-  // System theme watcher
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
 
   // Focus search input when panel is shown via hotkey/tray
   useEffect(() => {

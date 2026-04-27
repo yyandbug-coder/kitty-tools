@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+
+# Rust / Tauri 构建产物（勿提交）
+src-tauri/target/
 *.local
 
 # Editor directories and files

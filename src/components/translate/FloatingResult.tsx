@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Toaster } from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
+import { useKittyIsDarkMode } from '@/hooks/useKittyIsDarkMode'
 import { cn } from '@/lib/utils'
 import { toastInvokeError } from '@/lib/invoke-helpers'
 import ShortcutKbd from '@/components/shared/ShortcutKbd'
@@ -45,14 +46,7 @@ export default function FloatingResult() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<CopyTarget>(null)
   const [detectedSourceLang, setDetectedSourceLang] = useState<string | null>(null)
-  const [systemPrefersDark, setSystemPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-  const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
+  const isDarkMode = useKittyIsDarkMode(config.theme)
   const translateSeqRef = useRef(0)
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,

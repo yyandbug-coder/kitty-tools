@@ -1,9 +1,10 @@
 // 启动器入口：由 html/launcher.html 加载；不透明窗口 + bg-background，与划词翻译浮窗一致
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import ReactDOM from 'react-dom/client'
 import { ConfigProvider } from '@/hooks/ConfigProvider'
 import { useAppConfig } from '@/hooks/useAppConfig'
+import { useKittyIsDarkMode } from '@/hooks/useKittyIsDarkMode'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import type { AppTheme } from '@/types'
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
@@ -14,16 +15,7 @@ import '@/assets/styles/tailwind/index.css'
 
 function LauncherApp() {
   const { config, loaded } = useAppConfig()
-  const [systemPrefersDark, setSystemPrefersDark] = useState(
-    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-  const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
+  const isDarkMode = useKittyIsDarkMode(config.theme)
   const appStyle = useMemo(
     () =>
       getThemeRuntimeStyle(

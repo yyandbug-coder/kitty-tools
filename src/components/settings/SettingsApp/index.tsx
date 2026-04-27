@@ -1,6 +1,7 @@
 // 设置主界面 - 由 html/index.html 挂载 src/app/main.tsx；与 Tauri 设置窗口共用；应用主题与 SettingsPanel
-import { useState, useEffect, useMemo, type CSSProperties } from 'react'
+import { useMemo, type CSSProperties } from 'react'
 import { useAppConfig } from '@/hooks/useAppConfig'
+import { useKittyIsDarkMode } from '@/hooks/useKittyIsDarkMode'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import type { AppTheme } from '@/types'
 import SettingsPanel from '@/components/settings/SettingsPanel'
@@ -9,16 +10,7 @@ import { Toaster } from 'react-hot-toast'
 
 export default function SettingsApp() {
   const { config, loaded } = useAppConfig()
-  const [systemPrefersDark, setSystemPrefersDark] = useState(
-    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-  const isDarkMode = config.theme === 'dark' || (config.theme === 'system' && systemPrefersDark)
+  const isDarkMode = useKittyIsDarkMode(config.theme)
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
     [config.appThemePreset, config.customHue, isDarkMode],

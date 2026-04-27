@@ -98,7 +98,7 @@ pub fn get_or_create_clipboard_popup_window<R: Runtime>(
     if let Some(w) = app.get_webview_window(WINDOW_CLIPBOARD_POPUP) {
         return Ok(w);
     }
-    let window = WebviewWindow::builder(app, WINDOW_CLIPBOARD_POPUP, webview_url("index.html"))
+    let window = WebviewWindow::builder(app, WINDOW_CLIPBOARD_POPUP, webview_url("clipboard-popup.html"))
         .title("Kitty Tools · 剪贴板")
         .inner_size(1080.0, 720.0)
         .decorations(false)
@@ -383,7 +383,7 @@ pub fn get_or_create_settings_window<R: Runtime>(
     }
 
     let window =
-        WebviewWindow::builder(app, WINDOW_SETTINGS, webview_url("settings.html"))
+        WebviewWindow::builder(app, WINDOW_SETTINGS, webview_url("index.html"))
             .title("Kitty Tools · 设置")
             .inner_size(680.0, 720.0)
             .min_inner_size(560.0, 600.0)

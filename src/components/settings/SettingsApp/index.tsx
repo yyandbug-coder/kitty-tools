@@ -1,20 +1,13 @@
-// 设置窗口入口页面 - 应用主题色运行时样式，与其它窗口保持一致
-import React from 'react'
-import type { CSSProperties } from 'react'
-import ReactDOM from 'react-dom/client'
-import { useState, useEffect, useMemo } from 'react'
-import { ConfigProvider } from '@/hooks/ConfigProvider'
+// 设置主界面 - 由 index.html 挂载，开发预览与 Tauri 设置窗口共用；应用主题与 SettingsPanel
+import { useState, useEffect, useMemo, type CSSProperties } from 'react'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import type { AppTheme } from '@/types'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { Toaster } from 'react-hot-toast'
 import SettingsPanel from '@/components/settings/SettingsPanel'
 import { cn } from '@/lib/utils'
-import ErrorBoundary from '@/components/shared/ErrorBoundary'
-import '@/assets/styles/tailwind/index.css'
+import { Toaster } from 'react-hot-toast'
 
-function SettingsApp() {
+export default function SettingsApp() {
   const { config, loaded } = useAppConfig()
   const [systemPrefersDark, setSystemPrefersDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches,
@@ -62,15 +55,3 @@ function SettingsApp() {
     </div>
   )
 }
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <ConfigProvider>
-        <TooltipProvider>
-          <SettingsApp />
-        </TooltipProvider>
-      </ConfigProvider>
-    </ErrorBoundary>
-  </React.StrictMode>,
-)

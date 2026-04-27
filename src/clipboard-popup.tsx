@@ -1,16 +1,16 @@
+// 剪贴板弹窗窗口入口 - 与主应用（设置）分离，仅由 clipboard-popup 窗口加载
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ConfigProvider } from '@/hooks/ConfigProvider'
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
-import App from '@/App'
+import ClipboardHistoryPanel from '@/components/clipboard/ClipboardHistoryPanel'
 import '@/assets/styles/tailwind/index.css'
 
-// 默认入口：设置主应用（index.html；剪贴板弹窗见 clipboard-popup.html）
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <ConfigProvider>
-        <App />
+        <ClipboardHistoryPanel />
       </ConfigProvider>
     </ErrorBoundary>
   </React.StrictMode>,

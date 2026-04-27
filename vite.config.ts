@@ -48,10 +48,10 @@ export default defineConfig(async ({ command }) => ({
     rollupOptions: {
       input: {
         main: resolve(rootDir, 'index.html'),
+        'clipboard-popup': resolve(rootDir, 'clipboard-popup.html'),
         floating: resolve(rootDir, 'floating.html'),
         'region-select': resolve(rootDir, 'region-select.html'),
         'translate-workspace': resolve(rootDir, 'translate-workspace.html'),
-        settings: resolve(rootDir, 'settings.html'),
         onboarding: resolve(rootDir, 'onboarding.html'),
       },
       output: {

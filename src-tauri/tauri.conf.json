@@ -30,6 +30,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "infoPlist": "Info.plist"
+    },
     "windows": {
       "wix": {
         "language": "zh-CN"

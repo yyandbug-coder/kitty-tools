@@ -8,6 +8,8 @@ mod lang_detect;
 mod launcher;
 mod ocr;
 mod screenshot;
+#[cfg(target_os = "macos")]
+mod screenshot_macos_sck;
 mod selection;
 mod translate;
 mod tray;

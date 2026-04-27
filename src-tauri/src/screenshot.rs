@@ -143,6 +143,15 @@ pub fn composite_virtual_region_rgba(
 }
 
 pub fn capture_virtual_desktop_rgba() -> Result<RgbaImage, String> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok((vx, vy, vw, vh)) = virtual_screen_bounds() {
+            if let Ok(img) = crate::screenshot_macos_sck::capture_full_desktop_sck(vx, vy, vw, vh) {
+                return Ok(img);
+            }
+        }
+    }
+
     let screens = screenshots::Screen::all().map_err(|e| format!("枚举显示器失败: {}", e))?;
     let (vx, vy, vw, vh) = bounds_from_screens(&screens)?;
     composite_virtual_region_rgba(vx, vy, vw, vh, &screens)

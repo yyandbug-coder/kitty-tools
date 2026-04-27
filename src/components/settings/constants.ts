@@ -8,7 +8,7 @@ export const SETTINGS_TAB = {
   translate: 'translate',
   shortcuts: 'shortcuts',
   launcher: 'launcher',
-  about: 'about',
+  about: 'about'
 } as const
 
 export type SettingsTabId = (typeof SETTINGS_TAB)[keyof typeof SETTINGS_TAB]
@@ -23,7 +23,7 @@ export const SETTINGS_TAB_ITEMS: SettingsTabItem[] = [
   { value: SETTINGS_TAB.general, icon: Settings, label: '通用' },
   { value: SETTINGS_TAB.clipboard, icon: ClipboardList, label: '剪贴板' },
   { value: SETTINGS_TAB.translate, icon: Globe, label: '翻译' },
-  { value: SETTINGS_TAB.shortcuts, icon: Keyboard, label: '交互' },
   { value: SETTINGS_TAB.launcher, icon: Search, label: '启动器' },
-  { value: SETTINGS_TAB.about, icon: Info, label: '关于' },
+  { value: SETTINGS_TAB.shortcuts, icon: Keyboard, label: '交互' },
+  { value: SETTINGS_TAB.about, icon: Info, label: '关于' }
 ]

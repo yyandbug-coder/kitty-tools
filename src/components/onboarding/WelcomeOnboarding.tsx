@@ -4,7 +4,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Kbd } from '@/components/ui/kbd'
@@ -328,7 +328,7 @@ export default function WelcomeOnboarding() {
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground">
       <header className="shrink-0 border-b border-border/60 bg-card/30 px-4 py-3 sm:px-6" data-tauri-drag-region>
-        <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3">
+        <div className="mx-auto flex w-full max-w-2xl min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <AppLogoIcon className="size-9 shrink-0 sm:size-10" />
             <div className="min-w-0">
@@ -361,7 +361,7 @@ export default function WelcomeOnboarding() {
               onClick={() => setStep(i)}
               className={cn(
                 'h-2 w-2 rounded-full transition-all focus-visible:ring-2 focus-visible:ring-ring',
-                i === step ? 'w-6 bg-primary' : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                i === step ? 'w-6 bg-primary' : 'bg-muted-foreground/30 hover:bg-muted-foreground/50',
               )}
               aria-label={`第 ${i + 1} 步：${s.title}`}
               aria-current={i === step ? 'step' : undefined}
@@ -370,8 +370,8 @@ export default function WelcomeOnboarding() {
         </nav>
       </header>
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="mx-auto w-full max-w-2xl px-4 py-5 sm:px-6 sm:py-8">
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
+        <div className="mx-auto w-full max-w-2xl px-4 py-4 sm:px-6 sm:py-6">
           <Card className="border-border/80 shadow-sm">
             <CardHeader>
               <div className="flex items-start gap-3">
@@ -384,33 +384,40 @@ export default function WelcomeOnboarding() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="text-sm">{current.panel}</CardContent>
-            <CardFooter className="flex flex-nowrap items-center justify-between gap-2 border-t border-border/60 p-4 sm:px-6">
-              <Button
-                type="button"
-                variant="outline"
-                size="default"
-                onClick={goPrev}
-                disabled={isFirst || completing}
-                className="min-h-9 min-w-0 flex-1"
-              >
-                <ChevronLeft className="size-4" />
-                上一步
-              </Button>
-              {!isLast ? (
-                <Button type="button" onClick={goNext} disabled={completing} className="min-h-9 min-w-0 flex-1">
-                  下一步
-                  <ChevronRight className="size-4" />
-                </Button>
-              ) : (
-                <Button type="button" onClick={handleEnterApp} disabled={completing} className="min-h-9 min-w-0 flex-1">
-                  {completing ? '正在保存…' : '进入应用'}
-                </Button>
-              )}
-            </CardFooter>
+            <CardContent className="text-sm pb-2">{current.panel}</CardContent>
           </Card>
         </div>
       </ScrollArea>
+
+      <footer
+        className="shrink-0 border-t border-border/60 bg-card/30 px-2 py-2.5 sm:px-3 sm:py-3"
+        role="contentinfo"
+        aria-label="引导操作"
+      >
+        <div className="mx-auto flex w-full max-w-2xl min-w-0 flex-nowrap items-stretch gap-1.5 sm:gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="default"
+            onClick={goPrev}
+            disabled={isFirst || completing}
+            className="h-9 min-w-0 flex-1"
+          >
+            <ChevronLeft className="size-4" />
+            上一步
+          </Button>
+          {!isLast ? (
+            <Button type="button" onClick={goNext} disabled={completing} className="h-9 min-w-0 flex-1">
+              下一步
+              <ChevronRight className="size-4" />
+            </Button>
+          ) : (
+            <Button type="button" onClick={handleEnterApp} disabled={completing} className="h-9 min-w-0 flex-1">
+              {completing ? '正在保存…' : '进入应用'}
+            </Button>
+          )}
+        </div>
+      </footer>
     </div>
   )
 }

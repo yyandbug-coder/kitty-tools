@@ -84,7 +84,7 @@ pub struct AppConfig {
     pub floating_window_y: Option<i32>,
     /// 首次安装为 true：启动时自动打开设置；用户在设置中完成引导后改为 false。
     pub first_run: bool,
-    /// 源语言为自动检测时，按本地识别结果在 `bidirectional_lang_a` 与 `bidirectional_lang_b` 间自动选向。
+    /// 为真且请求中含 `auto` 时，才按本地识别在 `bidirectional_lang_a` 与 `bidirectional_lang_b` 间选向；为假则不作甲/乙解析。
     pub bidirectional_auto: bool,
     /// 互译语言甲（应用内代码，如 zh-CN）
     #[serde(default = "default_bidirectional_lang_a")]

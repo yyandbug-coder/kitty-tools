@@ -132,7 +132,8 @@ fn lang_slots_match(detected_canon: &str, slot_canon: &str) -> bool {
     lang_family_key(detected_canon) == lang_family_key(slot_canon)
 }
 
-/// 当源语言或目标语言为 `auto` 时：根据本地 Lingua 结果在 `bidirectional_lang_a` / `bidirectional_lang_b` 间自动选向。
+/// 当 `bidirectional_auto` 为真且源或目标为 `auto` 时：根据本地 Lingua 结果在 `bidirectional_lang_a` / `bidirectional_lang_b` 间自动选向。
+/// 若关闭双向互译，则**不**做甲/乙选向，原样交给各引擎（含 `auto`）处理。
 /// 识别不确定或与甲、乙均不匹配时，保持原请求（仍由在线引擎处理 `auto`）。
 pub fn resolve_translate_request(
     request: &TranslateRequest,
@@ -140,6 +141,9 @@ pub fn resolve_translate_request(
 ) -> TranslateRequest {
     let need_resolve = request.source_lang == "auto" || request.target_lang == "auto";
     if !need_resolve {
+        return request.clone();
+    }
+    if !cfg.bidirectional_auto {
         return request.clone();
     }
     let a = canonicalize_app_lang(&cfg.bidirectional_lang_a);

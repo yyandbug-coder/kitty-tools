@@ -114,8 +114,11 @@ export interface AppConfig {
   floatingPinned: boolean;
   floatingWindowX: number | null;
   floatingWindowY: number | null;
+  /** 为 true 且源/目标含 `auto` 时，后端按互译甲/乙选向；为 false 则不做甲/乙解析，请求原样交引擎 */
   bidirectionalAuto: boolean;
+  /** 互译语言甲（如 zh-CN），仅 bidirectionalAuto 为真且请求含 auto 时参与选向 */
   bidirectionalLangA: string;
+  /** 互译语言乙（如 en） */
   bidirectionalLangB: string;
   /** 启动器全局快捷键；空字符串表示不注册 */
   launcherShortcut: string;

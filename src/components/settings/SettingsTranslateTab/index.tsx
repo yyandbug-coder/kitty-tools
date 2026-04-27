@@ -235,6 +235,12 @@ export default function SettingsTranslateTab({
           )}
 
           <div className="mt-4 flex flex-col gap-2 border-t border-border/60 pt-4">
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              以下为<strong className="font-medium text-foreground">默认翻译方向</strong>
+             （工作台、划词/截图的初始请求均使用此组合）。与下方「双向自动互译」同时存在：前者决定界面上的
+              源/目标，后者仅在使用<strong className="font-medium text-foreground">自动检测</strong>
+              时决定是否在语言甲/乙之间自动选向。
+            </p>
             <div className="flex gap-3">
               <div className="space-y-1.5 flex-1">
                 <label className="text-xs text-muted-foreground">源语言</label>
@@ -285,8 +291,10 @@ export default function SettingsTranslateTab({
             双向自动互译
           </CardTitle>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            工作台与浮动窗里需将<strong className="font-medium text-foreground">源语言</strong>
-            设为「自动检测」。仅当本地能判断语种时切换方向；识别为甲乙之外的语言时，仍按当前「目标语言」翻译。
+            开启后，当请求中<strong className="font-medium text-foreground">至少一端为「自动检测」</strong>
+            时，由本地判断文本语种，并仅在您配置的<strong className="font-medium text-foreground">语言甲与乙</strong>
+            之间选择翻译方向。关闭时<strong className="font-medium text-foreground">不做</strong>
+            甲/乙选向，含「自动」的请求将直接交给各翻译引擎，请尽量设置明确的源/目标。
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -297,9 +305,9 @@ export default function SettingsTranslateTab({
               onCheckedChange={(checked) => void updateConfig({ bidirectionalAuto: checked })}
             />
             <span className="min-w-0 text-sm leading-snug">
-              <span className="font-medium text-foreground">启用</span>
+              <span className="font-medium text-foreground">启用双向互译</span>
               <span className="text-muted-foreground">
-                ：识别为语言甲则译向乙，识别为乙则译向甲（例如简中 ↔ 英语）。
+                ：检测为语言甲则译向乙，检测为乙则译向甲（如简中 ↔ 英语），仅在上文「源/目标」含自动时生效。
               </span>
             </span>
           </label>
@@ -328,8 +336,8 @@ export default function SettingsTranslateTab({
               </div>
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              划词与截图（OCR
-              后文本翻译）均会应用；选择百度「图片翻译」直出时无本地原文识别，仍以当前源/目标语言为准。
+              仅当本开关为开启且上述源/目标组合触发自动方向解析时，甲/乙方参与；划词与截图（OCR
+              后）同样按此规则。选择百度「图片翻译」直出时无本地原文识别，仍以当前源/目标为准。
             </p>
           </div>
         </CardContent>

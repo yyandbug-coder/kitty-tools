@@ -41,6 +41,7 @@ function SettingsApp() {
       style={appStyle}
     >
       <SettingsPanel />
+      <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
     </div>
   )
 }
@@ -51,7 +52,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ConfigProvider>
         <TooltipProvider>
           <SettingsApp />
-          <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
         </TooltipProvider>
       </ConfigProvider>
     </ErrorBoundary>

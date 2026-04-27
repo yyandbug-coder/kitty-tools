@@ -896,7 +896,7 @@ export default function SettingsPanel() {
           <AlertDialogHeader>
             <AlertDialogTitle>恢复默认设置</AlertDialogTitle>
             <AlertDialogDescription>
-              将语言、翻译引擎、主题、自动复制、开机自启、快捷键等恢复为安装默认；已填写的各厂商密钥会保留。确定？
+              除百度/谷歌/OpenAI/有道已填密钥外，其余选项（含外观、剪贴板、快捷键等）均恢复为安装默认。确定？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -905,20 +905,7 @@ export default function SettingsPanel() {
               onClick={async () => {
                 try {
                   await updateConfig({
-                    sourceLang: DEFAULT_CONFIG.sourceLang,
-                    targetLang: DEFAULT_CONFIG.targetLang,
-                    translateProvider: DEFAULT_CONFIG.translateProvider,
-                    theme: DEFAULT_CONFIG.theme,
-                    autoCopy: DEFAULT_CONFIG.autoCopy,
-                    launchOnStartup: DEFAULT_CONFIG.launchOnStartup,
-                    floatingPinned: DEFAULT_CONFIG.floatingPinned,
-                    floatingWindowX: DEFAULT_CONFIG.floatingWindowX,
-                    floatingWindowY: DEFAULT_CONFIG.floatingWindowY,
-                    hotkeySelection: DEFAULT_CONFIG.hotkeySelection,
-                    hotkeyScreenshot: DEFAULT_CONFIG.hotkeyScreenshot,
-                    bidirectionalAuto: DEFAULT_CONFIG.bidirectionalAuto,
-                    bidirectionalLangA: DEFAULT_CONFIG.bidirectionalLangA,
-                    bidirectionalLangB: DEFAULT_CONFIG.bidirectionalLangB,
+                    ...DEFAULT_CONFIG,
                     baidu: { ...config.baidu },
                     google: { ...config.google },
                     openai: { ...config.openai },

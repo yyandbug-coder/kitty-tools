@@ -1,4 +1,7 @@
-use screenshots::image::{imageops::crop_imm, DynamicImage, ImageFormat, Rgba, RgbaImage};
+use screenshots::image::{
+    imageops::{crop_imm, resize, FilterType},
+    DynamicImage, ImageFormat, Rgba, RgbaImage,
+};
 use std::io::Cursor;
 
 const MIN_WH: u32 = 8;
@@ -60,10 +63,20 @@ pub fn composite_virtual_region_rgba(
         let local_y = iy1 - d.y;
         let iw = (ix2 - ix1) as u32;
         let ih = (iy2 - iy1) as u32;
-        let rgba = screen
+        let mut rgba = screen
             .capture_area(local_x, local_y, iw, ih)
             .map_err(|e| format!("截取区域失败: {}", e))?;
+        // macOS Retina：`capture_area` 的宽高按 display_info（点）传入，CG 返回的位图常为物理分辨率；
+        // 不缩放到 (iw,ih) 会无法写入画布，截图为花屏/空白，OCR/图片翻译识别不到文字。
+        if rgba.width() != iw || rgba.height() != ih {
+            rgba = resize(&rgba, iw, ih, FilterType::Triangle);
+        }
         let ox = ix1 - gx;
+        // Windows / Linux：display_info 的 y 自上而下增大；macOS CG：y 自下而上增大。
+        // 画布第 0 行应对齐虚拟桌面「视觉最上方」，Windows 用 iy1-gy，macOS 需用 gy+gh-iy2。
+        #[cfg(target_os = "macos")]
+        let oy = gy + gh - iy2;
+        #[cfg(not(target_os = "macos"))]
         let oy = iy1 - gy;
         pieces.push((ox, oy, rgba));
     }

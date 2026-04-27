@@ -1,7 +1,7 @@
 /**
  * 启动器面板：不透明窗口 + 与划词翻译浮窗一致的实心背景与分区样式；
  * 输入关键词筛选内置动作、系统快捷项、已安装应用（Windows 开始菜单 / macOS 应用程序）、URL、路径、书签等；find/open 前缀按 Alfred 习惯搜文件（揭示目录 / 打开文件）；
- * 标题栏左侧帮助图标（悬停说明快捷键与 find/open）、可固定（失焦不自动隐藏）与打开应用设置。
+ * 标题栏左侧为应用图标与「启动器」标题；右侧为帮助（悬停说明快捷键与 find/open）、固定与设置。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -21,6 +21,7 @@ import { toastInvokeError } from '@/lib/invoke-helpers'
 import { isFindOrOpenFileCommandQuery } from '@/lib/launcherFilePrefix'
 import type { LauncherItem } from '@/types'
 import LauncherResultItem from '@/components/launcher/LauncherResultItem'
+import AppLogoIcon from '@/components/shared/AppLogoIcon'
 
 const PAGE_STEP = 10
 const FIND_OPEN_DEBOUNCE_MS = 160
@@ -276,7 +277,11 @@ function LauncherPanel() {
         onKeyDown={onKeyDown}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-3 py-2.5 sm:px-4 sm:py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
+            <AppLogoIcon className="size-7 shrink-0 sm:size-8" alt="" aria-hidden />
+            <p className="min-w-0 truncate text-sm font-semibold tracking-tight">启动器</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1" data-no-drag="true">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -324,29 +329,26 @@ function LauncherPanel() {
                 </p>
               </TooltipContent>
             </Tooltip>
-            <p className="min-w-0 truncate text-sm font-semibold tracking-tight">启动器</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-1" data-no-drag="true">
-          <Button
-            type="button"
-            variant={config.launcherHideOnUnfocus ? 'ghost' : 'default'}
-            size="icon-sm"
-            onClick={() => void updateConfig({ launcherHideOnUnfocus: !config.launcherHideOnUnfocus })}
-            aria-label={config.launcherHideOnUnfocus ? '固定面板' : '取消固定'}
-            title={config.launcherHideOnUnfocus ? '固定面板（失焦不自动关闭）' : '取消固定（失焦时自动关闭）'}
-          >
-            <Pin className={cn('size-4', !config.launcherHideOnUnfocus && 'fill-current')} />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => void handleOpenSettings()}
-            aria-label="打开设置"
-            title="打开设置"
-          >
-            <Settings className="size-4" />
-          </Button>
+            <Button
+              type="button"
+              variant={config.launcherHideOnUnfocus ? 'ghost' : 'default'}
+              size="icon-sm"
+              onClick={() => void updateConfig({ launcherHideOnUnfocus: !config.launcherHideOnUnfocus })}
+              aria-label={config.launcherHideOnUnfocus ? '固定面板' : '取消固定'}
+              title={config.launcherHideOnUnfocus ? '固定面板（失焦不自动关闭）' : '取消固定（失焦时自动关闭）'}
+            >
+              <Pin className={cn('size-4', !config.launcherHideOnUnfocus && 'fill-current')} />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void handleOpenSettings()}
+              aria-label="打开设置"
+              title="打开设置"
+            >
+              <Settings className="size-4" />
+            </Button>
           </div>
         </div>
         <div className="flex shrink-0 border-b border-border/70 bg-muted/35 px-4 py-3">

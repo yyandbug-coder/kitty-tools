@@ -21,13 +21,14 @@ const PROVIDERS: { value: TranslateProvider; label: string }[] = [
 function TranslateProviderHint({ provider }: { provider: TranslateProvider }) {
   const link =
     'font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary'
-  const mono = 'rounded bg-muted/90 px-1 py-px font-mono text-[11px] text-foreground/90'
+  const mono =
+    'rounded bg-muted/90 px-1 py-px font-mono text-[11px] text-popover-foreground/90'
   switch (provider) {
     case 'baidu':
       return (
         <div className="space-y-2">
-          <p>
-            <strong className="font-semibold">翻译与百度截图</strong>：使用{' '}
+          <p className="text-muted-foreground">
+            <strong className="font-semibold text-popover-foreground">翻译与百度截图</strong>：使用{' '}
             <a className={link} href="https://fanyi-api.baidu.com/" target="_blank" rel="noreferrer">
               百度翻译开放平台
             </a>{' '}
@@ -37,7 +38,7 @@ function TranslateProviderHint({ provider }: { provider: TranslateProvider }) {
       )
     case 'google':
       return (
-        <p>
+        <p className="text-muted-foreground">
           使用{' '}
           <a
             className={link}
@@ -47,13 +48,13 @@ function TranslateProviderHint({ provider }: { provider: TranslateProvider }) {
           >
             Google Cloud Translation API v2
           </a>{' '}
-          ，请求地址<strong className="font-medium">由应用内置</strong>；填写 API Key（文本翻译与截图识字
-          <strong className="font-medium">共用</strong>）。
+          ，请求地址<strong className="font-medium text-popover-foreground">由应用内置</strong>；填写 API Key（文本翻译与截图识字
+          <strong className="font-medium text-popover-foreground">共用</strong>）。
         </p>
       )
     case 'youdao':
       return (
-        <p>
+        <p className="text-muted-foreground">
           使用{' '}
           <a className={link} href="https://ai.youdao.com/" target="_blank" rel="noreferrer">
             网易有道智云
@@ -63,7 +64,7 @@ function TranslateProviderHint({ provider }: { provider: TranslateProvider }) {
       )
     case 'openai':
       return (
-        <p>
+        <p className="text-muted-foreground">
           兼容 OpenAI Chat Completions 的接口。填写根路径（含 <span className={mono}>/v1</span>）、密钥与模型名。
         </p>
       )
@@ -120,11 +121,18 @@ export default function SettingsTranslateTab({
                   size="icon"
                   className="size-8 shrink-0 text-muted-foreground"
                   aria-label="当前引擎说明"
+                  data-no-drag="true"
                 >
                   <CircleHelp className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="left" sideOffset={8} className="max-w-xs">
+              <TooltipContent
+                variant="rich"
+                side="left"
+                align="start"
+                sideOffset={8}
+                className="max-w-[min(calc(100vw-1.5rem),22rem)] space-y-2 text-[11px] leading-relaxed sm:max-w-sm sm:text-xs"
+              >
                 <TranslateProviderHint provider={config.translateProvider} />
               </TooltipContent>
             </Tooltip>

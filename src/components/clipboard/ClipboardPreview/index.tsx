@@ -13,7 +13,7 @@ import FileTypeIcon from '@/components/clipboard/FileTypeIcon'
 import SourceAppIcon from '@/components/clipboard/SourceAppIcon'
 import SvgIcon from '@/components/shared/SvgIcon'
 import VirtualTextPreview from '@/components/clipboard/VirtualTextPreview'
-import { peekClipboardImagePreviewUrl, warmClipboardImagePreview } from '@/lib/clipboard/clipboard-image-preview'
+import { peekClipboardImagePreviewUrl, warmClipboardImagePreview } from '@/app/lib/clipboard/clipboard-image-preview'
 import { formatFileSize, sumFileByteSizes } from '@/lib/format-bytes'
 import { cn } from '@/lib/utils'
 

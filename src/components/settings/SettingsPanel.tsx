@@ -26,7 +26,7 @@ import {
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useTheme } from '@/hooks/useTheme'
 import { DEFAULT_CONFIG, type TranslateProvider, type TranslateResult } from '@/types'
-import { HISTORY_MAX_ITEMS_OPTIONS, HISTORY_RETENTION_OPTIONS } from '@/lib/clipboard/history-settings'
+import { HISTORY_MAX_ITEMS_OPTIONS, HISTORY_RETENTION_OPTIONS } from '@/app/lib/clipboard/history-settings'
 import { PRESET_THEMES, getThemeOption, MIN_BACKGROUND_OPACITY, MAX_BACKGROUND_OPACITY } from '@/lib/theme'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'

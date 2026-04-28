@@ -10,7 +10,7 @@ use std::sync::Arc;
 #[cfg(target_os = "macos")]
 use std::sync::Mutex;
 use tauri::window::Color;
-use tauri::{Emitter, Manager, Runtime, WebviewUrl, WebviewWindow, WindowEvent};
+use tauri::{Emitter, LogicalSize, Manager, Runtime, Size, WebviewUrl, WebviewWindow, WindowEvent};
 
 // ── Window label constants ──────────────────────────────────────────────
 
@@ -282,6 +282,41 @@ pub fn toggle_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
 
 // ── Launcher (command palette) window ─────────────────────────────────
 
+/// 启动器内联尺寸下限（逻辑像素）。
+const LAUNCHER_MIN_INNER_W: u32 = 360;
+const LAUNCHER_MIN_INNER_H: u32 = 280;
+/// 从配置恢复启动器时的逻辑尺寸上限：拦截误持久化的超大值（常见为 Retina 物理像素被当成逻辑尺寸），
+/// 同时仍允许故意拉得较大的面板（高于典型 Alfred 窗口）。
+const LAUNCHER_MAX_RESTORE_W: u32 = 1280;
+const LAUNCHER_MAX_RESTORE_H: u32 = 900;
+
+fn launcher_inner_size_from_config<R: Runtime>(app: &tauri::AppHandle<R>) -> (f64, f64) {
+    let cfg_state = app.state::<std::sync::Mutex<crate::config::AppConfig>>();
+    let g = crate::app_state::lock_poisoned(&*cfg_state);
+    let w = g
+        .launcher_window_width
+        .unwrap_or(680)
+        .clamp(LAUNCHER_MIN_INNER_W, LAUNCHER_MAX_RESTORE_W) as f64;
+    let h = g
+        .launcher_window_height
+        .unwrap_or(480)
+        .clamp(LAUNCHER_MIN_INNER_H, LAUNCHER_MAX_RESTORE_H) as f64;
+    (w, h)
+}
+
+/// 关闭启动器时把物理 `inner_size` 转为逻辑尺寸写入配置；优先用当前显示器 `scale_factor`，
+/// 避免无边框 WebView 在 macOS 上 `window.scale_factor()` 偶发偏低导致误存约 scale 倍的尺寸。
+fn launcher_save_scale_factor<R: Runtime>(window: &WebviewWindow<R>) -> f64 {
+    let window_sf = window.scale_factor().unwrap_or(1.0);
+    if let Ok(Some(mon)) = window.current_monitor() {
+        let mon_sf = mon.scale_factor();
+        if mon_sf > window_sf + 0.05 {
+            return mon_sf;
+        }
+    }
+    window_sf
+}
+
 /// 创建启动器：不透明（与划词翻译浮窗一致）、无装饰、置顶、可调整大小。
 pub fn get_or_create_launcher_window<R: Runtime>(
     app: &tauri::AppHandle<R>,
@@ -289,13 +324,7 @@ pub fn get_or_create_launcher_window<R: Runtime>(
     if let Some(w) = app.get_webview_window(WINDOW_LAUNCHER) {
         return Ok(w);
     }
-    let (iw, ih) = {
-        let cfg_state = app.state::<std::sync::Mutex<crate::config::AppConfig>>();
-        let g = crate::app_state::lock_poisoned(&*cfg_state);
-        let w = g.launcher_window_width.unwrap_or(680).clamp(360, 2400) as f64;
-        let h = g.launcher_window_height.unwrap_or(480).clamp(280, 1800) as f64;
-        (w, h)
-    };
+    let (iw, ih) = launcher_inner_size_from_config(app);
     let window = WebviewWindow::builder(app, WINDOW_LAUNCHER, webview_url("html/launcher.html"))
         .title("Kitty Tools · 启动器")
         .inner_size(iw, ih)
@@ -303,7 +332,7 @@ pub fn get_or_create_launcher_window<R: Runtime>(
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(true)
-        .min_inner_size(360.0, 280.0)
+        .min_inner_size(LAUNCHER_MIN_INNER_W as f64, LAUNCHER_MIN_INNER_H as f64)
         .visible(false)
         .center()
         .build()?;
@@ -324,6 +353,8 @@ pub fn show_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
     let _ = get_or_create_launcher_window(app);
 
     if let Some(window) = app.get_webview_window(WINDOW_LAUNCHER) {
+        let (iw, ih) = launcher_inner_size_from_config(app);
+        let _ = window.set_size(Size::Logical(LogicalSize::new(iw, ih)));
         let _ = window.show();
 
         #[cfg(target_os = "windows")]
@@ -382,9 +413,9 @@ fn register_launcher_handlers<R: Runtime>(window: &WebviewWindow<R>, app: &tauri
 pub fn hide_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window(WINDOW_LAUNCHER) {
         // `inner_size()` 为物理像素；创建窗口时 `inner_size(w,h)` 为逻辑像素（尤其 macOS Retina）。
-        // 若直接保存物理尺寸，下次启动会把窗口拉到约为原本的 scale 倍（易表现为接近全屏、下方大块留白）。
+        // 若换算用的 scale 偏小，会把物理像素误存为逻辑尺寸，下次打开接近全屏、内容挤在上方。
         if let Ok(physical) = window.inner_size() {
-            let scale = window.scale_factor().unwrap_or(1.0);
+            let scale = launcher_save_scale_factor(&window);
             let w = ((physical.width as f64) / scale).round() as u32;
             let h = ((physical.height as f64) / scale).round() as u32;
             if (320..=4096).contains(&w) && (200..=4096).contains(&h) {

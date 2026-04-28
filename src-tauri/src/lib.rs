@@ -53,6 +53,11 @@ fn open_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), Stri
     window::present_settings_window(&app).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn hide_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    window::hide_settings_window(&app).map_err(|e| e.to_string())
+}
+
 /// 开发调试用：打开首次运行引导窗口（生产包无入口，由前端仅在 dev 调用）。
 #[tauri::command]
 fn show_onboarding_window_cmd<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
@@ -658,6 +663,7 @@ pub fn run() {
             floating_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             clipboard_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             launcher_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            suppress_macos_overlay_restore: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
             // Clipboard commands
@@ -665,6 +671,7 @@ pub fn run() {
             show_window,
             hide_window,
             open_settings_window,
+            hide_settings_window,
             show_onboarding_window_cmd,
             exit_after_flush,
             clipboard::paste::paste_item,
@@ -700,7 +707,7 @@ pub fn run() {
                 eprintln!("[kitty-tools] 托盘初始化失败: {}", e);
             }
 
-            // Ensure tray-only app (no dock/taskbar icon)
+            // macOS：Dock 可见；Windows：浮层跳过任务栏
             if let Err(e) = window::ensure_tray_only_app(app.handle()) {
                 eprintln!("[kitty-tools] 设置托盘模式失败: {}", e);
             }

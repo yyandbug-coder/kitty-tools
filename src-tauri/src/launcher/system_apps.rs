@@ -1,6 +1,7 @@
 //! 启动器：可搜索的常用系统应用（Windows / macOS），与 Kitty 内置动作相区分。
 
 use std::path::Path;
+use std::sync::OnceLock;
 
 use super::LauncherItem;
 
@@ -26,34 +27,52 @@ enum AppLaunch {
     MacOpen(&'static str),
 }
 
+struct SysAppCompiled {
+    app: &'static SysApp,
+    title_lower: String,
+    subtitle_lower: String,
+    extras_lower: Vec<String>,
+}
+
+static COMPILED: OnceLock<Vec<SysAppCompiled>> = OnceLock::new();
+
+fn compiled_apps() -> &'static [SysAppCompiled] {
+    COMPILED
+        .get_or_init(|| {
+            all()
+                .iter()
+                .map(|app| SysAppCompiled {
+                    app,
+                    title_lower: app.title.to_lowercase(),
+                    subtitle_lower: app.subtitle.to_lowercase(),
+                    extras_lower: app.match_extra.iter().map(|s| s.to_lowercase()).collect(),
+                })
+                .collect()
+        })
+        .as_slice()
+}
+
 /// 无关键词时展示全部；有关键词时按标题/副标题/附加词过滤。
 pub fn items_for_query(q: &str, q_lower: &str) -> Vec<LauncherItem> {
-    let apps = all();
+    let apps = compiled_apps();
     if q.trim().is_empty() {
-        return apps.iter().map(|a| a.to_item()).collect();
+        return apps.iter().map(|c| c.app.to_item()).collect();
+    }
+    if q_lower.is_empty() {
+        return Vec::new();
     }
     apps
         .iter()
-        .filter(|a| a.matches(q_lower))
-        .map(|a| a.to_item())
+        .filter(|c| {
+            c.title_lower.contains(q_lower)
+                || c.subtitle_lower.contains(q_lower)
+                || c.extras_lower.iter().any(|e| e.contains(q_lower))
+        })
+        .map(|c| c.app.to_item())
         .collect()
 }
 
 impl SysApp {
-    fn matches(&self, q_lower: &str) -> bool {
-        if q_lower.is_empty() {
-            return true;
-        }
-        let t = self.title.to_lowercase();
-        let s = self.subtitle.to_lowercase();
-        if t.contains(q_lower) || s.contains(q_lower) {
-            return true;
-        }
-        self.match_extra
-            .iter()
-            .any(|x| x.to_lowercase().contains(q_lower))
-    }
-
     fn to_item(&self) -> LauncherItem {
         let (kind, payload) = match &self.act {
             AppLaunch::OpenPath(p) => ("open_path", (*p).to_string()),

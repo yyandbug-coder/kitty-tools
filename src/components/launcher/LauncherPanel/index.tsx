@@ -3,7 +3,15 @@
  * 输入关键词筛选内置动作、系统快捷项、已安装应用（Windows 开始菜单 / macOS 应用程序）、URL、路径、书签等；find/open 前缀按 Alfred 习惯搜文件（揭示目录 / 打开文件）；
  * 标题行与搜索条外圈通过 start_launcher_drag 原生拖动（与剪贴板/翻译浮层一致）；工具栏、搜索框等为 data-no-drag。
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+} from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -25,8 +33,8 @@ import AppLogoIcon from '@/components/shared/AppLogoIcon'
 
 const PAGE_STEP = 10
 const FIND_OPEN_DEBOUNCE_MS = 160
-/** 普通关键词：略防抖，减少连续按键时的后端查询次数（与 find/open 分开，可更短）。 */
-const GENERAL_SEARCH_DEBOUNCE_MS = 72
+/** 普通关键词：防抖略长，避免与后端 `spawn_blocking` 查询重叠排队导致输入卡顿（尤其书签较多时）。 */
+const GENERAL_SEARCH_DEBOUNCE_MS = 130
 
 function LauncherPanel() {
   const { config, loaded, updateConfig } = useAppConfig()
@@ -39,7 +47,16 @@ function LauncherPanel() {
   const scrollParentRef = useRef<HTMLDivElement>(null)
   const queryForResultRef = useRef(query)
   const searchGenRef = useRef(0)
+  /** 中文等 IME：compositionend 后紧随的 Enter 用于上屏，WebKit 上 `isComposing` 可能已为 false，需短暂忽略本次打开第一项。 */
+  const imeSuppressEnterRef = useRef(false)
   queryForResultRef.current = query
+
+  const handleCompositionEnd = useCallback(() => {
+    imeSuppressEnterRef.current = true
+    queueMicrotask(() => {
+      imeSuppressEnterRef.current = false
+    })
+  }, [])
 
   const listVirtualizer = useVirtualizer({
     count: items.length,
@@ -107,8 +124,10 @@ function LauncherPanel() {
               if (queryForResultRef.current !== queryStr) {
                 return
               }
-              setItems(res)
-              setSelected(0)
+              startTransition(() => {
+                setItems(res)
+                setSelected(0)
+              })
             })
             .catch((e) => {
               handleError(e, queryStr)
@@ -140,8 +159,10 @@ function LauncherPanel() {
             if (queryForResultRef.current !== q) {
               return
             }
-            setItems(res)
-            setSelected(0)
+            startTransition(() => {
+              setItems(res)
+              setSelected(0)
+            })
           })
           .catch((e) => {
             handleError(e, q)
@@ -215,6 +236,10 @@ function LauncherPanel() {
   }, [])
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    const ne = e.nativeEvent
+    if (ne.isComposing || ne.keyCode === 229) {
+      return
+    }
     const mod = e.metaKey || e.ctrlKey
     if (mod && e.key >= '1' && e.key <= '9') {
       e.preventDefault()
@@ -273,6 +298,9 @@ function LauncherPanel() {
       return
     }
     if (e.key === 'Enter') {
+      if (imeSuppressEnterRef.current) {
+        return
+      }
       e.preventDefault()
       executeAt(selected)
       return
@@ -384,6 +412,7 @@ function LauncherPanel() {
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onCompositionEnd={handleCompositionEnd}
               placeholder="搜索功能、URL 或本地路径…"
               className="h-8 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
               autoFocus

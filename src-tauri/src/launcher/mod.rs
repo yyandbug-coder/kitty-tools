@@ -8,6 +8,8 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
+use rayon::join;
+
 use tauri::State;
 use tauri::AppHandle;
 use tauri::Runtime;
@@ -143,14 +145,18 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
         return out;
     }
 
-    let bms = bookmarks::bookmark_items_for_query(
-        q,
-        config.launcher_bookmarks_chrome,
-        config.launcher_bookmarks_edge,
-        config.launcher_bookmarks_brave,
+    let chrome = config.launcher_bookmarks_chrome;
+    let edge = config.launcher_bookmarks_edge;
+    let brave = config.launcher_bookmarks_brave;
+    let ((bms, system_hits), installed_hits) = join(
+        || {
+            join(
+                || bookmarks::bookmark_items_for_query(q, chrome, edge, brave),
+                || system_apps::items_for_query(q, &q_lower),
+            )
+        },
+        || installed_apps::items_for_query(q, &q_lower),
     );
-    let system_hits = system_apps::items_for_query(&q, &q_lower);
-    let installed_hits = installed_apps::items_for_query(&q, &q_lower);
 
     let mut out: Vec<LauncherItem> = Vec::new();
     out.extend(bms);
@@ -172,7 +178,7 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
         );
     }
 
-    if path_exists(q) {
+    if query_looks_like_filesystem_path(q) && path_exists(q) {
         let p = Path::new(q);
         out.insert(
             0,
@@ -301,6 +307,32 @@ fn builtins_table() -> &'static [BuiltinRow] {
 fn path_exists(s: &str) -> bool {
     let p = Path::new(s);
     p.exists() && (p.is_file() || p.is_dir())
+}
+
+/// 避免对纯关键词（如中文应用名）每次 `exists()` 打盘；仅对像路径的输入检测。
+fn query_looks_like_filesystem_path(q: &str) -> bool {
+    let t = q.trim();
+    if t.is_empty() {
+        return false;
+    }
+    if t.starts_with('~') || t.starts_with("./") || t.starts_with("../") {
+        return true;
+    }
+    #[cfg(unix)]
+    if t.starts_with('/') {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        let b = t.as_bytes();
+        if t.starts_with(r"\\") {
+            return true;
+        }
+        if b.len() >= 2 && b[1] == b':' {
+            return true;
+        }
+    }
+    t.contains('/') || t.contains('\\')
 }
 
 fn is_probable_url(s: &str) -> bool {

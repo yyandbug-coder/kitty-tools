@@ -46,8 +46,14 @@ fn persist(store: &RecencyStore) {
     }
 }
 
-fn normalize_url_key(url: &str) -> String {
+/// 与存储键一致；书签排序等批量场景应配合 [`url_recency_snapshot`]，勿在比较器中反复加锁。
+pub(crate) fn normalize_url_key(url: &str) -> String {
     url.trim().to_lowercase()
+}
+
+/// 一次性复制 URL→最近打开时间，避免排序比较器反复加锁读 store。
+pub(crate) fn url_recency_snapshot() -> std::collections::HashMap<String, i64> {
+    lock_poisoned(ensure_store()).url_last_ms.clone()
 }
 
 /// 启动器成功打开 URL 后调用；仅记录 http(s)，与书签/「在浏览器中打开」一致。
@@ -64,11 +70,4 @@ pub fn record_url_opened(payload: &str) {
         g.clone()
     };
     persist(&snapshot);
-}
-
-/// 用于排序：越大表示越晚打开过；未打开过为 0。
-pub fn url_last_opened_ms(url: &str) -> i64 {
-    let key = normalize_url_key(url);
-    let g = lock_poisoned(ensure_store());
-    g.url_last_ms.get(&key).copied().unwrap_or(0)
 }

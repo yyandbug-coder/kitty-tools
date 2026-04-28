@@ -2,7 +2,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
@@ -154,7 +153,9 @@ export default function SettingsPanel() {
   }
 
   const handleCloseWindow = useCallback(() => {
-    void getCurrentWindow().hide()
+    void invoke('hide_settings_window').catch((err) => {
+      toast.error(getInvokeErrorMessage(err) || '无法关闭设置窗口')
+    })
   }, [])
 
   return (

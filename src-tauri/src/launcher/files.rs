@@ -239,12 +239,36 @@ fn walk_one_root(
 
 /// 是否进入/遍历该路径：`exclude_dir_names` **仅对目录**生效，避免与同名文件（如无扩展名 `dist`）冲突。
 /// 深层以 `.` 开头且非 `.` 的目录/文件名一律跳过（如 `.env`、`.git`）。
+///
+/// **macOS**：不进入 `*.app` 包内（避免 `find`/`open` 搜出一堆 `Contents/Resources` 里的 svg/png）。
+/// **Windows**：跳过 `WindowsApps`、`WinSxS`、Chromium 系 `Application\…\resources\`、Electron `resources\app\` 等应用内部资源路径。
 fn walk_entry_allowed(
     e: &walkdir::DirEntry,
     exclude_dir_names: &HashSet<String>,
 ) -> bool {
     let name = e.file_name();
-    if e.file_type().is_dir() {
+    let is_dir = e.file_type().is_dir();
+
+    if is_dir {
+        if let Some(s) = name.to_str() {
+            #[cfg(target_os = "macos")]
+            if s.ends_with(".app") {
+                return false;
+            }
+            if s.eq_ignore_ascii_case("node_modules") {
+                return false;
+            }
+        } else if name.to_string_lossy().eq_ignore_ascii_case("node_modules") {
+            return false;
+        }
+    }
+
+    #[cfg(windows)]
+    if !platform_windows_allow_path_for_walk(&e.path()) {
+        return false;
+    }
+
+    if is_dir {
         let excluded = if let Some(s) = name.to_str() {
             exclude_dir_names.contains(&s.to_lowercase())
         } else {
@@ -264,6 +288,29 @@ fn walk_entry_allowed(
         if hidden_dot {
             return false;
         }
+    }
+    true
+}
+
+#[cfg(windows)]
+fn platform_windows_allow_path_for_walk(path: &Path) -> bool {
+    let pl = path.to_string_lossy().to_lowercase();
+    if pl.contains("windowsapps") || pl.contains("\\winsxs\\") {
+        return false;
+    }
+    // Chromium：...\Google\Chrome\Application\<ver>\...、Edge、Brave 等
+    if pl.contains("\\application\\") && pl.contains("\\resources\\") {
+        if pl.contains("\\google\\chrome\\")
+            || pl.contains("\\microsoft\\edge\\")
+            || pl.contains("\\bravesoftware\\brave-browser\\")
+            || pl.contains("\\vivaldi\\application\\")
+        {
+            return false;
+        }
+    }
+    // Electron / VS Code / Antigravity 等：...\resources\app\...
+    if pl.contains("\\resources\\app\\") {
+        return false;
     }
     true
 }

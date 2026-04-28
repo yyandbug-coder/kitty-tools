@@ -214,16 +214,29 @@ pub fn show_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
     let _ = app.emit("focus-clipboard-panel", ());
 }
 
-/// Hide the clipboard popup window.
-pub fn hide_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
+/// 仅隐藏剪贴板浮层并通知前端；**不**执行 macOS 的 `app.hide()` / 恢复前台 App。
+/// 供 `present_settings_window` 使用：若在此处把焦点还给上一应用，设置窗会一闪即失焦。
+fn hide_clipboard_popup_layer<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window(WINDOW_CLIPBOARD_POPUP) {
         let _ = window.hide();
     }
     // 关闭后再通知前端重置搜索/滚动，避免打开时闪动
     let _ = app.emit("clipboard-panel-hidden", ());
+}
+
+/// Hide the clipboard popup window.
+pub fn hide_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
+    hide_clipboard_popup_layer(app);
 
     #[cfg(target_os = "macos")]
     {
+        if app
+            .state::<crate::app_state::AppState>()
+            .suppress_macos_overlay_restore
+            .load(Ordering::Acquire)
+        {
+            return;
+        }
         let _ = app.hide();
         restore_previous_application();
     }
@@ -409,8 +422,8 @@ fn register_launcher_handlers<R: Runtime>(window: &WebviewWindow<R>, app: &tauri
     });
 }
 
-/// 隐藏启动器。
-pub fn hide_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
+/// 仅隐藏启动器并持久化尺寸；**不**执行 macOS 的 `app.hide()` / 恢复前台 App（见 `hide_clipboard_popup_layer`）。
+fn hide_launcher_layer<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window(WINDOW_LAUNCHER) {
         // `inner_size()` 为物理像素；创建窗口时 `inner_size(w,h)` 为逻辑像素（尤其 macOS Retina）。
         // 若换算用的 scale 偏小，会把物理像素误存为逻辑尺寸，下次打开接近全屏、内容挤在上方。
@@ -432,9 +445,21 @@ pub fn hide_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
         }
         let _ = window.hide();
     }
+}
+
+/// 隐藏启动器。
+pub fn hide_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
+    hide_launcher_layer(app);
 
     #[cfg(target_os = "macos")]
     {
+        if app
+            .state::<crate::app_state::AppState>()
+            .suppress_macos_overlay_restore
+            .load(Ordering::Acquire)
+        {
+            return;
+        }
         let _ = app.hide();
         restore_previous_application();
     }
@@ -650,11 +675,11 @@ pub fn get_or_create_settings_window<R: Runtime>(
             .build()?;
     apply_windows_webview_post_create(&window);
 
-    let w_clone = window.clone();
+    let app_on_close = app.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::CloseRequested { api, .. } = event {
             api.prevent_close();
-            let _ = w_clone.hide();
+            let _ = hide_settings_window(&app_on_close);
         }
     });
 
@@ -662,18 +687,56 @@ pub fn get_or_create_settings_window<R: Runtime>(
 }
 
 /// 先隐藏可能遮挡设置的浮层，再显示设置窗口（与前端 `open_settings_window`、托盘「设置」一致）。
+///
+/// macOS：`hide_*_layer` 会触发剪贴板/启动器的 `Focused(false)`，其回调会再次调用 `hide_clipboard_popup` /
+/// `hide_launcher`；期间须 `suppress_macos_overlay_restore`，否则 `restore_previous_application` 会抢走设置窗焦点。
 pub fn present_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    hide_floating_window(app);
-    hide_clipboard_popup(app);
-    hide_launcher(app);
-    show_settings_window(app)
+    #[cfg(target_os = "macos")]
+    app.state::<crate::app_state::AppState>()
+        .suppress_macos_overlay_restore
+        .store(true, Ordering::Release);
+
+    let result = (|| {
+        hide_floating_window(app);
+        hide_clipboard_popup_layer(app);
+        hide_launcher_layer(app);
+        #[cfg(target_os = "macos")]
+        {
+            let _ = app.show();
+            activate_current_application();
+        }
+        show_settings_window(app)
+    })();
+
+    #[cfg(target_os = "macos")]
+    app.state::<crate::app_state::AppState>()
+        .suppress_macos_overlay_restore
+        .store(false, Ordering::Release);
+
+    result
 }
 
 /// Show the settings window.
 pub fn show_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = macos_apply_settings_visible_dock(app);
+    }
     let window = get_or_create_settings_window(app)?;
     let _ = window.show();
     let _ = window.set_focus();
+    Ok(())
+}
+
+/// 隐藏设置窗口；macOS 上恢复无 Dock 的托盘模式（与关闭按钮、系统关闭一致）。
+pub fn hide_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window(WINDOW_SETTINGS) {
+        let _ = window.hide();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = macos_apply_tray_only_no_dock(app);
+    }
     Ok(())
 }
 
@@ -779,8 +842,23 @@ pub fn show_onboarding_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::R
 
 // ── Tray-only app helpers ───────────────────────────────────────────────
 
-/// Ensure the app behaves as a tray-only utility: no Dock icon (macOS),
-/// no taskbar button (Windows).
+/// macOS：托盘/浮层模式——Accessory，不占用程序坞（与「仅打开设置时显示 Dock」配合）。
+#[cfg(target_os = "macos")]
+fn macos_apply_tray_only_no_dock<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    app.set_activation_policy(tauri::ActivationPolicy::Accessory)?;
+    app.set_dock_visibility(false)?;
+    Ok(())
+}
+
+/// macOS：设置窗口在前台时显示程序坞，便于从 Dock 点回设置。
+#[cfg(target_os = "macos")]
+fn macos_apply_settings_visible_dock<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    app.set_activation_policy(tauri::ActivationPolicy::Regular)?;
+    app.set_dock_visibility(true)?;
+    Ok(())
+}
+
+/// 桌面集成策略：Windows 侧隐藏浮层任务栏按钮（设置窗除外）；macOS 默认无 Dock，见 `macos_apply_settings_visible_dock`。
 pub fn ensure_tray_only_app<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     #[cfg(target_os = "windows")]
     {
@@ -801,8 +879,7 @@ pub fn ensure_tray_only_app<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
 
     #[cfg(target_os = "macos")]
     {
-        app.set_activation_policy(tauri::ActivationPolicy::Accessory)?;
-        app.set_dock_visibility(false)?;
+        macos_apply_tray_only_no_dock(app)?;
     }
 
     Ok(())

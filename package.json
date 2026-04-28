@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "analyze": "tsc && vite build --mode analyze",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -37,6 +38,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "rollup-plugin-visualizer": "^7.0.1",
     "tailwindcss": "^4.2.2",
     "tauri-release-utils": "^0.1.1",
     "typescript": "~5.8.3",

@@ -23,7 +23,10 @@ fn ensure_schema(conn: &Connection) -> Result<(), String> {
         "CREATE TABLE IF NOT EXISTS app_config (
             singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
             payload TEXT NOT NULL
-        );",
+        );
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+        PRAGMA busy_timeout = 5000;",
     )
     .map_err(|e| format!("SQLite 初始化失败: {}", e))?;
     Ok(())

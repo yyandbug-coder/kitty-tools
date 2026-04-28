@@ -29,7 +29,8 @@ interface ClipboardHistorySqlRow {
   favorited: number
 }
 
-const BATCH_SIZE = 40
+/** 每批 13 列占位；变量数需低于 SQLite 连接限制（通常 ≥999） */
+const BATCH_SIZE = 52
 
 export async function ensureClipboardHistorySchema(db: Database): Promise<void> {
   await db.execute(`
@@ -53,21 +54,21 @@ export async function ensureClipboardHistorySchema(db: Database): Promise<void> 
 }
 
 function clipboardItemToParams(item: ClipboardItem): unknown[] {
-  const disk = item.type === 'image' ? { ...item, imageRgba: undefined } : item
+  // 仅序列化落库字段，不展开整项（避免对含 imageRgba 的图片项做浅拷贝）
   return [
-    disk.id,
-    disk.type,
-    disk.content ?? '',
-    disk.contentHash ?? null,
-    disk.imageByteSize ?? null,
-    disk.fileByteSizes?.length ? JSON.stringify(disk.fileByteSizes) : null,
-    disk.filePaths?.length ? JSON.stringify(disk.filePaths) : null,
-    disk.imageWidth ?? null,
-    disk.imageHeight ?? null,
-    disk.timestamp,
-    disk.sourceApp ?? null,
-    disk.sourceAppPath ?? null,
-    disk.favorited ? 1 : 0,
+    item.id,
+    item.type,
+    item.content ?? '',
+    item.contentHash ?? null,
+    item.imageByteSize ?? null,
+    item.fileByteSizes?.length ? JSON.stringify(item.fileByteSizes) : null,
+    item.filePaths?.length ? JSON.stringify(item.filePaths) : null,
+    item.imageWidth ?? null,
+    item.imageHeight ?? null,
+    item.timestamp,
+    item.sourceApp ?? null,
+    item.sourceAppPath ?? null,
+    item.favorited ? 1 : 0,
   ]
 }
 
@@ -88,14 +89,24 @@ export async function replaceClipboardHistoryWithConnection(
   db: Database,
   items: ClipboardItem[],
 ): Promise<void> {
-  await db.execute(`DELETE FROM ${TABLE}`)
-  if (items.length === 0) {
-    return
-  }
-  for (let i = 0; i < items.length; i += BATCH_SIZE) {
-    const batch = items.slice(i, i + BATCH_SIZE)
-    const { sql, args } = buildBatchInsertSql(batch)
-    await db.execute(sql, args)
+  await db.execute('BEGIN')
+  try {
+    await db.execute(`DELETE FROM ${TABLE}`)
+    if (items.length === 0) {
+      await db.execute('COMMIT')
+      return
+    }
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      const batch = items.slice(i, i + BATCH_SIZE)
+      const { sql, args } = buildBatchInsertSql(batch)
+      await db.execute(sql, args)
+    }
+    await db.execute('COMMIT')
+  } catch (err) {
+    await db.execute('ROLLBACK').catch(() => {
+      /* 无活跃事务时忽略 */
+    })
+    throw err
   }
 }
 

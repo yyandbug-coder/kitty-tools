@@ -71,11 +71,13 @@ fn favorited_i(b: bool) -> i32 {
 }
 
 fn build_batch_insert_sql(chunk_len: usize) -> String {
+    // 须使用 `?1,?2,…`（或每个参数前都有 `$`）。原先写成 `(${},{},…)` 只会在第一个数前产生 `$`，
+    // 得到 `($1,2,3,…,13)`：SQLite 仅识别 `$1`，`params_from_iter` 与占位符数量不一致 → 保存失败。
     let placeholders = (0..chunk_len)
         .map(|ri| {
             let o = ri * 13;
             format!(
-                "(${},{},{},{},{},{},{},{},{},{},{},{},{})",
+                "(?{},?{},?{},?{},?{},?{},?{},?{},?{},?{},?{},?{},?{})",
                 o + 1,
                 o + 2,
                 o + 3,
@@ -93,9 +95,7 @@ fn build_batch_insert_sql(chunk_len: usize) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
-    format!(
-        "INSERT INTO clipboard_history ({INSERT_COLS}) VALUES {placeholders}"
-    )
+    format!("INSERT INTO clipboard_history ({INSERT_COLS}) VALUES {placeholders}")
 }
 
 fn append_row_params<'a>(

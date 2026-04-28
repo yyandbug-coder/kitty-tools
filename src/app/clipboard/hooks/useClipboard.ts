@@ -27,20 +27,11 @@ import {
 import {
   CLIPBOARD_FILTER_WORKER_MIN_ITEMS,
   filterClipboardHistoryByKeywordInWorker,
-  parseNormalizeClipboardHistoryFromDbRawInWorker,
-  serializeClipboardHistoryForDbInWorker,
   toClipboardFilterRows,
 } from '@/app/clipboard/lib/clipboard-history-worker'
 import { filterHistoryByRetention } from '@/app/clipboard/lib/clipboard-retention'
 import { applyClipboardHistoryMaxSlice } from '@/app/clipboard/lib/history-settings'
-import { loadClipboardHistoryFromDb, saveClipboardHistoryToDb } from '@/services/database'
-
-const HISTORY_STORAGE_SCHEMA_VERSION = 1
-
-type StoredClipboardHistory = {
-  storageSchemaVersion?: number
-  history?: ClipboardItem[]
-}
+import { loadClipboardHistoryItemsFromDb, replaceClipboardHistoryInDb } from '@/services/database'
 
 export function useClipboard(config: AppConfig) {
   const [history, setHistory] = useState<ClipboardItem[]>([])
@@ -136,18 +127,10 @@ export function useClipboard(config: AppConfig) {
     let cancelled = false
     async function initHistory() {
       try {
-        const raw = await loadClipboardHistoryFromDb()
-        if (cancelled || !raw) return
-        let normalized: ClipboardItem[]
-        try {
-          normalized = await parseNormalizeClipboardHistoryFromDbRawInWorker(raw)
-        } catch {
-          const parsed = JSON.parse(raw) as StoredClipboardHistory
-          if (!Array.isArray(parsed.history)) return
-          normalized = await normalizeSyncMergedHistoryAsync(parsed.history)
-        }
+        const fromTable = await loadClipboardHistoryItemsFromDb()
+        if (cancelled) return
         const cachedHistory = filterHistoryByRetention(
-          applyClipboardHistoryMaxSlice(normalized, historyMaxRef.current),
+          applyClipboardHistoryMaxSlice(fromTable, historyMaxRef.current),
           retentionDaysRef.current,
         )
         if (cancelled || cachedHistory.length === 0) return
@@ -179,17 +162,14 @@ export function useClipboard(config: AppConfig) {
       const snap = historyRef.current
       const imageIds = snap.filter((item) => item.type === 'image').map((item) => item.id)
       void (async () => {
-        let serialized: string
+        if (generation !== persistGenerationRef.current) return
         try {
-          serialized = await serializeClipboardHistoryForDbInWorker(snap, HISTORY_STORAGE_SCHEMA_VERSION)
-        } catch {
-          serialized = JSON.stringify({
-            storageSchemaVersion: HISTORY_STORAGE_SCHEMA_VERSION,
-            history: snap.map((item) => item.type === 'image' ? { ...item, imageRgba: undefined } : item),
-          } satisfies StoredClipboardHistory)
+          await replaceClipboardHistoryInDb(snap)
+        } catch (error) {
+          toastInvokeError('保存剪贴板历史失败', error)
+          return
         }
         if (generation !== persistGenerationRef.current) return
-        try { await saveClipboardHistoryToDb(serialized) } catch (error) { toastInvokeError('保存剪贴板历史失败', error); return }
         try { await invoke('prune_clipboard_image_store', { keepIds: imageIds }) } catch (error) { toastInvokeError('清理剪贴板图片缓存失败', error) }
       })()
     }, persistDelayMs)
@@ -353,15 +333,16 @@ export function useClipboard(config: AppConfig) {
 
   const reloadHistoryFromDb = useCallback(async () => {
     try {
-      const raw = await loadClipboardHistoryFromDb()
-      if (!raw) { clearClipboardImagePreviewCache(); startTransition(() => { setHistory([]); setSelectedIndex(0) }); return }
-      let normalized: ClipboardItem[]
-      try { normalized = await parseNormalizeClipboardHistoryFromDbRawInWorker(raw) } catch {
-        const parsed = JSON.parse(raw) as StoredClipboardHistory
-        if (!Array.isArray(parsed.history)) return
-        normalized = await normalizeSyncMergedHistoryAsync(parsed.history)
+      const fromTable = await loadClipboardHistoryItemsFromDb()
+      if (fromTable.length === 0) {
+        clearClipboardImagePreviewCache()
+        startTransition(() => { setHistory([]); setSelectedIndex(0) })
+        return
       }
-      const cachedHistory = filterHistoryByRetention(applyClipboardHistoryMaxSlice(normalized, historyMaxRef.current), retentionDaysRef.current)
+      const cachedHistory = filterHistoryByRetention(
+        applyClipboardHistoryMaxSlice(fromTable, historyMaxRef.current),
+        retentionDaysRef.current,
+      )
       pruneClipboardImagePreviewCache(cachedHistory.map((item) => item.id))
       startTransition(() => { setHistory(cachedHistory); setSelectedIndex(0) })
     } catch (error) { toastInvokeError('从数据库重新加载剪贴板历史失败', error) }
@@ -395,14 +376,7 @@ export function useClipboard(config: AppConfig) {
     await new Promise<void>((resolve) => { requestAnimationFrame(() => resolve()) })
     const snap = historyRef.current
     const imageIds = snap.filter((item) => item.type === 'image').map((item) => item.id)
-    let serialized: string
-    try { serialized = await serializeClipboardHistoryForDbInWorker(snap, HISTORY_STORAGE_SCHEMA_VERSION) } catch {
-      serialized = JSON.stringify({
-        storageSchemaVersion: HISTORY_STORAGE_SCHEMA_VERSION,
-        history: snap.map((item) => item.type === 'image' ? { ...item, imageRgba: undefined } : item),
-      } satisfies StoredClipboardHistory)
-    }
-    try { await saveClipboardHistoryToDb(serialized) } catch (error) { console.error('退出前保存剪贴板历史失败:', error); throw error }
+    try { await replaceClipboardHistoryInDb(snap) } catch (error) { console.error('退出前保存剪贴板历史失败:', error); throw error }
     try { await invoke('prune_clipboard_image_store', { keepIds: imageIds }) } catch (error) { toast.error('退出前清理图片缓存失败，但不影响已保存的文本历史', { duration: 4000 }); console.error(error) }
   }, [])
 

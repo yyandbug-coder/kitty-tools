@@ -4,28 +4,38 @@
  */
 import dayjs from 'dayjs'
 import Database from '@tauri-apps/plugin-sql'
+import type { ClipboardItem } from '@/types'
+import {
+  CLIPBOARD_HISTORY_LEGACY_SETTINGS_KEY,
+  ensureClipboardHistorySchema,
+  loadClipboardHistoryRows,
+  replaceClipboardHistoryWithConnection,
+} from '@/services/clipboard-history-db'
 
 const DB_PATH = 'sqlite:kitty-settings.db'
 const SETTINGS_KEY = 'app-settings'
-const HISTORY_KEY = 'clipboard-history'
 
 let dbPromise: Promise<Database> | null = null
 
 function getDb(): Promise<Database> {
   if (!dbPromise) {
-    dbPromise = Database.load(DB_PATH).then(async (db) => {
-      await db.execute(`
+    dbPromise = Database.load(DB_PATH)
+      .then(async (db) => {
+        await db.execute(`
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL,
           updated_at INTEGER NOT NULL
         )
       `)
-      return db
-    }).catch((err) => {
-      dbPromise = null
-      throw err
-    })
+        await ensureClipboardHistorySchema(db)
+        await db.execute(`DELETE FROM settings WHERE key = $1`, [CLIPBOARD_HISTORY_LEGACY_SETTINGS_KEY])
+        return db
+      })
+      .catch((err) => {
+        dbPromise = null
+        throw err
+      })
   }
   return dbPromise
 }
@@ -49,17 +59,14 @@ export async function saveSettingsToDb(value: string): Promise<void> {
   await saveKeyValueToDb(SETTINGS_KEY, value)
 }
 
-export async function loadClipboardHistoryFromDb(): Promise<string | null> {
+export async function loadClipboardHistoryItemsFromDb(): Promise<ClipboardItem[]> {
   const db = await getDb()
-  const rows = await db.select<SettingsRow[]>(
-    'SELECT value FROM settings WHERE key = $1',
-    [HISTORY_KEY],
-  )
-  return rows.length > 0 ? rows[0].value : null
+  return loadClipboardHistoryRows(db)
 }
 
-export async function saveClipboardHistoryToDb(value: string): Promise<void> {
-  await saveKeyValueToDb(HISTORY_KEY, value)
+export async function replaceClipboardHistoryInDb(items: ClipboardItem[]): Promise<void> {
+  const db = await getDb()
+  await replaceClipboardHistoryWithConnection(db, items)
 }
 
 async function saveKeyValueToDb(key: string, value: string): Promise<void> {

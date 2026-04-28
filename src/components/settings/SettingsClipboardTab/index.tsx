@@ -16,27 +16,37 @@ export default function SettingsClipboardTab({ config, updateConfig }: SettingsC
   return (
     <Card>
       <CardContent className="space-y-5 pt-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">最大条目数</label>
-          <div className="flex flex-wrap gap-2">
-            {HISTORY_MAX_ITEMS_OPTIONS.map((opt) => (
-              <Button
-                key={opt.value}
-                variant={config.clipboardHistoryMax === opt.value ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => void updateConfig({ clipboardHistoryMax: opt.value })}
-                className="text-xs"
-              >
-                {opt.label}
-              </Button>
-            ))}
+        <div className="space-y-1.5">
+          <div
+            className="flex items-center justify-between gap-3"
+            role="group"
+            aria-label="剪贴板历史最大条目数"
+          >
+            <span className="shrink-0 text-sm font-medium">最大条目数</span>
+            <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-2">
+              {HISTORY_MAX_ITEMS_OPTIONS.map((opt) => (
+                <Button
+                  key={opt.value}
+                  variant={config.clipboardHistoryMax === opt.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => void updateConfig({ clipboardHistoryMax: opt.value })}
+                  className="text-xs"
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">收藏条目不受此限制影响</p>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium">保留天数</label>
-          <div className="flex flex-wrap gap-2">
+        <div
+          className="flex items-center justify-between gap-3"
+          role="group"
+          aria-label="剪贴板历史保留天数"
+        >
+          <span className="shrink-0 text-sm font-medium">保留天数</span>
+          <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-2">
             {HISTORY_RETENTION_OPTIONS.map((opt) => (
               <Button
                 key={opt.value}

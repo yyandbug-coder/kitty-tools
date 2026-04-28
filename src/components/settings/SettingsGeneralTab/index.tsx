@@ -36,9 +36,9 @@ export default function SettingsGeneralTab({ config, updateConfig }: SettingsGen
           />
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium">深浅模式</label>
-          <div className="flex gap-1">
+        <div className="flex items-center justify-between gap-3" role="group" aria-label="深浅模式">
+          <span className="shrink-0 text-sm font-medium">深浅模式</span>
+          <div className="flex shrink-0 gap-1">
             {(
               [
                 { value: 'light' as const, icon: Sun, label: '浅色' },
@@ -69,9 +69,9 @@ export default function SettingsGeneralTab({ config, updateConfig }: SettingsGen
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium">主题色</label>
-          <div className="flex flex-wrap gap-2">
+        <div className="flex items-center justify-between gap-3" role="group" aria-label="主题色">
+          <span className="shrink-0 text-sm font-medium">主题色</span>
+          <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-2">
             {PRESET_THEMES.map((t) => {
               const active = config.appThemePreset === t.id
               return (

@@ -29,7 +29,8 @@ pub struct AppState {
     pub clipboard_interacting: Arc<AtomicBool>,
     /// 启动器正在交互（拖拽等），短暂抑制失焦自动隐藏。
     pub launcher_interacting: Arc<AtomicBool>,
-    /// 正在打开设置：抑制剪贴板/启动器失焦回调里的 `restore_previous_application()`，避免设置窗被抢焦点。
+    /// 正在打开设置：抑制剪贴板/启动器失焦回调里的 `restore_previous_application()`，避免设置窗被抢焦点（仅 macOS）。
+    #[cfg(target_os = "macos")]
     pub suppress_macos_overlay_restore: Arc<AtomicBool>,
 }
 

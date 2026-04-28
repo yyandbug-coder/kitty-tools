@@ -663,6 +663,7 @@ pub fn run() {
             floating_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             clipboard_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             launcher_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            #[cfg(target_os = "macos")]
             suppress_macos_overlay_restore: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![

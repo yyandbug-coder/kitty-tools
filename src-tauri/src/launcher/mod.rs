@@ -20,6 +20,7 @@ use crate::window;
 mod bookmarks;
 mod files;
 mod installed_apps;
+mod recency;
 mod system_apps;
 
 use files::FileOpenMode;
@@ -351,6 +352,7 @@ pub async fn launcher_execute<R: Runtime>(
             app.opener()
                 .open_url(&payload, None::<&str>)
                 .map_err(|e| e.to_string())?;
+            recency::record_url_opened(&payload);
         }
         "open_path" => {
             #[cfg(target_os = "windows")]

@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
+use super::recency;
 use super::LauncherItem;
 
 pub fn bookmark_items_for_query(
@@ -71,10 +72,13 @@ pub fn bookmark_items_for_query(
             payload: url,
             icon_path: None,
         });
-        if out.len() >= 50 {
-            break;
-        }
     }
+    out.sort_by(|a, b| {
+        let ta = recency::url_last_opened_ms(&a.payload);
+        let tb = recency::url_last_opened_ms(&b.payload);
+        tb.cmp(&ta).then_with(|| a.title.cmp(&b.title))
+    });
+    out.truncate(50);
     out
 }
 

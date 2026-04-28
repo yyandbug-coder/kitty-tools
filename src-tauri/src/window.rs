@@ -222,6 +222,8 @@ pub fn hide_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window(WINDOW_CLIPBOARD_POPUP) {
         let _ = window.hide();
     }
+    // 关闭后再通知前端重置搜索/滚动，避免打开时闪动
+    let _ = app.emit("clipboard-panel-hidden", ());
 
     #[cfg(target_os = "macos")]
     {

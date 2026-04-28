@@ -53,6 +53,12 @@ export default function ClipboardHistoryPanel() {
     },
   })
 
+  const scrollListToTop = useCallback(() => {
+    const el = listScrollParentRef.current
+    if (el) el.scrollTop = 0
+    listVirtualizer.scrollToOffset(0)
+  }, [listVirtualizer])
+
   useLayoutEffect(() => {
     if (filtered.length === 0) {
       return
@@ -88,7 +94,26 @@ export default function ClipboardHistoryPanel() {
     }
   }, [flushClipboardHistoryToDisk])
 
-  // Focus search input when panel is shown via hotkey/tray
+  // 关闭面板后重置 UI（Rust hide_clipboard_popup 在 hide 之后 emit），下次打开已是干净状态
+  useEffect(() => {
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+    void listen('clipboard-panel-hidden', () => {
+      setSearch('')
+      setSelectedIndex(0)
+      scrollListToTop()
+      requestAnimationFrame(() => scrollListToTop())
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unlisten = fn
+    })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [setSearch, setSelectedIndex, scrollListToTop])
+
+  // 打开面板时仅聚焦搜索框（清空与回顶已在关闭时完成）
   useEffect(() => {
     let cancelled = false
     let unlisten: (() => void) | undefined

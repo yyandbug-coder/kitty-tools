@@ -14,6 +14,8 @@ import { useAppConfig } from '@/hooks/useAppConfig'
 import { getLanguageDisplayName, getProviderDisplayName } from '@/types'
 import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { formatShortcutForDisplay, translateSubmitShortcutLabel } from '@/lib/platform'
+import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
+import toast from 'react-hot-toast'
 
 interface ScreenshotResultPayload {
   translatedText?: string
@@ -84,7 +86,11 @@ export default function TranslatePanel() {
 
   const autoCopyResult = async (text: string) => {
     if (!config.autoCopy || !text) return
-    try { await navigator.clipboard.writeText(text) } catch { /* clipboard not available */ }
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch (e) {
+      toast.error(`自动复制译文失败：${getInvokeErrorMessage(e)}`, { duration: 4000 })
+    }
   }
 
   const handleTranslate = async () => {
@@ -121,7 +127,9 @@ export default function TranslatePanel() {
         setCopied(false)
         copyResetTimerRef.current = null
       }, 2000)
-    } catch { /* fallback */ }
+    } catch (e) {
+      toast.error(`复制失败：${getInvokeErrorMessage(e)}`, { duration: 4000 })
+    }
   }
 
   const handleClear = () => {
@@ -135,7 +143,7 @@ export default function TranslatePanel() {
       // 语言由后端 AppConfig 决定（与已保存配置一致）；勿传无效参数以免误导维护者
       await invoke('start_screenshot_translate')
     } catch (err) {
-      applyError(typeof err === 'string' ? err : String(err))
+      applyError(getInvokeErrorMessage(err))
     }
   }
 

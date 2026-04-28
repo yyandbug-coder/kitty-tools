@@ -10,11 +10,11 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Toaster } from 'react-hot-toast'
+import toast, { Toaster } from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useKittyIsDarkMode } from '@/hooks/useKittyIsDarkMode'
 import { cn } from '@/lib/utils'
-import { toastInvokeError } from '@/lib/invoke-helpers'
+import { getInvokeErrorMessage, toastInvokeError } from '@/lib/invoke-helpers'
 import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { translateSubmitShortcutLabel } from '@/lib/platform'
 import { getThemeRuntimeStyle } from '@/lib/theme'
@@ -48,6 +48,8 @@ export default function FloatingResult() {
   const [detectedSourceLang, setDetectedSourceLang] = useState<string | null>(null)
   const isDarkMode = useKittyIsDarkMode(config.theme)
   const translateSeqRef = useRef(0)
+  const autoCopyRef = useRef(config.autoCopy)
+  autoCopyRef.current = config.autoCopy
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
     [config.appThemePreset, config.customHue, isDarkMode],
@@ -75,8 +77,10 @@ export default function FloatingResult() {
               setTranslatedText(translated)
               const sl = event.payload?.sourceLang
               setDetectedSourceLang(sl && sl !== 'auto' ? sl : null)
-              if (config.autoCopy && translated.trim()) {
-                void navigator.clipboard.writeText(translated).catch(() => {})
+              if (autoCopyRef.current && translated.trim()) {
+                void navigator.clipboard.writeText(translated).catch(() => {
+                  toast.error('自动复制译文失败，请手动复制', { duration: 4000 })
+                })
               }
             }
           }),
@@ -108,7 +112,7 @@ export default function FloatingResult() {
       unlistenResult?.()
       unlistenLoading?.()
     }
-  }, [config.autoCopy])
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
@@ -150,7 +154,7 @@ export default function FloatingResult() {
       if (seq !== translateSeqRef.current) return
       setTranslatedText('')
       setDetectedSourceLang(null)
-      setError(typeof err === 'string' ? err : String(err))
+      setError(getInvokeErrorMessage(err))
     } finally {
       if (seq === translateSeqRef.current) setLoading(false)
     }
@@ -164,8 +168,8 @@ export default function FloatingResult() {
       setTimeout(() => {
         setCopied((current) => (current === target ? null : current))
       }, 1600)
-    } catch {
-      // clipboard not available
+    } catch (e) {
+      toast.error(`复制失败：${getInvokeErrorMessage(e)}`, { duration: 4000 })
     }
   }
 
@@ -241,7 +245,13 @@ export default function FloatingResult() {
           <div className="flex items-center gap-1" data-no-drag="true">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant={config.floatingPinned ? 'default' : 'ghost'} size="icon" onClick={handleTogglePin} data-no-drag="true">
+                <Button
+                  variant={config.floatingPinned ? 'default' : 'ghost'}
+                  size="icon"
+                  onClick={() => void handleTogglePin()}
+                  aria-label={config.floatingPinned ? '已固定窗口，点击取消固定' : '固定窗口，失焦时不关闭'}
+                  data-no-drag="true"
+                >
                   <Pin className={cn('size-4', config.floatingPinned && 'fill-current')} />
                 </Button>
               </TooltipTrigger>
@@ -249,7 +259,13 @@ export default function FloatingResult() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={() => void handleOpenSettings()} data-no-drag="true">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => void handleOpenSettings()}
+                  aria-label="打开设置"
+                  data-no-drag="true"
+                >
                   <Settings className="size-4" />
                 </Button>
               </TooltipTrigger>
@@ -269,8 +285,9 @@ export default function FloatingResult() {
                 variant="ghost"
                 size="icon"
                 className="shrink-0"
-                onClick={handleSwapLanguages}
+                onClick={() => void handleSwapLanguages()}
                 disabled={config.sourceLang === 'auto' && config.targetLang === 'auto'}
+                aria-label="交换源语言与目标语言"
               >
                 <ArrowRightLeft className="size-4" />
               </Button>
@@ -278,7 +295,7 @@ export default function FloatingResult() {
             <TooltipContent>交换语言</TooltipContent>
           </Tooltip>
           <div className="min-w-0 flex-1">
-            <LanguageSelector value={config.targetLang} onChange={(v) => void handleTargetLangChange(v)}  />
+            <LanguageSelector value={config.targetLang} onChange={(v) => void handleTargetLangChange(v)} />
           </div>
         </div>
 
@@ -301,6 +318,7 @@ export default function FloatingResult() {
                       className="size-7 shrink-0"
                       onClick={() => void handleCopy(sourceText, 'source')}
                       disabled={!sourceText.trim()}
+                      aria-label={copied === 'source' ? '已复制原文' : '复制原文'}
                     >
                       {copied === 'source' ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
                     </Button>
@@ -345,6 +363,7 @@ export default function FloatingResult() {
                       className="size-7 shrink-0"
                       onClick={() => void handleCopy(translatedText, 'target')}
                       disabled={!translatedText.trim()}
+                      aria-label={copied === 'target' ? '已复制译文' : '复制译文'}
                     >
                       {copied === 'target' ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
                     </Button>

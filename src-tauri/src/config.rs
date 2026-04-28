@@ -13,7 +13,15 @@ fn default_clipboard_shortcut() -> String {
 }
 
 fn default_launcher_shortcut() -> String {
-    "Alt+Space".to_string()
+    // Windows 上 Alt+Space 常触发系统窗口菜单，易与启动器冲突；macOS 仍用 Alt+Space。
+    #[cfg(target_os = "windows")]
+    {
+        "Ctrl+Shift+Space".to_string()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "Alt+Space".to_string()
+    }
 }
 
 fn default_app_theme_preset() -> String {
@@ -223,7 +231,7 @@ impl Default for AppConfig {
             clipboard_disable_text_selection: true,
             app_theme_preset: "default".to_string(),
             custom_hue: 0,
-            launcher_shortcut: "Alt+Space".to_string(),
+            launcher_shortcut: default_launcher_shortcut(),
             launcher_hide_on_unfocus: true,
             launcher_bookmarks_chrome: false,
             launcher_bookmarks_edge: false,

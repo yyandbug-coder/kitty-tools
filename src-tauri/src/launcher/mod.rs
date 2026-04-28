@@ -337,9 +337,7 @@ pub async fn launcher_execute<R: Runtime>(
     match kind.as_str() {
         "action" => match payload.as_str() {
             "settings" => {
-                window::hide_floating_window(&app);
-                window::hide_clipboard_popup(&app);
-                window::show_settings_window(&app).map_err(|e| e.to_string())?;
+                window::present_settings_window(&app).map_err(|e| e.to_string())?;
             }
             "translate_workspace" => {
                 window::show_translate_workspace(&app).map_err(|e| e.to_string())?;

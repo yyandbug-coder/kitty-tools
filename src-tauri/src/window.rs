@@ -37,7 +37,9 @@ fn remember_frontmost_application() {
         if let Some(frontmost_app) = workspace.frontmostApplication() {
             let frontmost_pid = frontmost_app.processIdentifier();
             if frontmost_pid != current_pid {
-                *PREVIOUS_APP_PID.lock().unwrap() = Some(frontmost_pid);
+                *PREVIOUS_APP_PID
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner()) = Some(frontmost_pid);
             }
         }
     }
@@ -45,7 +47,10 @@ fn remember_frontmost_application() {
 
 #[cfg(target_os = "macos")]
 fn restore_previous_application() {
-    let pid = PREVIOUS_APP_PID.lock().unwrap().take();
+    let pid = PREVIOUS_APP_PID
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take();
 
     if let Some(pid) = pid {
         unsafe {
@@ -623,6 +628,14 @@ pub fn get_or_create_settings_window<R: Runtime>(
     Ok(window)
 }
 
+/// 先隐藏可能遮挡设置的浮层，再显示设置窗口（与前端 `open_settings_window`、托盘「设置」一致）。
+pub fn present_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    hide_floating_window(app);
+    hide_clipboard_popup(app);
+    hide_launcher(app);
+    show_settings_window(app)
+}
+
 /// Show the settings window.
 pub fn show_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let window = get_or_create_settings_window(app)?;
@@ -738,6 +751,7 @@ pub fn show_onboarding_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::R
 pub fn ensure_tray_only_app<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     #[cfg(target_os = "windows")]
     {
+        // 设置窗不列入：保留任务栏入口，方便在长会话设置或 Alt+Tab 中找回窗口。
         for label in [
             WINDOW_CLIPBOARD_POPUP,
             WINDOW_LAUNCHER,
@@ -764,5 +778,5 @@ pub fn ensure_tray_only_app<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
 /// Alias for show_settings_window — convenience for tray menu.
 #[allow(dead_code)]
 pub fn show_main_settings<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    show_settings_window(app)
+    present_settings_window(app)
 }

@@ -145,6 +145,18 @@ export interface AppConfig {
   launcherWindowHeight: number | null;
 }
 
+/** `save_config_cmd` 成功写入后的响应；`syncWarnings` 为快捷键/自启/托盘等非致命同步失败说明 */
+export interface SaveConfigCmdResult {
+  config: AppConfig;
+  syncWarnings: string[];
+}
+
+/** 与后端 `default_launcher_shortcut` 一致：Windows 避免 Alt+Space 与系统菜单冲突 */
+function defaultLauncherShortcutForPlatform(): string {
+  if (typeof navigator === 'undefined') return 'Ctrl+Shift+Space'
+  return navigator.platform.toUpperCase().indexOf('MAC') >= 0 ? 'Alt+Space' : 'Ctrl+Shift+Space'
+}
+
 export const SUPPORTED_LANGUAGES: Language[] = [
   { code: 'auto', name: '自动检测' },
   { code: 'zh-CN', name: '中文' },
@@ -190,7 +202,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   bidirectionalAuto: true,
   bidirectionalLangA: 'zh-CN',
   bidirectionalLangB: 'en',
-  launcherShortcut: 'Alt+Space',
+  launcherShortcut: defaultLauncherShortcutForPlatform(),
   launcherHideOnUnfocus: true,
   launcherBookmarksChrome: false,
   launcherBookmarksEdge: false,

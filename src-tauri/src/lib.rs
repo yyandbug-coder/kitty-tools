@@ -18,13 +18,21 @@ mod window;
 mod win32_sysmenu;
 mod youdao;
 
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 #[cfg(target_os = "macos")]
 use std::time::Duration;
 
 use tauri::{Emitter, Listener, Manager, RunEvent, Runtime};
 use translate::api::{TranslateCreds, TranslateRequest};
+
+/// `save_config_cmd` 返回值：配置已写入磁盘且内存已更新；`sync_warnings` 为快捷键/自启/托盘等非致命同步失败说明。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveConfigCmdResult {
+    pub config: config::AppConfig,
+    pub sync_warnings: Vec<String>,
+}
 
 // ── Tauri commands ──────────────────────────────────────────────────────────
 
@@ -40,12 +48,7 @@ fn hide_window(window: tauri::Window) {
 
 #[tauri::command]
 fn open_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    // 先隐藏 always-on-top 的浮动窗口和剪贴板面板，避免遮挡设置窗口，
-    // 也避免失焦自动隐藏逻辑干扰设置窗口的显示和聚焦
-    window::hide_floating_window(&app);
-    window::hide_clipboard_popup(&app);
-    window::hide_launcher(&app);
-    window::show_settings_window(&app).map_err(|e| e.to_string())
+    window::present_settings_window(&app).map_err(|e| e.to_string())
 }
 
 /// 开发调试用：打开首次运行引导窗口（生产包无入口，由前端仅在 dev 调用）。
@@ -101,7 +104,10 @@ fn get_config(app: tauri::AppHandle) -> config::AppConfig {
 }
 
 #[tauri::command]
-fn save_config_cmd<R: Runtime>(app: tauri::AppHandle<R>, config: config::AppConfig) -> Result<config::AppConfig, String> {
+fn save_config_cmd<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    config: config::AppConfig,
+) -> Result<SaveConfigCmdResult, String> {
     hotkeys::validate_hotkey_config(&config)?;
     let saved = config::save_config(&config)?;
     {
@@ -110,19 +116,29 @@ fn save_config_cmd<R: Runtime>(app: tauri::AppHandle<R>, config: config::AppConf
         *guard = saved.clone();
     }
     let launch = saved.launch_on_startup;
-    // Sync hotkeys if they changed
+    let mut sync_warnings = Vec::new();
+
     if let Err(e) = hotkeys::sync_all_hotkeys(&app, &saved) {
-        eprintln!("[kitty-tools] 快捷键同步失败: {}", e);
+        let msg = format!("快捷键同步失败: {}", e);
+        eprintln!("[kitty-tools] {}", msg);
+        sync_warnings.push(msg);
     }
-    // Sync autostart
-    sync_launch_on_startup(&app, launch);
-    // Refresh tray menu labels
+    if let Err(e) = sync_launch_on_startup(&app, launch) {
+        let msg = format!("开机自启设置未生效: {}", e);
+        eprintln!("[kitty-tools] {}", msg);
+        sync_warnings.push(msg);
+    }
     if let Err(e) = tray::refresh_tray_menu(&app, &saved) {
-        eprintln!("[kitty-tools] 托盘菜单刷新失败: {}", e);
+        let msg = format!("托盘菜单刷新失败: {}", e);
+        eprintln!("[kitty-tools] {}", msg);
+        sync_warnings.push(msg);
     }
-    // Notify all windows
+
     let _ = app.emit("config-updated", &saved);
-    Ok(saved)
+    Ok(SaveConfigCmdResult {
+        config: saved,
+        sync_warnings,
+    })
 }
 
 #[tauri::command]
@@ -293,7 +309,7 @@ fn floating_ready(app: tauri::AppHandle) {
 
 #[tauri::command]
 fn show_settings_window_cmd<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    window::show_settings_window(&app).map_err(|e| e.to_string())
+    window::present_settings_window(&app).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -396,28 +412,43 @@ fn prepare_and_show_region_overlay<R: Runtime + 'static>(app: tauri::AppHandle<R
     }
     #[cfg(not(target_os = "macos"))]
     {
+        let app_state = app.state::<app_state::AppState>();
+        let my_seq = app_state.region_capture_seq.fetch_add(1, Ordering::SeqCst) + 1;
+        let app_handle = app.clone();
         std::thread::spawn(move || {
             let capture = match screenshot::capture_virtual_desktop_rgba() {
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("[kitty-tools] 截屏失败: {}", e);
-                    let app_state = app.state::<app_state::AppState>();
+                    let app_state = app_handle.state::<app_state::AppState>();
+                    let latest = app_state.region_capture_seq.load(Ordering::SeqCst);
+                    if my_seq != latest {
+                        return;
+                    }
                     {
                         let mut rp = app_state::lock_poisoned(&app_state.region_pending);
                         *rp = None;
                     }
-                    let _ = app.emit("region-capture-failed", serde_json::json!({
+                    let _ = app_handle.emit("region-capture-failed", serde_json::json!({
                         "error": format!("截屏失败: {}", e),
                     }));
                     return;
                 }
             };
-            let app_state = app.state::<app_state::AppState>();
+            let app_state = app_handle.state::<app_state::AppState>();
+            let latest = app_state.region_capture_seq.load(Ordering::SeqCst);
+            if my_seq != latest {
+                return;
+            }
             {
                 let mut rc = app_state::lock_poisoned(&app_state.region_capture);
                 *rc = Some(capture);
             }
-            let _ = window::show_region_overlay(&app);
+            let latest2 = app_state.region_capture_seq.load(Ordering::SeqCst);
+            if my_seq != latest2 {
+                return;
+            }
+            let _ = window::show_region_overlay(&app_handle);
         });
         Ok(())
     }
@@ -572,12 +603,12 @@ fn emit_translate_error<R: Runtime>(app: &tauri::AppHandle<R>, error: String) {
     }));
 }
 
-fn sync_launch_on_startup<R: Runtime>(app: &tauri::AppHandle<R>, enable: bool) {
+fn sync_launch_on_startup<R: Runtime>(app: &tauri::AppHandle<R>, enable: bool) -> Result<(), String> {
     use tauri_plugin_autostart::ManagerExt;
     if enable {
-        let _ = app.autolaunch().enable();
+        app.autolaunch().enable().map_err(|e| e.to_string())
     } else {
-        let _ = app.autolaunch().disable();
+        app.autolaunch().disable().map_err(|e| e.to_string())
     }
 }
 
@@ -620,6 +651,7 @@ pub fn run() {
             pending_translation: Arc::new(Mutex::new(None)),
             region_pending: Mutex::new(None),
             region_capture: Mutex::new(None),
+            region_capture_seq: AtomicU64::new(0),
             floating_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             clipboard_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             launcher_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -676,7 +708,10 @@ pub fn run() {
             }
 
             // Sync autostart
-            sync_launch_on_startup(app.handle(), launch_on_startup);
+            if let Err(e) = sync_launch_on_startup(app.handle(), launch_on_startup) {
+                eprintln!("[kitty-tools] 开机自启同步失败: {}", e);
+                let _ = app.handle().emit("autostart-sync-failed", e);
+            }
 
             // Pre-create clipboard, floating, region-select, launcher, settings and onboarding windows
             let _ = window::get_or_create_clipboard_popup_window(app.handle());

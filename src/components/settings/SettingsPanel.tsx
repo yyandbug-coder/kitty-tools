@@ -1,5 +1,5 @@
 // 设置面板 - 应用全局设置（剪贴板/翻译/交互/外观/关于）；无系统装饰窗，首行 Logo+标题+关闭，其下为 Tab
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -7,6 +7,7 @@ import { X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { DEFAULT_CONFIG, type TranslateResult } from '@/types'
+import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -73,6 +74,8 @@ function prefetchSettingsTabChunk(tab: SettingsTabId) {
 
 export default function SettingsPanel() {
   const { config, updateConfig, loaded } = useAppConfig()
+  const configRef = useRef(config)
+  configRef.current = config
   const launcherExcludedDirNames = config.launcherFileSearchExcludedDirNames ?? []
   const [testing, setTesting] = useState(false)
   const [testFeedback, setTestFeedback] = useState<{ ok: boolean; text: string } | null>(null)
@@ -101,29 +104,30 @@ export default function SettingsPanel() {
   }, [])
 
   const runTranslateConnectionTest = useCallback(async () => {
+    const cfg = configRef.current
     setTestFeedback(null)
-    const p = config.translateProvider
-    if (p === 'baidu' && (!config.baidu.appId.trim() || !config.baidu.secret.trim())) {
+    const p = cfg.translateProvider
+    if (p === 'baidu' && (!cfg.baidu.appId.trim() || !cfg.baidu.secret.trim())) {
       setTestFeedback({ ok: false, text: '请先填写百度翻译的 App ID 与密钥。' })
       return
     }
-    if (p === 'google' && !config.google.apiKey.trim()) {
+    if (p === 'google' && !cfg.google.apiKey.trim()) {
       setTestFeedback({ ok: false, text: '请先填写 Google Cloud API Key。' })
       return
     }
-    if (p === 'openai' && (!config.openai.apiKey.trim() || !config.openai.apiBaseUrl.trim())) {
+    if (p === 'openai' && (!cfg.openai.apiKey.trim() || !cfg.openai.apiBaseUrl.trim())) {
       setTestFeedback({ ok: false, text: '请先填写 OpenAI 的 API Key 与 API 根路径。' })
       return
     }
-    if (p === 'youdao' && (!config.youdao.appKey.trim() || !config.youdao.appSecret.trim())) {
+    if (p === 'youdao' && (!cfg.youdao.appKey.trim() || !cfg.youdao.appSecret.trim())) {
       setTestFeedback({ ok: false, text: '请先填写有道智云的应用 ID 与应用密钥。' })
       return
     }
     setTesting(true)
     try {
       const res = await invoke<TranslateResult>('test_translate_connection', {
-        provider: config.translateProvider,
-        config,
+        provider: cfg.translateProvider,
+        config: cfg,
       })
       const sample = (res.translatedText ?? '').trim()
       setTestFeedback({
@@ -131,12 +135,12 @@ export default function SettingsPanel() {
         text: sample ? `连接成功，示例译文：${sample}` : '连接成功（未返回译文文本，请检查模型或接口响应）。',
       })
     } catch (err) {
-      const msg = typeof err === 'string' ? err : String(err)
+      const msg = getInvokeErrorMessage(err)
       setTestFeedback({ ok: false, text: msg || '请求失败' })
     } finally {
       setTesting(false)
     }
-  }, [config])
+  }, [])
 
   if (!loaded) {
     return (
@@ -284,7 +288,7 @@ export default function SettingsPanel() {
                   })
                   toast.success('已恢复默认设置')
                 } catch (e) {
-                  toast.error(typeof e === 'string' ? e : String(e))
+                  toast.error(getInvokeErrorMessage(e))
                 }
               }}
             >

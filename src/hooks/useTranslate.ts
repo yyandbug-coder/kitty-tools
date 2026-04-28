@@ -2,6 +2,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { TranslateRequest, TranslateResult } from '@/types'
+import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
 
 export function useTranslate() {
   const [result, setResult] = useState<TranslateResult | null>(null)
@@ -26,10 +27,7 @@ export function useTranslate() {
       return r
     } catch (e) {
       if (seq !== seqRef.current) return null
-      const msg = typeof e === 'object' && e !== null && 'message' in e
-        ? String((e as { message: unknown }).message)
-        : String(e)
-      setError(msg)
+      setError(getInvokeErrorMessage(e))
       setResult(null)
       return null
     } finally {

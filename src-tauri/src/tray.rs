@@ -131,7 +131,7 @@ pub fn build_tray<R: Runtime>(
                 }
             }
             TRAY_SETTINGS_ID => {
-                if let Err(e) = window::show_settings_window(app) {
+                if let Err(e) = window::present_settings_window(app) {
                     eprintln!("[kitty-tools] 打开设置窗口失败: {}", e);
                 }
             }

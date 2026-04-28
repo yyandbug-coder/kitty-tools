@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard};
 use screenshots::image::RgbaImage;
 
@@ -18,6 +18,8 @@ pub struct AppState {
     pub pending_translation: Arc<Mutex<Option<PendingTranslation>>>,
     pub region_pending: Mutex<Option<RegionPending>>,
     pub region_capture: Mutex<Option<RgbaImage>>,
+    /// Windows 全屏预截屏异步任务序号；完成时若与当前不一致则丢弃，避免快速重复触发截屏翻译时旧线程覆盖新缓存。
+    pub region_capture_seq: AtomicU64,
     /// 浮动窗口正在交互（拖拽等），短暂抑制失焦自动隐藏。
     pub floating_interacting: Arc<AtomicBool>,
     /// 剪贴板弹窗正在交互（拖拽等），短暂抑制失焦自动隐藏。

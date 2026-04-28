@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import HotkeyInput from '@/components/shared/HotkeyInput'
 import { DEFAULT_CONFIG, type AppConfig } from '@/types'
+import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
 
 export interface SettingsShortcutsTabProps {
   config: AppConfig
@@ -67,7 +68,7 @@ export default function SettingsShortcutsTab({ config, updateConfig }: SettingsS
               onClick={() => {
                 void invoke('show_onboarding_window_cmd')
                   .then(() => toast.success('已打开引导页'))
-                  .catch((e: unknown) => toast.error(typeof e === 'string' ? e : String(e)))
+                  .catch((e: unknown) => toast.error(getInvokeErrorMessage(e)))
               }}
             >
               <Sparkles className="size-3.5" />

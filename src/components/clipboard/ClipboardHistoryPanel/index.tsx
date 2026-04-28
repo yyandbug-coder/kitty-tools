@@ -129,7 +129,8 @@ export default function ClipboardHistoryPanel() {
     }
     tryFillWhenNoScrollbar()
     return () => { window.cancelAnimationFrame(raf); viewport.removeEventListener('scroll', handleScroll) }
-  }, [hasMore, displayed.length, filtered.length, history.length, search, showFavoritesOnly])
+    // displayed.length / hasMore 已能覆盖搜索、收藏筛选与加载更多后的列表变化；收窄依赖避免搜索输入时反复解绑滚动监听
+  }, [hasMore, displayed.length])
 
   const headerHistoryBadge = useMemo(() => {
     const q = search.trim().length > 0
@@ -173,14 +174,17 @@ export default function ClipboardHistoryPanel() {
 
   if (!loaded) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="relative size-8">
-            <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
+      <>
+        <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+        <div className="flex h-full w-full items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative size-8">
+              <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
+            </div>
+            <span className="text-xs text-muted-foreground">加载配置中…</span>
           </div>
-          <span className="text-xs text-muted-foreground">加载配置中…</span>
         </div>
-      </div>
+      </>
     )
   }
 

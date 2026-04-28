@@ -1,9 +1,10 @@
 // 快捷键录制组件 - 捕获键盘组合键并转换为 global-hotkey 格式
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { formatShortcutForDisplay } from '@/lib/platform'
+import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
 
 /** 将 KeyboardEvent.code 转为 global-hotkey 可解析的键名 */
 function physicalKeyToToken(code: string): string {
@@ -96,6 +97,9 @@ export default function HotkeyInput({
   const [recording, setRecording] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [savingDefault, setSavingDefault] = useState(false)
+  /** 避免父组件每次 render 传入新数组引用时反复注册/卸载全局 keydown */
+  const otherHotkeysRef = useRef(otherHotkeys)
+  otherHotkeysRef.current = otherHotkeys
 
   const stopRecording = useCallback(() => setRecording(false), [])
 
@@ -113,7 +117,7 @@ export default function HotkeyInput({
       if (!s) return
       e.preventDefault()
       e.stopPropagation()
-      const conflict = otherHotkeys.find(
+      const conflict = otherHotkeysRef.current.find(
         (h) => h.value.trim() !== '' && h.value.toLowerCase() === s.toLowerCase()
       )
       if (conflict) {
@@ -126,7 +130,7 @@ export default function HotkeyInput({
           await onChange(s)
           setErr(null)
         } catch (e) {
-          setErr(typeof e === 'string' ? e : String(e))
+          setErr(getInvokeErrorMessage(e))
         } finally {
           stopRecording()
         }
@@ -135,7 +139,7 @@ export default function HotkeyInput({
 
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [recording, disabled, onChange, stopRecording, otherHotkeys])
+  }, [recording, disabled, onChange, stopRecording])
 
   const busy = disabled || savingDefault
   const isEmpty = !value.trim()
@@ -147,7 +151,7 @@ export default function HotkeyInput({
     setSavingDefault(true)
     void onChange('')
       .catch((e) => {
-        setErr(typeof e === 'string' ? e : String(e))
+        setErr(getInvokeErrorMessage(e))
       })
       .finally(() => {
         setSavingDefault(false)
@@ -200,7 +204,7 @@ export default function HotkeyInput({
               setSavingDefault(true)
               void onChange(defaultValue)
                 .catch((e) => {
-                  setErr(typeof e === 'string' ? e : '恢复默认快捷键失败。')
+                  setErr(getInvokeErrorMessage(e))
                 })
                 .finally(() => {
                   setSavingDefault(false)
@@ -226,7 +230,11 @@ export default function HotkeyInput({
           。
         </p>
       )}
-      {err ? <p className="mt-1.5 text-xs leading-5 text-destructive">{err}</p> : null}
+      {err ? (
+        <p role="alert" className="mt-1.5 text-xs leading-5 text-destructive">
+          {err}
+        </p>
+      ) : null}
     </div>
   )
 }

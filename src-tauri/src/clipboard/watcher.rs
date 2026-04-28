@@ -37,6 +37,9 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
 
     /// 超过此大小（字节）的文本将被忽略，防止内存暴涨
     const MAX_TEXT_BYTES: usize = 5 * 1024 * 1024; // 5 MB
+    /// 剪贴板位图超过此像素数或原始 RGBA 字节数则忽略（与文本上限同量级，避免超大截图拖垮内存/磁盘缓存）
+    const MAX_IMAGE_PIXELS: u64 = 4096 * 4096;
+    const MAX_IMAGE_RGBA_BYTES: usize = 24 * 1024 * 1024; // 24 MB
 
     let app_handle = app.clone();
     std::thread::spawn(move || {
@@ -141,6 +144,12 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
             }
 
             if let Ok(image) = clipboard.get_image() {
+                let w = image.width as u64;
+                let h = image.height as u64;
+                let pixels = w.saturating_mul(h);
+                if pixels > MAX_IMAGE_PIXELS || image.bytes.len() > MAX_IMAGE_RGBA_BYTES {
+                    continue;
+                }
                 let rgba = image.bytes.into_owned();
                 let content_hash = image_cache::hash_image(&rgba, image.width, image.height);
                 if last_content == content_hash {

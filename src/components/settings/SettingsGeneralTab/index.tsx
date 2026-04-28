@@ -75,22 +75,26 @@ export default function SettingsGeneralTab({ config, updateConfig }: SettingsGen
             {PRESET_THEMES.map((t) => {
               const active = config.appThemePreset === t.id
               return (
-                <button
+                <Button
                   key={t.id}
                   type="button"
+                  variant="outline"
+                  size="sm"
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                    active ? 'text-white shadow-sm' : 'bg-background hover:bg-accent/50',
+                    'h-auto rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                    active ? 'text-white shadow-sm hover:opacity-95' : 'bg-background hover:bg-accent/50',
                   )}
                   style={
                     active
                       ? { backgroundColor: t.accent, borderColor: t.accent }
                       : { borderColor: t.accent, color: t.accent }
                   }
+                  aria-label={`主题色：${t.label}`}
+                  aria-pressed={active}
                   onClick={() => void updateConfig({ appThemePreset: t.id })}
                 >
                   {t.label}
-                </button>
+                </Button>
               )
             })}
 
@@ -100,21 +104,25 @@ export default function SettingsGeneralTab({ config, updateConfig }: SettingsGen
                   const customActive = config.appThemePreset === 'custom'
                   const customColor = getThemeOption('custom', config.customHue).accent
                   return (
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       className={cn(
-                        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                        customActive ? 'text-white shadow-sm' : 'bg-background hover:bg-accent/50',
+                        'h-auto rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                        customActive ? 'text-white shadow-sm hover:opacity-95' : 'bg-background hover:bg-accent/50',
                       )}
                       style={
                         customActive
                           ? { backgroundColor: customColor, borderColor: customColor }
                           : { borderColor: customColor, color: customColor }
                       }
+                      aria-label="自定义主题色"
+                      aria-pressed={customActive}
                     >
-                      {!customActive && <Palette className="size-3 shrink-0" />}
+                      {!customActive && <Palette className="size-3 shrink-0" aria-hidden />}
                       自定义
-                    </button>
+                    </Button>
                   )
                 })()}
               </PopoverTrigger>

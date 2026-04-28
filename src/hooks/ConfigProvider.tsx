@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import toast from 'react-hot-toast'
-import type { AppConfig } from '@/types'
+import type { AppConfig, SaveConfigCmdResult } from '@/types'
 import { DEFAULT_CONFIG } from '@/types'
 import { AppConfigContext } from './config-context'
 import { useTheme } from '@/hooks/useTheme'
@@ -44,14 +44,32 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+    void listen<string>('autostart-sync-failed', (e) => {
+      toast.error(`开机自启未同步：${e.payload}`, { duration: 6000 })
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unlisten = fn
+    })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [])
+
   const updateConfig = useCallback(async (updates: Partial<AppConfig>) => {
     const previous = configRef.current
     const merged: AppConfig = { ...previous, ...updates }
     setConfig(merged)
     configRef.current = merged
     try {
-      const saved = await invoke<AppConfig>('save_config_cmd', { config: merged })
-      setConfig(saved)
+      const result = await invoke<SaveConfigCmdResult>('save_config_cmd', { config: merged })
+      setConfig(result.config)
+      if (result.syncWarnings.length > 0) {
+        toast.error(result.syncWarnings.join('；'), { duration: 6500 })
+      }
     } catch (e) {
       setConfig(previous)
       configRef.current = previous

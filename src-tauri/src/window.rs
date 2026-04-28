@@ -111,6 +111,44 @@ fn apply_windows_borderless_round_corners<R: Runtime>(window: &WebviewWindow<R>)
     }
 }
 
+/// WebView2 默认会拦截 `Ctrl+T` 等「浏览器快捷键」，导致前端录制全局热键时只能录到三键组合（如 Ctrl+Shift+T）。
+/// 与 wry 在 `browser_accelerator_keys = false` 时的行为对齐。
+#[cfg(target_os = "windows")]
+fn disable_webview_browser_accelerator_keys<R: Runtime>(window: &WebviewWindow<R>) {
+    let _ = window.with_webview(|webview| {
+        unsafe {
+            use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
+            use windows::core::Interface;
+            let controller = webview.controller();
+            let Ok(core) = controller.CoreWebView2() else {
+                return;
+            };
+            let Ok(settings) = core.Settings() else {
+                return;
+            };
+            if let Ok(settings3) = settings.cast::<ICoreWebView2Settings3>() {
+                let _ = settings3.SetAreBrowserAcceleratorKeysEnabled(false);
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn disable_webview_browser_accelerator_keys<R: Runtime>(_window: &WebviewWindow<R>) {}
+
+/// Windows：WebView2 浏览器快捷键关闭 + 抑制 Alt+Space 系统菜单，保证无边框窗口内可正常录制全局热键。
+#[cfg(target_os = "windows")]
+fn apply_windows_webview_post_create<R: Runtime>(window: &WebviewWindow<R>) {
+    disable_webview_browser_accelerator_keys(window);
+    if let Ok(raw) = window.hwnd() {
+        use windows::Win32::Foundation::HWND;
+        crate::win32_sysmenu::install_suppress_keyboard_sysmenu(HWND(raw.0 as *mut _));
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn apply_windows_webview_post_create<R: Runtime>(_window: &WebviewWindow<R>) {}
+
 // ── Clipboard popup window ──────────────────────────────────────────────
 
 /// Get or create the clipboard popup window.
@@ -133,6 +171,7 @@ pub fn get_or_create_clipboard_popup_window<R: Runtime>(
         .visible(false)
         .center()
         .build()?;
+    apply_windows_webview_post_create(&window);
     register_clipboard_popup_handlers(&window, app);
     Ok(window)
 }
@@ -264,6 +303,7 @@ pub fn get_or_create_launcher_window<R: Runtime>(
         .visible(false)
         .center()
         .build()?;
+    apply_windows_webview_post_create(&window);
     register_launcher_handlers(&window, app);
     Ok(window)
 }
@@ -413,6 +453,7 @@ pub fn get_or_create_floating_window<R: Runtime>(
     };
 
     let window = builder.build()?;
+    apply_windows_webview_post_create(&window);
 
     register_floating_window_handlers(&window, app, pinned);
     Ok(window)
@@ -495,7 +536,7 @@ pub fn get_or_create_region_select_window<R: Runtime>(
     if let Some(w) = app.get_webview_window(WINDOW_REGION_SELECT) {
         return Ok(w);
     }
-    WebviewWindow::builder(app, WINDOW_REGION_SELECT, webview_url("html/region-select.html"))
+    let window = WebviewWindow::builder(app, WINDOW_REGION_SELECT, webview_url("html/region-select.html"))
         .title("")
         .inner_size(400.0, 300.0)
         .position(0.0, 0.0)
@@ -507,7 +548,9 @@ pub fn get_or_create_region_select_window<R: Runtime>(
         .shadow(false)
         .background_color(Color::from((0u8, 0u8, 0u8, 0u8)))
         .visible(false)
-        .build()
+        .build()?;
+    apply_windows_webview_post_create(&window);
+    Ok(window)
 }
 
 /// Show the region-select overlay, sized to virtual desktop bounds.
@@ -567,6 +610,7 @@ pub fn get_or_create_settings_window<R: Runtime>(
             .center()
             .visible(false)
             .build()?;
+    apply_windows_webview_post_create(&window);
 
     let w_clone = window.clone();
     window.on_window_event(move |event| {
@@ -613,6 +657,7 @@ pub fn get_or_create_translate_workspace_window<R: Runtime>(
     .center()
     .visible(false)
     .build()?;
+    apply_windows_webview_post_create(&window);
 
     let w_clone = window.clone();
     window.on_window_event(move |event| {
@@ -665,6 +710,7 @@ pub fn get_or_create_onboarding_window<R: Runtime>(
         apply_windows_borderless_round_corners(&window);
         let _ = window.set_skip_taskbar(true);
     }
+    apply_windows_webview_post_create(&window);
 
     window.on_window_event(move |event| {
         if let WindowEvent::CloseRequested { api, .. } = event {

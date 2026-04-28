@@ -103,14 +103,16 @@ export default function HotkeyInput({
     if (!recording || disabled) return
 
     const onKey = (e: KeyboardEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
       if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
         stopRecording()
         return
       }
       const s = buildHotkeyFromEvent(e)
       if (!s) return
+      e.preventDefault()
+      e.stopPropagation()
       const conflict = otherHotkeys.find(
         (h) => h.value.trim() !== '' && h.value.toLowerCase() === s.toLowerCase()
       )

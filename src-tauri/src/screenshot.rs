@@ -4,7 +4,7 @@ use std::io::Cursor;
 #[cfg(not(target_os = "macos"))]
 use screenshots::image::{
     imageops::{crop_imm, overlay, resize, FilterType},
-    Rgba, RgbaImage,
+    Rgba,
 };
 #[cfg(not(target_os = "macos"))]
 use rayon::prelude::*;

@@ -14,6 +14,8 @@ mod selection;
 mod translate;
 mod tray;
 mod window;
+#[cfg(target_os = "windows")]
+mod win32_sysmenu;
 mod youdao;
 
 use std::sync::atomic::Ordering;

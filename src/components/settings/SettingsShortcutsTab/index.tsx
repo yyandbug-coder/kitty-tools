@@ -1,4 +1,5 @@
 // 设置 — 交互：全局快捷键与开发环境下引导页入口
+import { useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import toast from 'react-hot-toast'
 import { Keyboard, Sparkles } from 'lucide-react'
@@ -13,6 +14,39 @@ export interface SettingsShortcutsTabProps {
 }
 
 export default function SettingsShortcutsTab({ config, updateConfig }: SettingsShortcutsTabProps) {
+  const otherForSelection = useMemo(
+    () => [
+      { label: '截图翻译', value: config.hotkeyScreenshot },
+      { label: '剪贴板历史', value: config.clipboardShortcut },
+      { label: '启动器', value: config.launcherShortcut },
+    ],
+    [config.clipboardShortcut, config.hotkeyScreenshot, config.launcherShortcut],
+  )
+  const otherForScreenshot = useMemo(
+    () => [
+      { label: '划词翻译', value: config.hotkeySelection },
+      { label: '剪贴板历史', value: config.clipboardShortcut },
+      { label: '启动器', value: config.launcherShortcut },
+    ],
+    [config.clipboardShortcut, config.hotkeySelection, config.launcherShortcut],
+  )
+  const otherForClipboard = useMemo(
+    () => [
+      { label: '划词翻译', value: config.hotkeySelection },
+      { label: '截图翻译', value: config.hotkeyScreenshot },
+      { label: '启动器', value: config.launcherShortcut },
+    ],
+    [config.hotkeySelection, config.hotkeyScreenshot, config.launcherShortcut],
+  )
+  const otherForLauncher = useMemo(
+    () => [
+      { label: '划词翻译', value: config.hotkeySelection },
+      { label: '截图翻译', value: config.hotkeyScreenshot },
+      { label: '剪贴板历史', value: config.clipboardShortcut },
+    ],
+    [config.clipboardShortcut, config.hotkeySelection, config.hotkeyScreenshot],
+  )
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -49,11 +83,7 @@ export default function SettingsShortcutsTab({ config, updateConfig }: SettingsS
             value={config.hotkeySelection}
             defaultValue={DEFAULT_CONFIG.hotkeySelection}
             onChange={async (v) => updateConfig({ hotkeySelection: v })}
-            otherHotkeys={[
-              { label: '截图翻译', value: config.hotkeyScreenshot },
-              { label: '剪贴板历史', value: config.clipboardShortcut },
-              { label: '启动器', value: config.launcherShortcut },
-            ]}
+            otherHotkeys={otherForSelection}
           />
           <HotkeyInput
             id="hotkey-screenshot"
@@ -61,11 +91,7 @@ export default function SettingsShortcutsTab({ config, updateConfig }: SettingsS
             value={config.hotkeyScreenshot}
             defaultValue={DEFAULT_CONFIG.hotkeyScreenshot}
             onChange={async (v) => updateConfig({ hotkeyScreenshot: v })}
-            otherHotkeys={[
-              { label: '划词翻译', value: config.hotkeySelection },
-              { label: '剪贴板历史', value: config.clipboardShortcut },
-              { label: '启动器', value: config.launcherShortcut },
-            ]}
+            otherHotkeys={otherForScreenshot}
           />
           <HotkeyInput
             id="hotkey-clipboard"
@@ -73,11 +99,7 @@ export default function SettingsShortcutsTab({ config, updateConfig }: SettingsS
             value={config.clipboardShortcut}
             defaultValue={DEFAULT_CONFIG.clipboardShortcut}
             onChange={async (v) => updateConfig({ clipboardShortcut: v })}
-            otherHotkeys={[
-              { label: '划词翻译', value: config.hotkeySelection },
-              { label: '截图翻译', value: config.hotkeyScreenshot },
-              { label: '启动器', value: config.launcherShortcut },
-            ]}
+            otherHotkeys={otherForClipboard}
           />
           <HotkeyInput
             id="hotkey-launcher"
@@ -85,11 +107,7 @@ export default function SettingsShortcutsTab({ config, updateConfig }: SettingsS
             value={config.launcherShortcut}
             defaultValue={DEFAULT_CONFIG.launcherShortcut}
             onChange={async (v) => updateConfig({ launcherShortcut: v })}
-            otherHotkeys={[
-              { label: '划词翻译', value: config.hotkeySelection },
-              { label: '截图翻译', value: config.hotkeyScreenshot },
-              { label: '剪贴板历史', value: config.clipboardShortcut },
-            ]}
+            otherHotkeys={otherForLauncher}
           />
         </div>
       </CardContent>

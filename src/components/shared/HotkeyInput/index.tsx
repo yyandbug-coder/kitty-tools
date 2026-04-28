@@ -221,7 +221,7 @@ export default function HotkeyInput({
         </p>
       ) : (
         <p className="mt-2 flex flex-wrap items-center gap-1 text-[11px] leading-relaxed text-muted-foreground">
-          <span>需同时按修饰键与字母键，例如</span>
+          <span>需同时按修饰键与主键，例如</span>
           <ShortcutKbd
             formatted={formatShortcutForDisplay(defaultValue) || null}
             className="text-foreground"

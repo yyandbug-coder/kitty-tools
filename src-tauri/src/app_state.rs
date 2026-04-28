@@ -1,4 +1,6 @@
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::AtomicBool;
+#[cfg(not(target_os = "macos"))]
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, MutexGuard};
 use screenshots::image::RgbaImage;
 
@@ -18,7 +20,8 @@ pub struct AppState {
     pub pending_translation: Arc<Mutex<Option<PendingTranslation>>>,
     pub region_pending: Mutex<Option<RegionPending>>,
     pub region_capture: Mutex<Option<RgbaImage>>,
-    /// Windows 全屏预截屏异步任务序号；完成时若与当前不一致则丢弃，避免快速重复触发截屏翻译时旧线程覆盖新缓存。
+    /// Windows/Linux：全屏预截屏异步任务序号（macOS 选区走 SCK，无需此项）。
+    #[cfg(not(target_os = "macos"))]
     pub region_capture_seq: AtomicU64,
     /// 浮动窗口正在交互（拖拽等），短暂抑制失焦自动隐藏。
     pub floating_interacting: Arc<AtomicBool>,

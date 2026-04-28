@@ -4,21 +4,18 @@
  */
 import dayjs from 'dayjs'
 import Database from '@tauri-apps/plugin-sql'
+import { invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem } from '@/types'
 import {
   CLIPBOARD_HISTORY_LEGACY_SETTINGS_KEY,
   ensureClipboardHistorySchema,
   loadClipboardHistoryRows,
-  replaceClipboardHistoryWithConnection,
 } from '@/services/clipboard-history-db'
 
 const DB_PATH = 'sqlite:kitty-settings.db'
 const SETTINGS_KEY = 'app-settings'
 
-/**
- * 剪贴板历史全表替换写入队列。同一连接上对 clipboard_history 的 BEGIN…COMMIT
- * 与另一次写入重叠时会触发 SQLITE_BUSY（database is locked），故必须串行化。
- */
+/** 剪贴板历史全表替换写入队列（Rust 侧单事务）。重叠写入会 SQLITE_BUSY，必须串行化。 */
 let clipboardReplaceQueue: Promise<void> = Promise.resolve()
 
 let dbPromise: Promise<Database> | null = null
@@ -78,8 +75,8 @@ export async function loadClipboardHistoryItemsFromDb(): Promise<ClipboardItem[]
 
 export async function replaceClipboardHistoryInDb(items: ClipboardItem[]): Promise<void> {
   const run = clipboardReplaceQueue.then(async () => {
-    const db = await getDb()
-    await replaceClipboardHistoryWithConnection(db, items)
+    await getDb()
+    await invoke('replace_clipboard_history_items', { items })
   })
   clipboardReplaceQueue = run.catch(() => {
     /* 单次失败不打断队列，reject 仍会传给下方 await run */

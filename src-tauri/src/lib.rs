@@ -18,7 +18,9 @@ mod window;
 mod win32_sysmenu;
 mod youdao;
 
-use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(not(target_os = "macos"))]
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 #[cfg(target_os = "macos")]
 use std::time::Duration;
@@ -651,6 +653,7 @@ pub fn run() {
             pending_translation: Arc::new(Mutex::new(None)),
             region_pending: Mutex::new(None),
             region_capture: Mutex::new(None),
+            #[cfg(not(target_os = "macos"))]
             region_capture_seq: AtomicU64::new(0),
             floating_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             clipboard_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -669,6 +672,7 @@ pub fn run() {
             clipboard::image_cache::get_image_preview_asset_path,
             clipboard::image_cache::prune_clipboard_image_store,
             clipboard::app_icon::get_app_icon_data_url,
+            clipboard::history_db::replace_clipboard_history_items,
             // Translate commands
             get_config,
             save_config_cmd,

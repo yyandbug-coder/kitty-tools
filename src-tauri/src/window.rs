@@ -138,9 +138,6 @@ fn disable_webview_browser_accelerator_keys<R: Runtime>(window: &WebviewWindow<R
     });
 }
 
-#[cfg(not(target_os = "windows"))]
-fn disable_webview_browser_accelerator_keys<R: Runtime>(_window: &WebviewWindow<R>) {}
-
 /// Windows：WebView2 浏览器快捷键关闭 + 抑制 Alt+Space 系统菜单，保证无边框窗口内可正常录制全局热键。
 #[cfg(target_os = "windows")]
 fn apply_windows_webview_post_create<R: Runtime>(window: &WebviewWindow<R>) {

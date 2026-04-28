@@ -29,9 +29,6 @@ interface ClipboardHistorySqlRow {
   favorited: number
 }
 
-/** 每批 13 列占位；变量数需低于 SQLite 连接限制（通常 ≥999） */
-const BATCH_SIZE = 52
-
 export async function ensureClipboardHistorySchema(db: Database): Promise<void> {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS ${TABLE} (
@@ -51,63 +48,6 @@ export async function ensureClipboardHistorySchema(db: Database): Promise<void> 
     )
   `)
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_clipboard_history_ts ON ${TABLE}(timestamp DESC)`)
-}
-
-function clipboardItemToParams(item: ClipboardItem): unknown[] {
-  // 仅序列化落库字段，不展开整项（避免对含 imageRgba 的图片项做浅拷贝）
-  return [
-    item.id,
-    item.type,
-    item.content ?? '',
-    item.contentHash ?? null,
-    item.imageByteSize ?? null,
-    item.fileByteSizes?.length ? JSON.stringify(item.fileByteSizes) : null,
-    item.filePaths?.length ? JSON.stringify(item.filePaths) : null,
-    item.imageWidth ?? null,
-    item.imageHeight ?? null,
-    item.timestamp,
-    item.sourceApp ?? null,
-    item.sourceAppPath ?? null,
-    item.favorited ? 1 : 0,
-  ]
-}
-
-function buildBatchInsertSql(batch: ClipboardItem[]): { sql: string; args: unknown[] } {
-  const placeholders = batch
-    .map((_, ri) => {
-      const o = ri * 13
-      return `($${o + 1},$${o + 2},$${o + 3},$${o + 4},$${o + 5},$${o + 6},$${o + 7},$${o + 8},$${o + 9},$${o + 10},$${o + 11},$${o + 12},$${o + 13})`
-    })
-    .join(', ')
-  const sql = `INSERT INTO ${TABLE} (${INSERT_COLS}) VALUES ${placeholders}`
-  const args = batch.flatMap(clipboardItemToParams)
-  return { sql, args }
-}
-
-/** 使用已打开的连接写入（避免 getDb 初始化链内递归等待） */
-export async function replaceClipboardHistoryWithConnection(
-  db: Database,
-  items: ClipboardItem[],
-): Promise<void> {
-  await db.execute('BEGIN')
-  try {
-    await db.execute(`DELETE FROM ${TABLE}`)
-    if (items.length === 0) {
-      await db.execute('COMMIT')
-      return
-    }
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
-      const batch = items.slice(i, i + BATCH_SIZE)
-      const { sql, args } = buildBatchInsertSql(batch)
-      await db.execute(sql, args)
-    }
-    await db.execute('COMMIT')
-  } catch (err) {
-    await db.execute('ROLLBACK').catch(() => {
-      /* 无活跃事务时忽略 */
-    })
-    throw err
-  }
 }
 
 function parseJsonStringArray(raw: string | null): string[] | undefined {

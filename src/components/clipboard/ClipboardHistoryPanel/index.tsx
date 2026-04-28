@@ -1,8 +1,9 @@
 // 剪贴板历史浮层 - Alfred 风格弹出式剪贴板管理器（不透明窗口，样式与划词翻译浮窗一致）
-// 双栏布局：左侧列表（分页）+ 右侧预览面板；由 html/clipboard-popup.html 加载 app/clipboard/main.tsx
+// 双栏布局：左侧列表（@tanstack/react-virtual 虚拟列表）+ 右侧预览面板；由 html/clipboard-popup.html 加载 app/clipboard/main.tsx
 import type { CSSProperties, PointerEvent } from 'react'
 import type { AppTheme } from '@/types'
-import { lazy, Suspense, useRef, useEffect, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import toast, { Toaster } from 'react-hot-toast'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -17,16 +18,15 @@ import ClipboardItemCard from '@/components/clipboard/ClipboardItemCard'
 import ClipboardHistoryListSkeleton from '@/components/clipboard/ClipboardHistoryListSkeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { toastInvokeError } from '@/lib/invoke-helpers'
-import { Pin, Settings, Star } from 'lucide-react'
+import { Loader2, Pin, Settings, Star } from 'lucide-react'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { cn } from '@/lib/utils'
 
 const ClipboardPreview = lazy(() => import('@/components/clipboard/ClipboardPreview'))
 
 export default function ClipboardHistoryPanel() {
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const listScrollParentRef = useRef<HTMLDivElement>(null)
   const keyboardRootRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { config, loaded, updateConfig } = useAppConfig()
@@ -37,15 +37,29 @@ export default function ClipboardHistoryPanel() {
   )
   const {
     history, isHistoryLoading, search, setSearch, showFavoritesOnly, setShowFavoritesOnly,
-    favoritedTotal, filtered, displayed, hasMore, loadMore, selectedItem, selectedIndex,
+    favoritedTotal, filtered, filterWorkerPending, selectedItem, selectedIndex,
     setSelectedIndex, toggleItemFavorite, removeHistoryItem, handlePaste, handleKeyDown,
     flushClipboardHistoryToDisk,
   } = useClipboard(config)
 
-  const hasMoreRef = useRef(hasMore)
-  hasMoreRef.current = hasMore
-  const loadMoreRef = useRef(loadMore)
-  loadMoreRef.current = loadMore
+  const listVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => listScrollParentRef.current,
+    estimateSize: () => 76,
+    overscan: 8,
+    getItemKey: (index) => {
+      const it = filtered[index]
+      return it ? it.id : String(index)
+    },
+  })
+
+  useLayoutEffect(() => {
+    if (filtered.length === 0) {
+      return
+    }
+    const idx = Math.min(selectedIndex, filtered.length - 1)
+    listVirtualizer.scrollToIndex(idx, { align: 'auto' })
+  }, [filtered, selectedIndex, listVirtualizer])
 
   // Exit handler
   useEffect(() => {
@@ -108,38 +122,29 @@ export default function ClipboardHistoryPanel() {
     }
   }, [])
 
-  // Scroll-triggered loadMore
-  useEffect(() => {
-    const root = scrollAreaRef.current
-    if (!root) return
-    const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null
-    if (!viewport) return
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = viewport
-      if (scrollHeight - scrollTop - clientHeight < 200 && hasMoreRef.current) loadMoreRef.current()
-    }
-    viewport.addEventListener('scroll', handleScroll, { passive: true })
-    let raf = 0
-    const tryFillWhenNoScrollbar = () => {
-      raf = window.requestAnimationFrame(() => {
-        if (!hasMoreRef.current) return
-        const { scrollHeight, clientHeight } = viewport
-        if (scrollHeight <= clientHeight + 2) loadMoreRef.current()
-      })
-    }
-    tryFillWhenNoScrollbar()
-    return () => { window.cancelAnimationFrame(raf); viewport.removeEventListener('scroll', handleScroll) }
-    // displayed.length / hasMore 已能覆盖搜索、收藏筛选与加载更多后的列表变化；收窄依赖避免搜索输入时反复解绑滚动监听
-  }, [hasMore, displayed.length])
-
   const headerHistoryBadge = useMemo(() => {
     const q = search.trim().length > 0
     const cap = config.clipboardHistoryMax
+    const matchLabel = filterWorkerPending && q ? '…' : String(filtered.length)
     if (showFavoritesOnly) {
-      if (q) return { text: `${filtered.length}/${favoritedTotal}`, title: `在已收藏条目中匹配到 ${filtered.length} 条；收藏共 ${favoritedTotal} 条`, isAtCap: false }
+      if (q) {
+        return {
+          text: `${matchLabel}/${favoritedTotal}`,
+          title: filterWorkerPending
+            ? '正在后台过滤收藏条目…'
+            : `在已收藏条目中匹配到 ${filtered.length} 条；收藏共 ${favoritedTotal} 条`,
+          isAtCap: false,
+        }
+      }
       return { text: favoritedTotal === 0 ? '—' : `${favoritedTotal}`, title: favoritedTotal === 0 ? '在列表中右键或使用星标可将条目加入收藏' : `当前共 ${favoritedTotal} 条收藏`, isAtCap: false }
     }
-    if (q) return { text: `${filtered.length}/${history.length}`, title: `在全部 ${history.length} 条本地历史中搜索`, isAtCap: false }
+    if (q) {
+      return {
+        text: `${matchLabel}/${history.length}`,
+        title: filterWorkerPending ? '正在后台过滤本地历史…' : `在全部 ${history.length} 条本地历史中搜索`,
+        isAtCap: false,
+      }
+    }
     const n = history.length
     const unlimited = cap <= 0
     const full = !unlimited && n >= cap
@@ -148,7 +153,7 @@ export default function ClipboardHistoryPanel() {
       title: unlimited ? `未限制列表条数，当前 ${n} 条` : full ? `已达本地上限 ${cap} 条` : `本地最多保留 ${cap} 条，当前 ${n} 条`,
       isAtCap: full,
     }
-  }, [search, showFavoritesOnly, filtered.length, favoritedTotal, history.length, config.clipboardHistoryMax])
+  }, [search, showFavoritesOnly, filtered.length, favoritedTotal, history.length, config.clipboardHistoryMax, filterWorkerPending])
 
   const handleItemSelect = useCallback((index: number) => { setSelectedIndex(index) }, [])
   const handleItemAction = useCallback((item: ClipboardItem) => { void handlePaste(item) }, [handlePaste])
@@ -171,6 +176,8 @@ export default function ClipboardHistoryPanel() {
       await invoke('open_settings_window')
     } catch (e) { toastInvokeError('无法打开设置', e) }
   }, [])
+
+  const totalListSize = listVirtualizer.getTotalSize()
 
   if (!loaded) {
     return (
@@ -285,11 +292,30 @@ export default function ClipboardHistoryPanel() {
                 </div>
               </div>
 
-                {/* 历史列表 */}
-                <ScrollArea ref={scrollAreaRef} className="min-h-0 flex-1 overflow-x-hidden">
-                  <div className="flex flex-col gap-2 px-1 pb-1 pt-2">
+                {/* 历史列表（虚拟滚动，仅挂载视口附近行） */}
+                <div
+                  ref={listScrollParentRef}
+                  className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+                  role="presentation"
+                >
+                  <div className="box-border flex min-h-0 flex-col px-1 pb-1 pt-2">
                     {isHistoryLoading ? (
                       <ClipboardHistoryListSkeleton />
+                    ) : filterWorkerPending && search.trim().length > 0 ? (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/25 px-8 py-10 text-center"
+                      >
+                        <Loader2
+                          className="size-8 shrink-0 motion-reduce:animate-none motion-reduce:opacity-70 animate-spin text-muted-foreground"
+                          aria-hidden
+                        />
+                        <p className="text-sm font-medium text-foreground/90">正在过滤历史…</p>
+                        <p className="max-w-[420px] text-xs leading-relaxed text-muted-foreground">
+                          本地条目较多时在后台检索，不阻塞界面操作。
+                        </p>
+                      </div>
                     ) : filtered.length === 0 ? (
                       <div
                         className={cn(
@@ -310,26 +336,37 @@ export default function ClipboardHistoryPanel() {
                         </p>
                       </div>
                     ) : (
-                      <>
-                        {displayed.map((item, idx) => (
-                          <ClipboardItemCard
-                            key={item.id}
-                            item={item}
-                            index={idx}
-                            isSelected={idx === selectedIndex}
-                            onSelect={handleItemSelect}
-                            onAction={handleItemAction}
-                            onToggleFavorite={toggleItemFavorite}
-                            onRemoveItem={handleRemoveHistoryItem}
-                          />
-                        ))}
-                        {hasMore && (
-                          <div className="flex justify-center py-2 text-xs text-muted-foreground">下滑加载更多</div>
-                        )}
-                      </>
+                      <div className="relative w-full min-w-0" style={{ minHeight: totalListSize, height: totalListSize }}>
+                        {listVirtualizer.getVirtualItems().map((v) => {
+                          const item = filtered[v.index]
+                          if (!item) {
+                            return null
+                          }
+                          return (
+                            <div
+                              key={v.key}
+                              data-index={v.index}
+                              ref={listVirtualizer.measureElement}
+                              className="absolute top-0 left-0 w-full min-w-0 pb-2"
+                              style={{ transform: `translateY(${v.start}px)` }}
+                            >
+                              <ClipboardItemCard
+                                item={item}
+                                index={v.index}
+                                isSelected={v.index === selectedIndex}
+                                onSelect={handleItemSelect}
+                                onAction={handleItemAction}
+                                onToggleFavorite={toggleItemFavorite}
+                                onRemoveItem={handleRemoveHistoryItem}
+                                enableAutoScroll={false}
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             </div>
           </div>

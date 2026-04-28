@@ -1,4 +1,5 @@
 import type { ClipboardItem } from '@/types'
+import type { ClipboardFilterRow } from '@/app/clipboard/lib/clipboard-filter-row'
 
 type WorkerRequest =
   | {
@@ -23,6 +24,14 @@ type WorkerRequest =
         raw: string
       }
     }
+  | {
+      requestId: number
+      action: 'filterKeyword'
+      payload: {
+        rows: ClipboardFilterRow[]
+        keywordLower: string
+      }
+    }
 
 type WorkerResponse =
   | {
@@ -39,6 +48,12 @@ type WorkerResponse =
     }
   | {
       requestId: number
+      ok: true
+      kind: 'filterKeyword'
+      result: string[]
+    }
+  | {
+      requestId: number
       ok: false
       error: string
     }
@@ -50,7 +65,7 @@ let clipboardHistoryWorker: Worker | null = null
 const pendingRequests = new Map<
   number,
   {
-    resolve: (value: ClipboardItem[] | string) => void
+    resolve: (value: ClipboardItem[] | string | string[]) => void
     reject: (error: Error) => void
   }
 >()
@@ -140,6 +155,11 @@ function getWorker() {
       return
     }
 
+    if (message.kind === 'filterKeyword') {
+      pending.resolve(message.result)
+      return
+    }
+
     pending.resolve(message.result)
   }
 
@@ -156,7 +176,7 @@ function getWorker() {
   return clipboardHistoryWorker
 }
 
-function postWorkerRequest(message: WorkerRequest): Promise<ClipboardItem[] | string> {
+function postWorkerRequest(message: WorkerRequest): Promise<ClipboardItem[] | string | string[]> {
   const worker = getWorker()
   if (!worker) {
     throw new Error('当前环境不支持 Worker')
@@ -206,4 +226,55 @@ export async function parseNormalizeClipboardHistoryFromDbRawInWorker(raw: strin
   }
   const result = await postWorkerRequest(message)
   return result as ClipboardItem[]
+}
+
+/** 与设置页「本地最多保留」一致：超过该条数且有关键词时在 Worker 中过滤，避免主线程长时间 includes 扫描 */
+export const CLIPBOARD_FILTER_WORKER_MIN_ITEMS = 500
+
+export function toClipboardFilterRows(items: ClipboardItem[]): ClipboardFilterRow[] {
+  return items.map((item) => ({
+    id: item.id,
+    type: item.type,
+    content: item.content,
+    filePaths: item.filePaths,
+  }))
+}
+
+function filterClipboardByKeywordSync(rows: ClipboardFilterRow[], keywordLower: string): string[] {
+  const kw = keywordLower.trim().toLowerCase()
+  if (!kw) {
+    return rows.map((r) => r.id)
+  }
+  const ids: string[] = []
+  for (const row of rows) {
+    if (row.type === 'file') {
+      if (
+        row.content.toLowerCase().includes(kw) ||
+        (row.filePaths ?? []).some((path) => path.toLowerCase().includes(kw))
+      ) {
+        ids.push(row.id)
+      }
+    } else if (row.content.toLowerCase().includes(kw)) {
+      ids.push(row.id)
+    }
+  }
+  return ids
+}
+
+export async function filterClipboardHistoryByKeywordInWorker(
+  rows: ClipboardFilterRow[],
+  keywordLower: string,
+): Promise<string[]> {
+  try {
+    const requestId = ++requestIdSeed
+    const message: WorkerRequest = {
+      requestId,
+      action: 'filterKeyword',
+      payload: { rows, keywordLower: keywordLower.trim().toLowerCase() },
+    }
+    const result = await postWorkerRequest(message)
+    return result as string[]
+  } catch {
+    return filterClipboardByKeywordSync(rows, keywordLower)
+  }
 }

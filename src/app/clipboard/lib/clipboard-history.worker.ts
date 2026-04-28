@@ -1,4 +1,5 @@
 import type { ClipboardItem } from '@/types'
+import type { ClipboardFilterRow } from '@/app/clipboard/lib/clipboard-filter-row'
 
 type WorkerRequest =
   | {
@@ -23,6 +24,14 @@ type WorkerRequest =
         raw: string
       }
     }
+  | {
+      requestId: number
+      action: 'filterKeyword'
+      payload: {
+        rows: ClipboardFilterRow[]
+        keywordLower: string
+      }
+    }
 
 type WorkerResponse =
   | {
@@ -36,6 +45,12 @@ type WorkerResponse =
       ok: true
       kind: 'serialize'
       result: string
+    }
+  | {
+      requestId: number
+      ok: true
+      kind: 'filterKeyword'
+      result: string[]
     }
   | {
       requestId: number
@@ -100,6 +115,16 @@ function dedupeHistoryById(history: ClipboardItem[]): ClipboardItem[] {
   return [...byId.values()].sort((a, b) => b.timestamp - a.timestamp)
 }
 
+function rowMatchesKeyword(row: ClipboardFilterRow, keywordLower: string): boolean {
+  if (row.type === 'file') {
+    return (
+      row.content.toLowerCase().includes(keywordLower) ||
+      (row.filePaths ?? []).some((path) => path.toLowerCase().includes(keywordLower))
+    )
+  }
+  return row.content.toLowerCase().includes(keywordLower)
+}
+
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const request = event.data
 
@@ -147,6 +172,35 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         requestId: request.requestId,
         ok: true,
         kind: 'parseNormalize',
+        result,
+      }
+      self.postMessage(response)
+      return
+    }
+
+    if (request.action === 'filterKeyword') {
+      const { rows, keywordLower } = request.payload
+      const kw = keywordLower.trim()
+      if (!kw) {
+        const response: WorkerResponse = {
+          requestId: request.requestId,
+          ok: true,
+          kind: 'filterKeyword',
+          result: rows.map((r) => r.id),
+        }
+        self.postMessage(response)
+        return
+      }
+      const result: string[] = []
+      for (const row of rows) {
+        if (rowMatchesKeyword(row, kw)) {
+          result.push(row.id)
+        }
+      }
+      const response: WorkerResponse = {
+        requestId: request.requestId,
+        ok: true,
+        kind: 'filterKeyword',
         result,
       }
       self.postMessage(response)

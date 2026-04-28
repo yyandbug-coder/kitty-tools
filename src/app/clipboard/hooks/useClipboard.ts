@@ -1,5 +1,5 @@
 // 剪贴板历史管理 Hook - 监听系统剪贴板变化，维护历史列表
-// 提供搜索过滤、分页加载、条目选择、粘贴和清空等操作
+// 提供搜索过滤（大数据量在 Worker 中匹配）、虚拟列表用全量 filtered、条目选择、粘贴和清空等
 // 基于 example/kitty-clipboard-history 的增强版，适配 root 的 AppConfig
 import {
   useState,
@@ -25,14 +25,16 @@ import {
   prependFingerprintDedupedClipboardHistory,
 } from '@/app/clipboard/lib/cloud-sync'
 import {
+  CLIPBOARD_FILTER_WORKER_MIN_ITEMS,
+  filterClipboardHistoryByKeywordInWorker,
   parseNormalizeClipboardHistoryFromDbRawInWorker,
   serializeClipboardHistoryForDbInWorker,
+  toClipboardFilterRows,
 } from '@/app/clipboard/lib/clipboard-history-worker'
 import { filterHistoryByRetention } from '@/app/clipboard/lib/clipboard-retention'
 import { applyClipboardHistoryMaxSlice } from '@/app/clipboard/lib/history-settings'
 import { loadClipboardHistoryFromDb, saveClipboardHistoryToDb } from '@/services/database'
 
-const PAGE_SIZE = 20
 const HISTORY_STORAGE_SCHEMA_VERSION = 1
 
 type StoredClipboardHistory = {
@@ -46,7 +48,6 @@ export function useClipboard(config: AppConfig) {
   const deferredSearch = useDeferredValue(search)
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isHistoryLoading, setIsHistoryLoading] = useState(true)
   const isHistoryLoadingRef = useRef(true)
   const userBrowsingRef = useRef(false)
@@ -55,6 +56,7 @@ export function useClipboard(config: AppConfig) {
   const clipProcessChainRef = useRef(Promise.resolve())
   const historyRef = useRef(history)
   const persistGenerationRef = useRef(0)
+  const filterWorkerGenRef = useRef(0)
   retentionDaysRef.current = config.clipboardHistoryRetentionDays
   historyMaxRef.current = config.clipboardHistoryMax
   historyRef.current = history
@@ -120,7 +122,6 @@ export function useClipboard(config: AppConfig) {
           if (!userBrowsingRef.current) {
             setSelectedIndex(0)
           }
-          setVisibleCount(PAGE_SIZE)
         })
         .catch((err) => { toastInvokeError('处理剪贴板更新失败', err) })
     })
@@ -173,6 +174,7 @@ export function useClipboard(config: AppConfig) {
   useEffect(() => {
     if (isHistoryLoadingRef.current) return
     const generation = ++persistGenerationRef.current
+    const persistDelayMs = historyRef.current.length > 2000 ? 650 : 350
     const timeout = window.setTimeout(() => {
       const snap = historyRef.current
       const imageIds = snap.filter((item) => item.type === 'image').map((item) => item.id)
@@ -190,36 +192,77 @@ export function useClipboard(config: AppConfig) {
         try { await saveClipboardHistoryToDb(serialized) } catch (error) { toastInvokeError('保存剪贴板历史失败', error); return }
         try { await invoke('prune_clipboard_image_store', { keepIds: imageIds }) } catch (error) { toastInvokeError('清理剪贴板图片缓存失败', error) }
       })()
-    }, 350)
+    }, persistDelayMs)
     return () => window.clearTimeout(timeout)
   }, [history])
 
   const favoritedTotal = useMemo(() => history.reduce((n, item) => n + (item.favorited ? 1 : 0), 0), [history])
 
-  const filtered = useMemo(() => {
-    let list = showFavoritesOnly ? history.filter((item) => item.favorited) : history
-    const keyword = deferredSearch.toLowerCase().trim()
-    if (!keyword) return list
-    return list.filter((item) => {
-      if (item.type === 'file') {
-        return item.content.toLowerCase().includes(keyword) || (item.filePaths ?? []).some((path) => path.toLowerCase().includes(keyword))
-      }
-      return item.content.toLowerCase().includes(keyword)
+  const baseList = useMemo(
+    () => (showFavoritesOnly ? history.filter((item) => item.favorited) : history),
+    [history, showFavoritesOnly],
+  )
+
+  const keywordLower = deferredSearch.toLowerCase().trim()
+  const useWorkerForFilter = baseList.length >= CLIPBOARD_FILTER_WORKER_MIN_ITEMS && keywordLower.length > 0
+
+  const [workerMatchIds, setWorkerMatchIds] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    if (!useWorkerForFilter) {
+      setWorkerMatchIds(null)
+      return
+    }
+    const gen = ++filterWorkerGenRef.current
+    const rows = toClipboardFilterRows(baseList)
+    void filterClipboardHistoryByKeywordInWorker(rows, keywordLower).then((ids) => {
+      if (gen !== filterWorkerGenRef.current) return
+      setWorkerMatchIds(ids)
     })
-  }, [history, deferredSearch, showFavoritesOnly])
+  }, [useWorkerForFilter, baseList, keywordLower])
 
-  const displayed = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount])
-  const hasMore = visibleCount < filtered.length
-  const loadMore = useCallback(() => { setVisibleCount((prev) => prev + PAGE_SIZE) }, [])
+  const filterWorkerPending = useWorkerForFilter && workerMatchIds === null
 
-  useEffect(() => { setVisibleCount(PAGE_SIZE); userBrowsingRef.current = false }, [search])
-  useEffect(() => { setVisibleCount(PAGE_SIZE); setSelectedIndex(0) }, [showFavoritesOnly])
+  const filtered = useMemo(() => {
+    if (!keywordLower) {
+      return baseList
+    }
+    if (!useWorkerForFilter) {
+      return baseList.filter((item) => {
+        if (item.type === 'file') {
+          return (
+            item.content.toLowerCase().includes(keywordLower) ||
+            (item.filePaths ?? []).some((path) => path.toLowerCase().includes(keywordLower))
+          )
+        }
+        return item.content.toLowerCase().includes(keywordLower)
+      })
+    }
+    if (workerMatchIds === null) {
+      return []
+    }
+    const byId = new Map(baseList.map((item) => [item.id, item]))
+    const out: ClipboardItem[] = []
+    for (const id of workerMatchIds) {
+      const item = byId.get(id)
+      if (item) {
+        out.push(item)
+      }
+    }
+    return out
+  }, [baseList, keywordLower, useWorkerForFilter, workerMatchIds])
+
+  useEffect(() => {
+    userBrowsingRef.current = false
+  }, [search])
+
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [showFavoritesOnly])
 
   const selectedItem = filtered[selectedIndex] ?? null
-  const stateRef = useRef({ filtered, displayed, selectedIndex, pasteOnEnter: config.clipboardPasteOnEnter })
-  stateRef.current = { filtered, displayed, selectedIndex, pasteOnEnter: config.clipboardPasteOnEnter }
-  const loadMoreRef = useRef(loadMore)
-  loadMoreRef.current = loadMore
+  const stateRef = useRef({ filtered, selectedIndex, pasteOnEnter: config.clipboardPasteOnEnter })
+  stateRef.current = { filtered, selectedIndex, pasteOnEnter: config.clipboardPasteOnEnter }
 
   const handlePaste = useCallback(async (item: ClipboardItem) => {
     try {
@@ -236,7 +279,7 @@ export function useClipboard(config: AppConfig) {
     ) {
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') return
     }
-    const { filtered: currentFiltered, displayed: currentDisplayed, selectedIndex: currentIdx, pasteOnEnter } = stateRef.current
+    const { filtered: currentFiltered, selectedIndex: currentIdx, pasteOnEnter } = stateRef.current
     const maxIndex = Math.max(currentFiltered.length - 1, 0)
     const mod = e.metaKey || e.ctrlKey
     if (mod) {
@@ -247,9 +290,6 @@ export function useClipboard(config: AppConfig) {
         if (currentFiltered.length === 0 || slot > maxIndex) return
         userBrowsingRef.current = true
         setSelectedIndex(slot)
-        if (slot >= currentDisplayed.length) {
-          setVisibleCount(Math.ceil((slot + 1) / PAGE_SIZE) * PAGE_SIZE)
-        }
         if (pasteOnEnter) {
           userBrowsingRef.current = false
           const item = currentFiltered[slot]
@@ -263,7 +303,6 @@ export function useClipboard(config: AppConfig) {
       userBrowsingRef.current = true
       const newIdx = Math.min(currentIdx + 1, maxIndex)
       setSelectedIndex(newIdx)
-      if (newIdx >= currentDisplayed.length) loadMoreRef.current()
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       userBrowsingRef.current = true
@@ -281,10 +320,8 @@ export function useClipboard(config: AppConfig) {
   useEffect(() => {
     if (selectedIndex >= filtered.length) {
       setSelectedIndex(Math.max(0, filtered.length - 1))
-    } else if (selectedIndex >= visibleCount) {
-      setVisibleCount(Math.ceil((selectedIndex + 1) / PAGE_SIZE) * PAGE_SIZE)
     }
-  }, [filtered.length, selectedIndex, visibleCount])
+  }, [filtered.length, selectedIndex])
 
   const replaceHistory = useCallback(async (items: ClipboardItem[]) => {
     const nextHistory = filterHistoryByRetention(
@@ -292,7 +329,7 @@ export function useClipboard(config: AppConfig) {
       retentionDaysRef.current,
     )
     pruneClipboardImagePreviewCache(nextHistory.map((item) => item.id))
-    startTransition(() => { setHistory(nextHistory); setSelectedIndex(0); setVisibleCount(PAGE_SIZE) })
+    startTransition(() => { setHistory(nextHistory); setSelectedIndex(0) })
   }, [])
 
   const mergeImportedHistory = useCallback((items: ClipboardItem[]) => {
@@ -306,20 +343,18 @@ export function useClipboard(config: AppConfig) {
       return merged
     })
     setSelectedIndex(0)
-    setVisibleCount(PAGE_SIZE)
   }, [])
 
   const clearHistory = useCallback(() => {
     clearClipboardImagePreviewCache()
     setHistory([])
     setSelectedIndex(0)
-    setVisibleCount(PAGE_SIZE)
   }, [])
 
   const reloadHistoryFromDb = useCallback(async () => {
     try {
       const raw = await loadClipboardHistoryFromDb()
-      if (!raw) { clearClipboardImagePreviewCache(); startTransition(() => { setHistory([]); setSelectedIndex(0); setVisibleCount(PAGE_SIZE) }); return }
+      if (!raw) { clearClipboardImagePreviewCache(); startTransition(() => { setHistory([]); setSelectedIndex(0) }); return }
       let normalized: ClipboardItem[]
       try { normalized = await parseNormalizeClipboardHistoryFromDbRawInWorker(raw) } catch {
         const parsed = JSON.parse(raw) as StoredClipboardHistory
@@ -328,7 +363,7 @@ export function useClipboard(config: AppConfig) {
       }
       const cachedHistory = filterHistoryByRetention(applyClipboardHistoryMaxSlice(normalized, historyMaxRef.current), retentionDaysRef.current)
       pruneClipboardImagePreviewCache(cachedHistory.map((item) => item.id))
-      startTransition(() => { setHistory(cachedHistory); setSelectedIndex(0); setVisibleCount(PAGE_SIZE) })
+      startTransition(() => { setHistory(cachedHistory); setSelectedIndex(0) })
     } catch (error) { toastInvokeError('从数据库重新加载剪贴板历史失败', error) }
   }, [])
 
@@ -373,7 +408,7 @@ export function useClipboard(config: AppConfig) {
 
   return {
     history, isHistoryLoading, search, setSearch, showFavoritesOnly, setShowFavoritesOnly,
-    favoritedTotal, filtered, displayed, hasMore, loadMore, selectedItem, selectedIndex,
+    favoritedTotal, filtered, filterWorkerPending, selectedItem, selectedIndex,
     setSelectedIndex, replaceHistory, mergeImportedHistory, clearHistory, toggleItemFavorite,
     removeHistoryItem, handlePaste, handleKeyDown, flushClipboardHistoryToDisk,
   }

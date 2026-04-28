@@ -143,54 +143,43 @@ export default memo(function ClipboardItemCard({
             )}
           </div>
 
-          <div className="flex shrink-0 flex-col items-end justify-center gap-0.5 text-right">
-            {showQuickShortcut ? (
-              <span className="inline-flex" aria-hidden>
-                <ShortcutKbd
-                  formatted={formatListQuickSlotShortcut(index + 1)}
-                  emptyMessage={null}
-                  className={cn(
-                    'pointer-events-none tabular-nums',
-                    'h-4 min-h-4 px-1 text-[10px] font-semibold leading-none tracking-tight sm:h-[18px] sm:text-[11px]',
-                    isSelected ? 'text-primary' : 'text-muted-foreground',
-                  )}
-                />
-              </span>
-            ) : null}
-            <div className="flex items-center justify-end gap-1" title={item.favorited ? '已收藏' : undefined}>
+          <div className="flex shrink-0 flex-col items-end justify-center gap-1 text-right">
+            <div
+              className="flex items-center justify-end gap-1.5"
+              title={item.favorited ? '已收藏' : undefined}
+            >
+              {showQuickShortcut ? (
+                <span className="inline-flex" aria-hidden>
+                  <ShortcutKbd
+                    formatted={formatListQuickSlotShortcut(index + 1)}
+                    emptyMessage={null}
+                    className={cn(
+                      'pointer-events-none tabular-nums',
+                      'h-4 min-h-4 px-1 text-[10px] font-semibold leading-none tracking-tight sm:h-[18px] sm:text-[11px]',
+                      isSelected ? 'text-primary' : 'text-muted-foreground',
+                    )}
+                  />
+                </span>
+              ) : null}
               {item.favorited ? <Star className="size-3 shrink-0 fill-amber-400 text-amber-500" aria-hidden /> : null}
               <span
                 className={cn(
                   isSelected
                     ? 'text-[color-mix(in_oklch,var(--foreground)_68%,var(--primary)_32%)]'
                     : 'text-muted-foreground',
-                  'pb-1 text-xs tabular-nums leading-none',
+                  'text-[10px] tabular-nums leading-none sm:text-[11px]',
                 )}
               >
                 {formatTime(item.timestamp)}
               </span>
             </div>
             {item.sourceApp || item.sourceAppPath ? (
-              <span
-                className={cn(
-                  isSelected
-                    ? 'text-[color-mix(in_oklch,var(--foreground)_68%,var(--primary)_32%)]'
-                    : 'text-muted-foreground',
-                  'flex w-full max-w-full items-center justify-end gap-2 text-xs leading-3',
-                )}
-              >
-                <SourceAppIcon
-                  path={item.sourceAppPath}
-                  title={item.sourceApp ? `来自 ${item.sourceApp}` : item.sourceAppPath}
-                  sizePx={18}
-                  className="opacity-90"
-                />
-                {item.sourceApp ? (
-                  <span className="min-w-0 wrap-anywhere text-right " title={`来自 ${item.sourceApp}`}>
-                    {item.sourceApp}
-                  </span>
-                ) : null}
-              </span>
+              <SourceAppIcon
+                path={item.sourceAppPath}
+                title={item.sourceApp ? `来自 ${item.sourceApp}` : item.sourceAppPath}
+                sizePx={16}
+                className={cn('opacity-85', isSelected ? 'opacity-100' : '')}
+              />
             ) : null}
           </div>
         </div>

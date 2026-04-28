@@ -95,11 +95,9 @@ pub fn file_items_for_query(
 
     let work_roots = expand_work_roots(raw_roots);
     let n = work_roots.len().max(1);
-    let per_root_cap = ((MAX_FILE_RESULTS * 2) / n)
-        .max(MIN_PER_ROOT)
-        .min(MAX_PER_ROOT);
+    let per_root_cap = ((MAX_FILE_RESULTS * 2) / n).clamp(MIN_PER_ROOT, MAX_PER_ROOT);
     // 多根并行时每根走独立步数预算，与串行时「整盘 80 万步」同量级
-    let max_scan_per_root = (MAX_SCAN_PER_ROOT * 16 / n as u64).max(28_000).min(120_000);
+    let max_scan_per_root = (MAX_SCAN_PER_ROOT * 16 / n as u64).clamp(28_000, 120_000);
 
     let exclude_dirs: Arc<HashSet<String>> = Arc::new(
         excluded_dir_names

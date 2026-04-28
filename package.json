@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "check": "pnpm exec tsc --noEmit && pnpm build",
+    "check:rust": "cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test",
     "analyze": "tsc && vite build --mode analyze",
     "preview": "vite preview",
     "tauri": "tauri"

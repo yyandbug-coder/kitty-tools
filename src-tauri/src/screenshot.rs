@@ -125,7 +125,11 @@ pub fn composite_virtual_region_rgba(
 
     let mut pieces = Vec::with_capacity(jobs.len());
     if jobs.len() == 1 {
-        pieces.push(capture_and_normalize_job(jobs.into_iter().next().unwrap())?);
+        let job = jobs
+            .into_iter()
+            .next()
+            .expect("jobs.len() == 1 implies one composite job");
+        pieces.push(capture_and_normalize_job(job)?);
     } else {
         let piece_results: Vec<Result<(i32, i32, RgbaImage), String>> =
             jobs.into_par_iter().map(capture_and_normalize_job).collect();

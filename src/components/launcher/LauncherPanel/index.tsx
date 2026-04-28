@@ -452,6 +452,7 @@ function LauncherPanel() {
               {items.length === 0 ? (
                 <div
                   role="status"
+                  aria-live="polite"
                   className="text-muted-foreground px-3 py-8 text-center text-sm leading-relaxed"
                 >
                   {listLoading ? (

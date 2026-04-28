@@ -36,9 +36,7 @@ unsafe fn macos_app_icon_data_url_on_main(path: &str) -> Option<String> {
     let workspace = NSWorkspace::sharedWorkspace();
     let ns_path = NSString::from_str(path);
     let icon = workspace.iconForFile(&ns_path);
-    let Some(tiff) = icon.TIFFRepresentation() else {
-        return None;
-    };
+    let tiff = icon.TIFFRepresentation()?;
     let len = tiff.length();
     if len == 0 {
         return None;

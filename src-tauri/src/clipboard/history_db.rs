@@ -70,6 +70,26 @@ fn favorited_i(b: bool) -> i32 {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::build_batch_insert_sql;
+
+    #[test]
+    fn batch_insert_sql_one_row_thirteen_placeholders() {
+        let s = build_batch_insert_sql(1);
+        assert!(s.contains("?1,"), "{}", s);
+        assert!(s.contains("?13)"), "{}", s);
+        assert!(!s.contains("?14"), "{}", s);
+    }
+
+    #[test]
+    fn batch_insert_sql_two_rows_twenty_six_placeholders() {
+        let s = build_batch_insert_sql(2);
+        assert!(s.contains("?13), (?14"), "{}", s);
+        assert!(s.ends_with("?26)"), "{}", s);
+    }
+}
+
 fn build_batch_insert_sql(chunk_len: usize) -> String {
     // 须使用 `?1,?2,…`（或每个参数前都有 `$`）。原先写成 `(${},{},…)` 只会在第一个数前产生 `$`，
     // 得到 `($1,2,3,…,13)`：SQLite 仅识别 `$1`，`params_from_iter` 与占位符数量不一致 → 保存失败。
@@ -98,9 +118,9 @@ fn build_batch_insert_sql(chunk_len: usize) -> String {
     format!("INSERT INTO clipboard_history ({INSERT_COLS}) VALUES {placeholders}")
 }
 
-fn append_row_params<'a>(
+fn append_row_params(
     args: &mut Vec<rusqlite::types::Value>,
-    item: &'a ClipboardHistoryReplaceItem,
+    item: &ClipboardHistoryReplaceItem,
 ) {
     args.push(rusqlite::types::Value::Text(item.id.clone()));
     args.push(rusqlite::types::Value::Text(item.item_type.clone()));

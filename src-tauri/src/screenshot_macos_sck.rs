@@ -56,6 +56,7 @@ fn sc_cgimage_to_rgba(
 }
 
 /// 在隐藏选区层之后，按与原来 `crop_from_viewport_mapping` 一致的几何关系只截选区（全局点坐标系）
+#[allow(clippy::too_many_arguments)] // 与 viewport / 选区矩形参数一一对应，合并为结构体调用点更啰嗦
 pub fn capture_overlay_selection_sck(
     vx: i32,
     vy: i32,

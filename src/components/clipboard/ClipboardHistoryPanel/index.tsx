@@ -343,6 +343,8 @@ export default function ClipboardHistoryPanel() {
                       </div>
                     ) : filtered.length === 0 ? (
                       <div
+                        role="status"
+                        aria-live="polite"
                         className={cn(
                           'flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/25 px-8 text-center',
                         )}

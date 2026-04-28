@@ -29,7 +29,7 @@ function LauncherApp() {
   if (!loaded) {
     return (
       <>
-        <div className="flex h-full min-h-screen w-full items-center justify-center bg-background">
+        <div className="flex h-full min-h-0 w-full items-center justify-center bg-background">
           <div className="flex flex-col items-center gap-3">
             <div className="relative size-8">
               <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
@@ -45,7 +45,7 @@ function LauncherApp() {
   return (
     <div
       className={cn(
-        'flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
+        'flex h-full w-full min-h-0 flex-col overflow-hidden bg-background text-foreground',
         isDarkMode && 'dark',
       )}
       data-kitty-theme-scope

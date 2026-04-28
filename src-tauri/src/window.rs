@@ -384,9 +384,12 @@ fn register_launcher_handlers<R: Runtime>(window: &WebviewWindow<R>, app: &tauri
 /// 隐藏启动器。
 pub fn hide_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window(WINDOW_LAUNCHER) {
-        if let Ok(size) = window.inner_size() {
-            let w = size.width;
-            let h = size.height;
+        // `inner_size()` 为物理像素；创建窗口时 `inner_size(w,h)` 为逻辑像素（尤其 macOS Retina）。
+        // 若直接保存物理尺寸，下次启动会把窗口拉到约为原本的 scale 倍（易表现为接近全屏、下方大块留白）。
+        if let Ok(physical) = window.inner_size() {
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let w = ((physical.width as f64) / scale).round() as u32;
+            let h = ((physical.height as f64) / scale).round() as u32;
             if (320..=4096).contains(&w) && (200..=4096).contains(&h) {
                 let cfg_state = app.state::<std::sync::Mutex<crate::config::AppConfig>>();
                 let mut cfg = crate::app_state::lock_poisoned(&*cfg_state).clone();

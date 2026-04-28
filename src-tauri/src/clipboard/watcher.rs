@@ -37,9 +37,10 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
 
     /// 超过此大小（字节）的文本将被忽略，防止内存暴涨
     const MAX_TEXT_BYTES: usize = 5 * 1024 * 1024; // 5 MB
-    /// 剪贴板位图超过此像素数或原始 RGBA 字节数则忽略（与文本上限同量级，避免超大截图拖垮内存/磁盘缓存）
-    const MAX_IMAGE_PIXELS: u64 = 4096 * 4096;
-    const MAX_IMAGE_RGBA_BYTES: usize = 24 * 1024 * 1024; // 24 MB
+    /// 剪贴板位图原始 RGBA 上限（与像素上限一致：约 8192×4096 Retina 整屏截图量级）。
+    /// 再大易导致单次分配/PNG 编码峰值过高；若仍不够可略增，但需与 `image_cache` 磁盘策略一并考虑。
+    const MAX_IMAGE_RGBA_BYTES: usize = 128 * 1024 * 1024; // 128 MiB
+    const MAX_IMAGE_PIXELS: u64 = (MAX_IMAGE_RGBA_BYTES / 4) as u64;
 
     let app_handle = app.clone();
     std::thread::spawn(move || {

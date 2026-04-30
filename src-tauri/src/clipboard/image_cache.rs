@@ -214,11 +214,35 @@ fn prune_image_memory_cache(keep: &HashSet<String>) {
 
 pub fn cache_image<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str, width: usize, height: usize, bytes: &[u8]) -> Option<usize> {
     let byte_size = persist_clipboard_image(app, id, width, height, bytes);
-    persist_clipboard_preview(app, id, width, height, bytes);
+    // 原图持久化失败则不再写 preview，避免产生「有 preview 无 .kchi」的孤儿（前端会取到无效预览）。
+    if byte_size.is_some() {
+        persist_clipboard_preview(app, id, width, height, bytes);
+    }
     if bytes.len() <= MAX_IN_MEMORY_RGBA_BYTES {
         put_image_in_memory_cache(id, width, height, bytes);
     }
     byte_size
+}
+
+/// 启动时清理孤儿 preview：扫描缓存目录中 `*.preview.png`，若同名 `.kchi` 不存在则删除该 preview。
+/// 调用频率低、单次 IO 开销小，对热路径无影响。
+pub fn cleanup_orphan_previews<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> std::io::Result<()> {
+    let dir = clipboard_images_dir(app)?;
+    let entries = fs::read_dir(&dir)?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let Some(stem) = name.strip_suffix(".preview.png") else {
+            continue;
+        };
+        let kchi = dir.join(format!("{stem}.kchi"));
+        if !kchi.exists() {
+            let _ = fs::remove_file(&path);
+        }
+    }
+    Ok(())
 }
 
 pub fn resolve_image_entry<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str) -> Option<CachedImage> {

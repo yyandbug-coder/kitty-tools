@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
-use super::LauncherItem;
+use super::{collect_matches, LauncherItem, MatchableRow};
 
 struct SysApp {
     id: &'static str,
@@ -52,24 +52,21 @@ fn compiled_apps() -> &'static [SysAppCompiled] {
         .as_slice()
 }
 
-/// 无关键词时展示全部；有关键词时按标题/副标题/附加词过滤。
+impl MatchableRow for SysAppCompiled {
+    fn matches_lowered(&self, q_lower: &str) -> bool {
+        self.title_lower.contains(q_lower)
+            || self.subtitle_lower.contains(q_lower)
+            || self.extras_lower.iter().any(|e| e.contains(q_lower))
+    }
+    fn to_item(&self) -> LauncherItem {
+        self.app.to_item()
+    }
+}
+
+/// 无关键词时展示全部；有关键词时按标题/副标题/附加词过滤。委托给 `super::collect_matches`，
+/// 与 `builtins_table()` 共用同一份「空查询⇒全部 / 否则子串过滤」语义。
 pub fn items_for_query(q: &str, q_lower: &str) -> Vec<LauncherItem> {
-    let apps = compiled_apps();
-    if q.trim().is_empty() {
-        return apps.iter().map(|c| c.app.to_item()).collect();
-    }
-    if q_lower.is_empty() {
-        return Vec::new();
-    }
-    apps
-        .iter()
-        .filter(|c| {
-            c.title_lower.contains(q_lower)
-                || c.subtitle_lower.contains(q_lower)
-                || c.extras_lower.iter().any(|e| e.contains(q_lower))
-        })
-        .map(|c| c.app.to_item())
-        .collect()
+    collect_matches(compiled_apps(), q, q_lower)
 }
 
 impl SysApp {

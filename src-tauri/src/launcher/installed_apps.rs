@@ -264,54 +264,87 @@ fn scan_macos_apps() -> Vec<CachedEntry> {
         if !base.is_dir() {
             continue;
         }
+        // 第一层：base 下直接的 *.app；
+        // 第二层：base 下普通子目录（如 `Utilities`）内的 *.app（覆盖系统自带 Terminal / Disk Utility 等）。
+        // 不再向下深入，避免进入 `.app` bundle 的 `Contents/MacOS/*.app` 噪声项。
+        if push_macos_app_dir(&base, &mut seen_payload, &mut out) {
+            return out;
+        }
         let Ok(rd) = std::fs::read_dir(&base) else {
             continue;
         };
         for e in rd.flatten() {
-            if out.len() >= MAX_INSTALLED {
-                return out;
-            }
             let p = e.path();
             if !p.is_dir() {
                 continue;
             }
-            let Some(ext) = p.extension().and_then(|e| e.to_str()) else {
-                continue;
-            };
-            if ext != "app" {
-                continue;
-            }
-            let title = p
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("App")
-                .to_string();
-            let title_lower = title.to_lowercase();
-            let payload = p.to_string_lossy().into_owned();
-            if !seen_payload.insert(payload.clone()) {
+            // base 下若已是 `.app`，上一步 `push_macos_app_dir` 已处理过；跳过避免重复扫描其内部。
+            let is_app_bundle = p.extension().and_then(|x| x.to_str()) == Some("app");
+            if is_app_bundle {
                 continue;
             }
-            let subtitle: String = "应用程序".into();
-            let search_lower = format!(
-                "{} {} {}",
-                &title_lower,
-                subtitle,
-                payload.to_lowercase()
-            );
-            let icon_path = files::icon_path_for_path(&p);
-            out.push(CachedEntry {
-                item: LauncherItem {
-                    id: stable_id(&payload),
-                    title,
-                    subtitle,
-                    kind: "open_path".into(),
-                    payload,
-                    icon_path,
-                },
-                search_lower,
-                title_lower,
-            });
+            if push_macos_app_dir(&p, &mut seen_payload, &mut out) {
+                return out;
+            }
         }
     }
     out
+}
+
+/// 把 `dir` 下的 `*.app` 入条目；返回 `true` 表示已达到 `MAX_INSTALLED`，外层应停止扫描。
+#[cfg(target_os = "macos")]
+fn push_macos_app_dir(
+    dir: &std::path::Path,
+    seen_payload: &mut HashSet<String>,
+    out: &mut Vec<CachedEntry>,
+) -> bool {
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    for e in rd.flatten() {
+        if out.len() >= MAX_INSTALLED {
+            return true;
+        }
+        let p = e.path();
+        if !p.is_dir() {
+            continue;
+        }
+        let Some(ext) = p.extension().and_then(|x| x.to_str()) else {
+            continue;
+        };
+        if ext != "app" {
+            continue;
+        }
+        let title = p
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("App")
+            .to_string();
+        let title_lower = title.to_lowercase();
+        let payload = p.to_string_lossy().into_owned();
+        if !seen_payload.insert(payload.clone()) {
+            continue;
+        }
+        let subtitle: String = "应用程序".into();
+        let search_lower = format!(
+            "{} {} {}",
+            &title_lower,
+            subtitle,
+            payload.to_lowercase()
+        );
+        let icon_path = files::icon_path_for_path(&p);
+        out.push(CachedEntry {
+            item: LauncherItem {
+                id: stable_id(&payload),
+                title,
+                subtitle,
+                kind: "open_path".into(),
+                payload,
+                icon_path,
+            },
+            search_lower,
+            title_lower,
+        });
+    }
+    false
 }

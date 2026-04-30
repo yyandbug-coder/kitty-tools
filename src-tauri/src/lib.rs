@@ -732,6 +732,9 @@ pub fn run() {
                 let _ = app.handle().emit("autostart-sync-failed", e);
             }
 
+            // 启动时清理孤儿 preview（preview 存在但同名 .kchi 已不存在的情况）
+            let _ = clipboard::image_cache::cleanup_orphan_previews(app.handle());
+
             // Pre-create clipboard, floating, region-select, launcher, settings and onboarding windows
             let _ = window::get_or_create_clipboard_popup_window(app.handle());
             let _ = window::get_or_create_floating_window(app.handle());

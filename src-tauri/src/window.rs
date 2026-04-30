@@ -465,37 +465,6 @@ fn register_launcher_handlers<R: Runtime>(window: &WebviewWindow<R>, app: &tauri
     );
 }
 
-#[allow(dead_code)]
-fn register_launcher_handlers_legacy<R: Runtime>(window: &WebviewWindow<R>, app: &tauri::AppHandle<R>) {
-    let app_handle = app.clone();
-    let had_true_focus = Arc::new(AtomicBool::new(false));
-
-    window.on_window_event(move |event| {
-        match event {
-            WindowEvent::Focused(true) => {
-                let app_state = app_handle.state::<crate::app_state::AppState>();
-                app_state.launcher_interacting.store(false, Ordering::SeqCst);
-                had_true_focus.store(true, Ordering::SeqCst);
-            }
-            WindowEvent::Focused(false) => {
-                let app_state = app_handle.state::<crate::app_state::AppState>();
-                if app_state.launcher_interacting.swap(false, Ordering::SeqCst) {
-                    return;
-                }
-                let hide_on_unfocus = {
-                    let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
-                    let guard = crate::app_state::lock_poisoned(&*cfg_state);
-                    guard.launcher_hide_on_unfocus
-                };
-                if hide_on_unfocus && had_true_focus.load(Ordering::SeqCst) {
-                    hide_launcher(&app_handle);
-                }
-            }
-            _ => {}
-        }
-    });
-}
-
 /// 仅隐藏启动器并持久化尺寸；**不**执行 macOS 的 `app.hide()` / 恢复前台 App（见 `hide_clipboard_popup_layer`）。
 fn hide_launcher_layer<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window(WINDOW_LAUNCHER) {

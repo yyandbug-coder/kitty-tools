@@ -77,6 +77,31 @@ pub struct LauncherItem {
     pub icon_path: Option<String>,
 }
 
+/// 启动器内「可匹配行」的统一抽象：每个行需要给出
+/// 1) `matches_lowered(q_lower)`：在所有需要匹配的字段上做 `contains`，命中任一即返回 true；
+/// 2) `item()`：导出对应的 `LauncherItem` 副本以供前端使用。
+///
+/// 用于 `builtins_table()` / `system_apps`，让两条 pipeline 共享一份「q 空 ⇒ 返回全部，否则按子串过滤」语义，
+/// 同时仍把高度优化的 `installed_apps`（带前缀优先排序）保留为独立实现。
+pub(crate) trait MatchableRow {
+    fn matches_lowered(&self, q_lower: &str) -> bool;
+    fn to_item(&self) -> LauncherItem;
+}
+
+/// 通用过滤：`q` 为空时返回全部；否则用 `q_lower` 过滤。所有行实现 `MatchableRow` 即可复用。
+pub(crate) fn collect_matches<R: MatchableRow>(rows: &[R], q: &str, q_lower: &str) -> Vec<LauncherItem> {
+    if q.trim().is_empty() {
+        return rows.iter().map(|r| r.to_item()).collect();
+    }
+    if q_lower.is_empty() {
+        return Vec::new();
+    }
+    rows.iter()
+        .filter(|r| r.matches_lowered(q_lower))
+        .map(|r| r.to_item())
+        .collect()
+}
+
 /// 供前端 `invoke` 的启动器查询（内置、书签、已安装应用、系统项等）。
 /// 本地文件名遍历仅在输入以 `find ` / `open ` 开头时执行（见 `try_parse_file_command`）。
 /// 在阻塞线程池执行，避免 `walkdir` 长时间占用异步运行时。
@@ -127,17 +152,7 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
     }
 
     let q_lower = q.to_lowercase();
-    let mut builtins_matched: Vec<LauncherItem> = Vec::new();
-
-    for row in builtins_table() {
-        if q.is_empty() {
-            builtins_matched.push(row.item.clone());
-            continue;
-        }
-        if row.title_lower.contains(&q_lower) || row.sub_lower.contains(&q_lower) {
-            builtins_matched.push(row.item.clone());
-        }
-    }
+    let builtins_matched = collect_matches(builtins_table(), q, &q_lower);
 
     if q.is_empty() {
         let mut out = builtins_matched;
@@ -257,6 +272,15 @@ struct BuiltinRow {
     item: LauncherItem,
     title_lower: String,
     sub_lower: String,
+}
+
+impl MatchableRow for BuiltinRow {
+    fn matches_lowered(&self, q_lower: &str) -> bool {
+        self.title_lower.contains(q_lower) || self.sub_lower.contains(q_lower)
+    }
+    fn to_item(&self) -> LauncherItem {
+        self.item.clone()
+    }
 }
 
 fn builtins_table() -> &'static [BuiltinRow] {

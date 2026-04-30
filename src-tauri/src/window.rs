@@ -745,8 +745,10 @@ pub fn present_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::
         hide_launcher_layer(app);
         #[cfg(target_os = "macos")]
         {
+            // 取消用户先前 Cmd+H 的隐藏；真正的 activate 留到 `show_settings_window` 切完
+            // `Regular` 激活策略之后再做，否则 NSApp 仍处于 `Accessory`，激活无效，
+            // 导致设置窗口落到其它应用之后，需要用户去 Dock 再点一次才能上前。
             let _ = app.show();
-            activate_current_application();
         }
         show_settings_window(app)
     };
@@ -760,6 +762,10 @@ pub fn present_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::
 }
 
 /// Show the settings window.
+///
+/// macOS：必须**先**切 `Regular` 激活策略 + 显示 Dock 图标，再 `window.show()`，
+/// **然后**调用 `activate_current_application()`，最后 `set_focus()`。否则在 `Accessory`
+/// 状态下激活不生效，会出现「窗口已显示但 Dock 仍未亮、需要用户再点 Dock 才前置」的现象。
 pub fn show_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     #[cfg(target_os = "macos")]
     {
@@ -767,6 +773,11 @@ pub fn show_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
     }
     let window = get_or_create_settings_window(app)?;
     let _ = window.show();
+    #[cfg(target_os = "macos")]
+    {
+        // 切到 Regular 之后再激活：把进程提至 frontmost 并把所有窗口（包含刚 show 的设置窗）置前。
+        activate_current_application();
+    }
     let _ = window.set_focus();
     Ok(())
 }

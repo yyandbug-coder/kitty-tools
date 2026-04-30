@@ -770,7 +770,7 @@ pub fn present_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::
         .suppress_macos_overlay_restore
         .store(true, Ordering::Release);
 
-    let result = (|| {
+    let result = {
         hide_floating_window(app);
         hide_clipboard_popup_layer(app);
         hide_launcher_layer(app);
@@ -780,7 +780,7 @@ pub fn present_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::
             activate_current_application();
         }
         show_settings_window(app)
-    })();
+    };
 
     #[cfg(target_os = "macos")]
     app.state::<crate::app_state::AppState>()

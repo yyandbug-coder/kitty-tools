@@ -262,7 +262,7 @@ async fn region_overlay_complete(
         .map_err(|e| e.to_string())??;
         let png_bytes = screenshot::rgba_to_png(&image)?;
         spawn_screenshot_translate_pipeline(&app, png_bytes, source_lang, target_lang, &cfg);
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -422,7 +422,7 @@ fn prepare_and_show_region_overlay<R: Runtime + 'static>(app: tauri::AppHandle<R
     #[cfg(target_os = "macos")]
     {
         // 遮罩透明，无需先全屏截屏；选区在确认后单独 SCK
-        return window::show_region_overlay(&app).map_err(|e| e.to_string());
+        window::show_region_overlay(&app).map_err(|e| e.to_string())
     }
     #[cfg(not(target_os = "macos"))]
     {

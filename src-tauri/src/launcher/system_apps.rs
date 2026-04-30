@@ -197,7 +197,7 @@ fn icon_path_from_app_launch(act: &AppLaunch) -> Option<String> {
         AppLaunch::MacOpen(name) => {
             #[cfg(target_os = "macos")]
             {
-                return macos_bundle_path_for_name(name);
+                macos_bundle_path_for_name(name)
             }
             #[cfg(not(target_os = "macos"))]
             {
@@ -269,7 +269,7 @@ fn all() -> &'static [SysApp] {
     }
     #[cfg(target_os = "macos")]
     {
-        &MAC
+        MAC
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {

@@ -13,7 +13,17 @@ fn default_clipboard_shortcut() -> String {
 }
 
 fn default_launcher_shortcut() -> String {
-    "Alt+Space".to_string()
+    // Windows 上 `Alt+Space` 是激活窗口的系统菜单热键（最小化/还原/移动/关闭），
+    // 全局劫持后用户在其他应用中无法再用其呼出系统菜单；改用 `Ctrl+Space`，与多数主流启动器接近且鲜被占用。
+    // macOS 上 Spotlight 默认占用 `Cmd+Space`，`Alt+Space`（Option+Space）通常空闲，沿用。
+    #[cfg(target_os = "windows")]
+    {
+        "CommandOrControl+Space".to_string()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "Alt+Space".to_string()
+    }
 }
 
 fn default_app_theme_preset() -> String {

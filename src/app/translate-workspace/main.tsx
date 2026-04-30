@@ -15,7 +15,7 @@ import { getThemeRuntimeStyle } from '@/lib/theme'
 import type { AppTheme } from '@/types'
 import TranslatePanel from '@/components/translate/TranslatePanel'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { Toaster } from 'react-hot-toast'
+import GlobalToaster from '@/components/shared/GlobalToaster'
 import { cn } from '@/lib/utils'
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import '@/assets/styles/tailwind/index.css'
@@ -25,7 +25,7 @@ function TranslateWorkspaceApp() {
   const isDarkMode = useKittyIsDarkMode(config.theme)
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
-    [config.appThemePreset, config.customHue, isDarkMode],
+    [config.appThemePreset, config.customHue, isDarkMode]
   )
 
   const handleCloseWindow = useCallback(() => {
@@ -49,7 +49,7 @@ function TranslateWorkspaceApp() {
     <div
       className={cn(
         'flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
-        isDarkMode && 'dark',
+        isDarkMode && 'dark'
       )}
       data-kitty-theme-scope
       data-theme={config.appThemePreset}
@@ -98,9 +98,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ConfigProvider>
         <TooltipProvider>
           <TranslateWorkspaceApp />
-          <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+          <GlobalToaster />
         </TooltipProvider>
       </ConfigProvider>
     </ErrorBoundary>
-  </React.StrictMode>,
+  </React.StrictMode>
 )

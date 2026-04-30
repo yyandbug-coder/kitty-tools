@@ -5,52 +5,8 @@ pub fn get_selected_text() -> Result<String, String> {
         CloseClipboard, EmptyClipboard, GetClipboardData, OpenClipboard, SetClipboardData,
     };
     use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE};
-    use windows::Win32::UI::Input::KeyboardAndMouse::{
-        SendInput, INPUT, INPUT_TYPE, KEYBD_EVENT_FLAGS, VIRTUAL_KEY, VK_CONTROL, VK_SHIFT,
-    };
 
     const CF_UNICODETEXT: u32 = 13;
-    const KEYEVENTF_KEYUP: u32 = 0x0002;
-
-    unsafe fn release_modifiers() {
-        let mut inputs: [INPUT; 2] = std::mem::zeroed();
-
-        inputs[0].r#type = INPUT_TYPE(1);
-        inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-        inputs[0].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
-
-        inputs[1].r#type = INPUT_TYPE(1);
-        inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(VK_SHIFT.0);
-        inputs[1].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
-
-        SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
-    }
-
-    unsafe fn send_ctrl_c() {
-        let mut inputs: [INPUT; 4] = std::mem::zeroed();
-
-        // Ctrl down
-        inputs[0].r#type = INPUT_TYPE(1);
-        inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-        inputs[0].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(0);
-
-        // C down
-        inputs[1].r#type = INPUT_TYPE(1);
-        inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(0x43);
-        inputs[1].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(0);
-
-        // C up
-        inputs[2].r#type = INPUT_TYPE(1);
-        inputs[2].Anonymous.ki.wVk = VIRTUAL_KEY(0x43);
-        inputs[2].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
-
-        // Ctrl up
-        inputs[3].r#type = INPUT_TYPE(1);
-        inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-        inputs[3].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
-
-        SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
-    }
 
     unsafe fn get_clipboard_text() -> Option<String> {
         if OpenClipboard(None).is_err() {
@@ -152,9 +108,8 @@ pub fn get_selected_text() -> Result<String, String> {
     // Step 1: Save the current clipboard content (all formats) so we can restore it later.
     let saved_clipboard = unsafe { save_clipboard_all() };
 
-    // Step 2: Release any modifier keys that may still be held down from the
-    // 全局划词/截图快捷键按下后，修饰键可能仍处于按下状态。
-    unsafe { release_modifiers() };
+    // Step 2: 释放可能仍按下的全局快捷键修饰键（含 Win/Alt/Shift/Ctrl 左右键）。
+    unsafe { crate::win_input::release_all_modifiers() };
 
     // Step 3: Wait for the modifier release to be processed by the system.
     std::thread::sleep(std::time::Duration::from_millis(100));
@@ -168,7 +123,7 @@ pub fn get_selected_text() -> Result<String, String> {
     }
 
     // Step 5: Simulate Ctrl+C to copy whatever text is currently selected.
-    unsafe { send_ctrl_c() };
+    unsafe { crate::win_input::inject_ctrl_c() };
 
     // Step 6: Poll the clipboard for up to 1.5 seconds waiting for text.
     let mut new_text: Option<String> = None;
@@ -193,46 +148,154 @@ pub fn get_selected_text() -> Result<String, String> {
 
 #[cfg(target_os = "macos")]
 pub fn get_selected_text() -> Result<String, String> {
-    use std::io::Write;
-    use std::process::{Command, Stdio};
+    use std::process::Command;
     use std::thread;
     use std::time::Duration;
 
-    fn pbpaste_text() -> Option<String> {
-        let out = Command::new("pbpaste").output().ok()?;
-        if !out.status.success() {
+    use objc2::class;
+    use objc2::msg_send;
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2_app_kit::NSPasteboard;
+    use objc2_foundation::{NSData, NSString};
+
+    /// 与 NSPasteboardItem 通信用：保存某条 item 上每种 type 的原始 NSData 字节。
+    /// 还原时按相同顺序重建 NSPasteboardItem，最大程度保留图片/文件/RTF/HTML 等富格式。
+    struct SavedItem {
+        types_and_data: Vec<(String, Vec<u8>)>,
+    }
+
+    unsafe fn ns_string(value: &str) -> Retained<NSString> {
+        NSString::from_str(value)
+    }
+
+    unsafe fn ns_string_to_string(s: *const AnyObject) -> Option<String> {
+        if s.is_null() {
             return None;
         }
-        Some(String::from_utf8_lossy(&out.stdout).into_owned())
+        let s = s as *const NSString;
+        Some((*s).to_string())
     }
 
-    fn pbcopy_bytes(data: &[u8]) -> Result<(), String> {
-        let mut child = Command::new("pbcopy")
-            .stdin(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("pbcopy: {}", e))?;
-        let mut stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| "pbcopy: 无标准输入".to_string())?;
-        stdin
-            .write_all(data)
-            .map_err(|e| format!("pbcopy: {}", e))?;
-        let status = child.wait().map_err(|e| format!("pbcopy: {}", e))?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err("pbcopy 失败".into())
+    unsafe fn save_pasteboard_all() -> Vec<SavedItem> {
+        let pb = NSPasteboard::generalPasteboard();
+        // -[NSPasteboard pasteboardItems] 返回 NSArray<NSPasteboardItem>* 或 nil
+        let items: *mut AnyObject = msg_send![&*pb, pasteboardItems];
+        if items.is_null() {
+            return Vec::new();
         }
+        let count: usize = msg_send![items, count];
+        let mut saved = Vec::with_capacity(count);
+        for i in 0..count {
+            let item: *mut AnyObject = msg_send![items, objectAtIndex: i];
+            if item.is_null() {
+                continue;
+            }
+            // -[NSPasteboardItem types] -> NSArray<NSPasteboardType>* (实质 NSString*)
+            let types: *mut AnyObject = msg_send![item, types];
+            if types.is_null() {
+                continue;
+            }
+            let type_count: usize = msg_send![types, count];
+            let mut bag: Vec<(String, Vec<u8>)> = Vec::with_capacity(type_count);
+            for j in 0..type_count {
+                let type_obj: *mut AnyObject = msg_send![types, objectAtIndex: j];
+                let Some(type_str) = ns_string_to_string(type_obj) else {
+                    continue;
+                };
+                // -[NSPasteboardItem dataForType:type] -> NSData* | nil
+                let data_obj: *mut AnyObject = msg_send![item, dataForType: type_obj];
+                if data_obj.is_null() {
+                    continue;
+                }
+                let data_ns = data_obj as *const NSData;
+                let len: usize = (*data_ns).length();
+                let bytes_ptr: *const u8 = (*data_ns).bytes().as_ptr() as *const u8;
+                if bytes_ptr.is_null() || len == 0 {
+                    bag.push((type_str, Vec::new()));
+                    continue;
+                }
+                let slice = std::slice::from_raw_parts(bytes_ptr, len);
+                bag.push((type_str, slice.to_vec()));
+            }
+            if !bag.is_empty() {
+                saved.push(SavedItem { types_and_data: bag });
+            }
+        }
+        saved
     }
 
-    // 与 Windows流程对齐：先备份剪贴板 → 等待修饰键释放 → 清空 → 模拟复制 → 轮询 → 还原
-    let saved_clipboard = pbpaste_text();
+    unsafe fn clear_pasteboard() {
+        let pb = NSPasteboard::generalPasteboard();
+        let _: i64 = msg_send![&*pb, clearContents];
+    }
 
+    unsafe fn restore_pasteboard_all(saved: &[SavedItem]) {
+        if saved.is_empty() {
+            return;
+        }
+        let pb = NSPasteboard::generalPasteboard();
+        let _: i64 = msg_send![&*pb, clearContents];
+
+        let cls = class!(NSPasteboardItem);
+        let mut new_items: Vec<Retained<AnyObject>> = Vec::with_capacity(saved.len());
+        for s in saved {
+            let alloc: *mut AnyObject = msg_send![cls, alloc];
+            let item_raw: *mut AnyObject = msg_send![alloc, init];
+            if item_raw.is_null() {
+                continue;
+            }
+            let Some(item) = Retained::from_raw(item_raw) else {
+                continue;
+            };
+            for (type_str, bytes) in &s.types_and_data {
+                if bytes.is_empty() {
+                    continue;
+                }
+                let ns_type = ns_string(type_str);
+                let data: Retained<NSData> = NSData::with_bytes(bytes);
+                let _: bool = msg_send![&*item, setData: &*data, forType: &*ns_type];
+            }
+            new_items.push(item);
+        }
+        if new_items.is_empty() {
+            return;
+        }
+        // writeObjects: 接受 NSArray<id<NSPasteboardWriting>>；NSPasteboardItem 实现该协议。
+        // 用 NSMutableArray + addObject: 构造，避免依赖 NSPasteboardWriting 类型绑定。
+        let arr_cls = class!(NSMutableArray);
+        let arr_alloc: *mut AnyObject = msg_send![arr_cls, alloc];
+        let arr: *mut AnyObject = msg_send![arr_alloc, init];
+        if arr.is_null() {
+            return;
+        }
+        // 接管 alloc/init 返回的 +1 引用计数，作用域结束自动 release。
+        let _arr_owner = Retained::from_raw(arr);
+        for it in &new_items {
+            let raw: *mut AnyObject = &**it as *const AnyObject as *mut AnyObject;
+            let _: () = msg_send![arr, addObject: raw];
+        }
+        let _: bool = msg_send![&*pb, writeObjects: arr];
+    }
+
+    /// 仅用于「等待新内容到达」的轮询：从 generalPasteboard 取首个 public.utf8-plain-text。
+    unsafe fn read_text_now() -> Option<String> {
+        let pb = NSPasteboard::generalPasteboard();
+        let type_str = ns_string("public.utf8-plain-text");
+        let s: *mut AnyObject = msg_send![&*pb, stringForType: &*type_str];
+        ns_string_to_string(s)
+    }
+
+    // Step 1: 先全格式备份当前剪贴板（图片/文件/RTF/HTML 等不丢）。
+    let saved = unsafe { save_pasteboard_all() };
+
+    // Step 2: 等修饰键释放（与 Windows 流程一致：全局快捷键按下后修饰键可能仍处按下态）。
     thread::sleep(Duration::from_millis(100));
 
-    pbcopy_bytes(b"").map_err(|e| format!("清空剪贴板失败：{}", e))?;
+    // Step 3: 清空剪贴板，便于检测新内容。
+    unsafe { clear_pasteboard() };
 
+    // Step 4: osascript 模拟 Cmd+C 触发当前应用的复制；失败时尝试还原后报错。
     let status = Command::new("osascript")
         .args([
             "-e",
@@ -242,16 +305,17 @@ pub fn get_selected_text() -> Result<String, String> {
         .map_err(|e| format!("模拟复制失败：{}", e))?;
 
     if !status.success() {
-        if let Some(ref s) = saved_clipboard {
-            let _ = pbcopy_bytes(s.as_bytes());
-        }
-        return Err("模拟复制失败（请检查系统设置 → 隐私与安全性 → 辅助功能 / 自动化）".into());
+        unsafe { restore_pasteboard_all(&saved) };
+        return Err(
+            "模拟复制失败（请检查系统设置 → 隐私与安全性 → 辅助功能 / 自动化）".into(),
+        );
     }
 
+    // Step 5: 1.5 s 内轮询是否有新文本到达。
     let mut new_text: Option<String> = None;
     for _ in 0..30 {
         thread::sleep(Duration::from_millis(50));
-        if let Some(t) = pbpaste_text() {
+        if let Some(t) = unsafe { read_text_now() } {
             if !t.trim().is_empty() {
                 new_text = Some(t);
                 break;
@@ -259,9 +323,8 @@ pub fn get_selected_text() -> Result<String, String> {
         }
     }
 
-    if let Some(s) = saved_clipboard {
-        let _ = pbcopy_bytes(s.as_bytes());
-    }
+    // Step 6: 还原原剪贴板（包括图片/文件/RTF 等所有格式）。
+    unsafe { restore_pasteboard_all(&saved) };
 
     match new_text {
         Some(t) => Ok(t.trim().to_string()),

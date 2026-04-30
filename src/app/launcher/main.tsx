@@ -9,7 +9,7 @@ import { getThemeRuntimeStyle } from '@/lib/theme'
 import type { AppTheme } from '@/types'
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import LauncherPanel from '@/components/launcher/LauncherPanel'
-import { Toaster } from 'react-hot-toast'
+import GlobalToaster from '@/components/shared/GlobalToaster'
 import { cn } from '@/lib/utils'
 import '@/assets/styles/tailwind/index.css'
 
@@ -17,13 +17,8 @@ function LauncherApp() {
   const { config, loaded } = useAppConfig()
   const isDarkMode = useKittyIsDarkMode(config.theme)
   const appStyle = useMemo(
-    () =>
-      getThemeRuntimeStyle(
-        config.appThemePreset as AppTheme,
-        config.customHue,
-        isDarkMode,
-      ) as CSSProperties,
-    [config.appThemePreset, config.customHue, isDarkMode],
+    () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
+    [config.appThemePreset, config.customHue, isDarkMode]
   )
 
   if (!loaded) {
@@ -37,7 +32,7 @@ function LauncherApp() {
             <span className="text-xs text-muted-foreground">加载配置中…</span>
           </div>
         </div>
-        <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+        <GlobalToaster />
       </>
     )
   }
@@ -46,14 +41,14 @@ function LauncherApp() {
     <div
       className={cn(
         'flex h-full w-full min-h-0 flex-col overflow-hidden bg-background text-foreground',
-        isDarkMode && 'dark',
+        isDarkMode && 'dark'
       )}
       data-kitty-theme-scope
       data-theme={config.appThemePreset}
       style={appStyle}
     >
       <LauncherPanel />
-      <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+      <GlobalToaster />
     </div>
   )
 }
@@ -65,5 +60,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <LauncherApp />
       </ConfigProvider>
     </ErrorBoundary>
-  </React.StrictMode>,
+  </React.StrictMode>
 )

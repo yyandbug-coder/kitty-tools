@@ -65,57 +65,19 @@ fn queue_paste_item<R: Runtime>(app: tauri::AppHandle<R>, item: ClipboardEvent) 
 
 fn trigger_paste_shortcut() {
     #[cfg(target_os = "windows")]
-    {
-        use windows::Win32::UI::Input::KeyboardAndMouse::{
-            SendInput, INPUT, INPUT_TYPE, KEYBD_EVENT_FLAGS, VIRTUAL_KEY, VK_CONTROL,
-        };
-        const KEYEVENTF_KEYUP: u32 = 0x0002;
-        unsafe {
-            let mut inputs: [INPUT; 4] = std::mem::zeroed();
-            // Ctrl down
-            inputs[0].r#type = INPUT_TYPE(1);
-            inputs[0].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-            inputs[0].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(0);
-            // V down
-            inputs[1].r#type = INPUT_TYPE(1);
-            inputs[1].Anonymous.ki.wVk = VIRTUAL_KEY(0x56);
-            inputs[1].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(0);
-            // V up
-            inputs[2].r#type = INPUT_TYPE(1);
-            inputs[2].Anonymous.ki.wVk = VIRTUAL_KEY(0x56);
-            inputs[2].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
-            // Ctrl up
-            inputs[3].r#type = INPUT_TYPE(1);
-            inputs[3].Anonymous.ki.wVk = VIRTUAL_KEY(VK_CONTROL.0);
-            inputs[3].Anonymous.ki.dwFlags = KEYBD_EVENT_FLAGS(KEYEVENTF_KEYUP);
-            SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
-        }
+    unsafe {
+        // 注入 Ctrl+V 前先释放可能残留的全局快捷键修饰键（Ctrl+Shift+V 等），
+        // 避免目标应用收到 Ctrl+Shift+V（部分应用为「无格式粘贴」或不响应）。
+        crate::win_input::release_all_modifiers();
+        // 给系统消息泵处理修饰键释放的时间，避免随后注入的 Ctrl 与残留 Shift 状态合并。
+        std::thread::sleep(Duration::from_millis(30));
+        crate::win_input::inject_ctrl_v();
     }
 
     #[cfg(target_os = "macos")]
     {
-        let _ = simulate_macos_paste();
+        let _ = crate::mac_input::inject_cmd_v();
     }
-}
-
-#[cfg(target_os = "macos")]
-fn simulate_macos_paste() -> Result<(), ()> {
-    use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
-    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-
-    const KEY_CODE_V: u16 = 0x09;
-
-    let key_down_source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)?;
-    let key_down = CGEvent::new_keyboard_event(key_down_source, KEY_CODE_V, true)?;
-    key_down.set_flags(CGEventFlags::CGEventFlagCommand);
-    key_down.post(CGEventTapLocation::HID);
-
-    let key_up_source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)?;
-    let key_up = CGEvent::new_keyboard_event(key_up_source, KEY_CODE_V, false)?;
-    key_up.set_flags(CGEventFlags::CGEventFlagCommand);
-    key_up.post(CGEventTapLocation::HID);
-
-    Ok(())
 }
 
 #[cfg(target_os = "macos")]

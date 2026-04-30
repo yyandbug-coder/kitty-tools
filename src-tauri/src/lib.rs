@@ -6,6 +6,8 @@ mod config_sqlite;
 mod hotkeys;
 mod lang_detect;
 mod launcher;
+#[cfg(target_os = "macos")]
+mod mac_input;
 mod ocr;
 mod screenshot;
 #[cfg(target_os = "macos")]
@@ -16,6 +18,8 @@ mod tray;
 mod window;
 #[cfg(target_os = "windows")]
 mod win32_sysmenu;
+#[cfg(target_os = "windows")]
+mod win_input;
 mod youdao;
 
 #[cfg(not(target_os = "macos"))]
@@ -241,19 +245,22 @@ async fn region_overlay_complete(
         window::hide_region_overlay(&app);
         tokio::time::sleep(Duration::from_millis(40)).await;
         let (vx, vy, vw, vh) = screenshot::virtual_screen_bounds().map_err(|e| e.to_string())?;
+        let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
+        // 不同 OCR 服务对图片大小容忍度不同：百度走 2560 长边压缩；Google/OpenAI 等放宽到 4096，保留小字细节。
+        let max_long_edge =
+            crate::screenshot_macos_sck::max_long_edge_for_provider(&cfg.translate_provider);
         let image = tauri::async_runtime::spawn_blocking({
             let params = (vx, vy, vw, vh, x, y, width, height, viewport_w, viewport_h);
             move || {
                 let (vx, vy, vw, vh, x, y, w, h, vvw, vvh) = params;
                 crate::screenshot_macos_sck::capture_overlay_selection_sck(
-                    vx, vy, vw, vh, x, y, w, h, vvw, vvh,
+                    vx, vy, vw, vh, x, y, w, h, vvw, vvh, max_long_edge,
                 )
             }
         })
         .await
         .map_err(|e| e.to_string())??;
         let png_bytes = screenshot::rgba_to_png(&image)?;
-        let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
         spawn_screenshot_translate_pipeline(&app, png_bytes, source_lang, target_lang, &cfg);
         return Ok(());
     }

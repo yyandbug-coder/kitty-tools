@@ -19,7 +19,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { SETTINGS_TAB, SETTINGS_TAB_ITEMS, type SettingsTabId } from '@/components/settings/constants'
@@ -84,7 +84,7 @@ export default function SettingsPanel() {
   const [launcherExcludeDirInput, setLauncherExcludeDirInput] = useState('')
   /** 曾打开过的 Tab 保持挂载，避免切回时丢失滚动位置与未提交的局部状态 */
   const [visitedTabs, setVisitedTabs] = useState<Set<SettingsTabId>>(
-    () => new Set<SettingsTabId>([SETTINGS_TAB.general]),
+    () => new Set<SettingsTabId>([SETTINGS_TAB.general])
   )
 
   const handleTabChange = useCallback((value: string) => {
@@ -99,7 +99,9 @@ export default function SettingsPanel() {
   }, [])
 
   useEffect(() => {
-    getVersion().then(setAppVersion).catch(() => setAppVersion('unknown'))
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => setAppVersion('unknown'))
   }, [])
 
   const runTranslateConnectionTest = useCallback(async () => {
@@ -114,9 +116,24 @@ export default function SettingsPanel() {
       setTestFeedback({ ok: false, text: '请先填写 Google Cloud API Key。' })
       return
     }
-    if (p === 'openai' && (!cfg.openai.apiKey.trim() || !cfg.openai.apiBaseUrl.trim())) {
-      setTestFeedback({ ok: false, text: '请先填写 OpenAI 的 API Key 与 API 根路径。' })
-      return
+    if (p === 'openai') {
+      const baseUrl = cfg.openai.apiBaseUrl.trim()
+      if (!cfg.openai.apiKey.trim() || !baseUrl) {
+        setTestFeedback({ ok: false, text: '请先填写 OpenAI 的 API Key 与 API 根路径。' })
+        return
+      }
+      if (!/^https?:\/\//i.test(baseUrl)) {
+        setTestFeedback({ ok: false, text: 'OpenAI API 根路径必须以 http:// 或 https:// 开头。' })
+        return
+      }
+      try {
+        // 仅校验可解析；实际请求由后端拼接 /chat/completions
+        // eslint-disable-next-line no-new
+        new URL(baseUrl)
+      } catch {
+        setTestFeedback({ ok: false, text: 'OpenAI API 根路径无法解析为合法 URL。' })
+        return
+      }
     }
     if (p === 'youdao' && (!cfg.youdao.appKey.trim() || !cfg.youdao.appSecret.trim())) {
       setTestFeedback({ ok: false, text: '请先填写有道智云的应用 ID 与应用密钥。' })
@@ -126,12 +143,12 @@ export default function SettingsPanel() {
     try {
       const res = await invoke<TranslateResult>('test_translate_connection', {
         provider: cfg.translateProvider,
-        config: cfg,
+        config: cfg
       })
       const sample = (res.translatedText ?? '').trim()
       setTestFeedback({
         ok: true,
-        text: sample ? `连接成功，示例译文：${sample}` : '连接成功（未返回译文文本，请检查模型或接口响应）。',
+        text: sample ? `连接成功，示例译文：${sample}` : '连接成功（未返回译文文本，请检查模型或接口响应）。'
       })
     } catch (err) {
       const msg = getInvokeErrorMessage(err)
@@ -139,6 +156,13 @@ export default function SettingsPanel() {
     } finally {
       setTesting(false)
     }
+  }, [])
+
+  // hooks 必须在任何条件 return 之前声明，否则 loaded 变化会改变 hooks 顺序触发警告/抛错
+  const handleCloseWindow = useCallback(() => {
+    void invoke('hide_settings_window').catch((err) => {
+      toast.error(getInvokeErrorMessage(err) || '无法关闭设置窗口')
+    })
   }, [])
 
   if (!loaded) {
@@ -151,12 +175,6 @@ export default function SettingsPanel() {
       </div>
     )
   }
-
-  const handleCloseWindow = useCallback(() => {
-    void invoke('hide_settings_window').catch((err) => {
-      toast.error(getInvokeErrorMessage(err) || '无法关闭设置窗口')
-    })
-  }, [])
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
@@ -185,17 +203,13 @@ export default function SettingsPanel() {
         <div
           className={cn(
             'max-w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain',
-            'touch-pan-x [-webkit-overflow-scrolling:touch]',
+            'touch-pan-x [-webkit-overflow-scrolling:touch]'
           )}
           data-tauri-drag-region
         >
           <TabsList className="inline-flex h-auto w-max max-w-none flex-nowrap justify-start gap-1 p-1 m-2 mx-3 sm:mx-4">
             {SETTINGS_TAB_ITEMS.map((tab) => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                onPointerEnter={() => prefetchSettingsTabChunk(tab.value)}
-              >
+              <TabsTrigger key={tab.value} value={tab.value} onPointerEnter={() => prefetchSettingsTabChunk(tab.value)}>
                 <tab.icon className="size-4 opacity-80" aria-hidden />
                 {tab.label}
               </TabsTrigger>
@@ -285,7 +299,7 @@ export default function SettingsPanel() {
                     google: { ...config.google },
                     openai: { ...config.openai },
                     youdao: { ...config.youdao },
-                    firstRun: false,
+                    firstRun: false
                   })
                   toast.success('已恢复默认设置')
                 } catch (e) {

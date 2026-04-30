@@ -285,6 +285,16 @@ fn handle_quit<R: Runtime>(app: &tauri::AppHandle<R>) {
         ALLOW_APP_EXIT.store(true, Ordering::SeqCst);
         app.exit(0);
     } else {
+        // 双段超时：3s 内仍未 ack 即提示「正在保存…」并继续等 12s；总计 15s 后强制退出。
+        let app_overdue = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(3));
+            if APP_EXIT_FLUSH_ACK.load(Ordering::SeqCst) {
+                return;
+            }
+            // 通知所有窗口给出「保存中」提示；优先剪贴板窗口（前端会展示 toast）。
+            let _ = app_overdue.emit("exit-flush-overdue", ());
+        });
         let app_for_deadline = app.clone();
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_secs(15));

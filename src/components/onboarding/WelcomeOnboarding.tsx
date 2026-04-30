@@ -98,7 +98,9 @@ export default function WelcomeOnboarding() {
   const { config, updateConfig } = useAppConfig()
   const [step, setStep] = useState(0)
   const [completing, setCompleting] = useState(false)
-  const [skipSecondsLeft, setSkipSecondsLeft] = useState(SKIP_COOLDOWN_SEC)
+  // 用户已完成过引导（重置/重装后再次进入）：直接允许跳过，无需倒计时。
+  const initialSkipSeconds = config.firstRun ? SKIP_COOLDOWN_SEC : 0
+  const [skipSecondsLeft, setSkipSecondsLeft] = useState(initialSkipSeconds)
   const skipTimerRef = useRef<number | null>(null)
 
   const clearSkipTimer = useCallback(() => {
@@ -110,6 +112,11 @@ export default function WelcomeOnboarding() {
 
   const startSkipCountdown = useCallback(() => {
     clearSkipTimer()
+    // 已完成过引导（firstRun=false）的用户：直接允许跳过，不再启动倒计时。
+    if (!config.firstRun) {
+      setSkipSecondsLeft(0)
+      return
+    }
     setSkipSecondsLeft(SKIP_COOLDOWN_SEC)
     const id = window.setInterval(() => {
       setSkipSecondsLeft((n) => {
@@ -124,7 +131,7 @@ export default function WelcomeOnboarding() {
       })
     }, 1000)
     skipTimerRef.current = id
-  }, [clearSkipTimer])
+  }, [clearSkipTimer, config.firstRun])
 
   useEffect(() => {
     startSkipCountdown()
@@ -175,8 +182,8 @@ export default function WelcomeOnboarding() {
             </div>
             <ul className="list-inside list-disc space-y-1.5 pl-0.5 text-sm text-muted-foreground marker:text-primary">
               <li>
-                输入关键词筛选，<Kbd className="text-foreground">Enter</Kbd> 执行当前高亮项；用 <Kbd className="text-foreground">↑</Kbd>{' '}
-                <Kbd className="text-foreground">↓</Kbd> 在列表中移动。
+                输入关键词筛选，<Kbd className="text-foreground">Enter</Kbd> 执行当前高亮项；用{' '}
+                <Kbd className="text-foreground">↑</Kbd> <Kbd className="text-foreground">↓</Kbd> 在列表中移动。
               </li>
               <li>
                 点击标题栏图钉，可让窗口<strong className="text-foreground/90">失焦不自动关闭</strong>
@@ -361,7 +368,7 @@ export default function WelcomeOnboarding() {
               onClick={() => setStep(i)}
               className={cn(
                 'h-2 w-2 rounded-full transition-all focus-visible:ring-2 focus-visible:ring-ring',
-                i === step ? 'w-6 bg-primary' : 'bg-muted-foreground/30 hover:bg-muted-foreground/50',
+                i === step ? 'w-6 bg-primary' : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
               )}
               aria-label={`第 ${i + 1} 步：${s.title}`}
               aria-current={i === step ? 'step' : undefined}

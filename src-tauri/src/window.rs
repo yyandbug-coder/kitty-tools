@@ -22,6 +22,47 @@ pub const WINDOW_TRANSLATE_WORKSPACE: &str = "translate-workspace";
 pub const WINDOW_SETTINGS: &str = "settings";
 pub const WINDOW_ONBOARDING: &str = "onboarding";
 
+/// 窗口语义枚举：供外部模块（lib.rs / tray.rs）做集中分发，避免重复 if/else。
+/// 与 `pub fn show_*/hide_*/toggle_*` 一一对应；新窗口扩展只须在此与匹配处各加一项。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum WindowKind {
+    ClipboardPopup,
+    Launcher,
+    Floating,
+    RegionSelect,
+    TranslateWorkspace,
+    Settings,
+    Onboarding,
+}
+
+impl WindowKind {
+    /// 与 `WINDOW_*` 字符串常量一一对应，便于 `app.get_webview_window(kind.label())`。
+    #[allow(dead_code)]
+    pub fn label(&self) -> &'static str {
+        match self {
+            WindowKind::ClipboardPopup => WINDOW_CLIPBOARD_POPUP,
+            WindowKind::Launcher => WINDOW_LAUNCHER,
+            WindowKind::Floating => WINDOW_FLOATING,
+            WindowKind::RegionSelect => WINDOW_REGION_SELECT,
+            WindowKind::TranslateWorkspace => WINDOW_TRANSLATE_WORKSPACE,
+            WindowKind::Settings => WINDOW_SETTINGS,
+            WindowKind::Onboarding => WINDOW_ONBOARDING,
+        }
+    }
+}
+
+/// 集中分发：`toggle`（仅对支持 toggle 的窗口有效）。
+#[allow(dead_code)]
+pub fn toggle<R: Runtime>(app: &tauri::AppHandle<R>, kind: WindowKind) {
+    match kind {
+        WindowKind::ClipboardPopup => toggle_clipboard_popup(app),
+        WindowKind::Launcher => toggle_launcher(app),
+        // 其他窗口暂不支持 toggle 语义（floating 由翻译动作驱动；settings/onboarding/region-select 单向打开）。
+        _ => {}
+    }
+}
+
 // ── macOS helpers ───────────────────────────────────────────────────────
 
 #[cfg(target_os = "macos")]
@@ -242,43 +283,65 @@ pub fn hide_clipboard_popup<R: Runtime>(app: &tauri::AppHandle<R>) {
     }
 }
 
-/// Register focus/blur handlers for the clipboard popup window.
+/// 通用的「失焦自动隐藏」事件订阅，给 clipboard / launcher 共用，避免两份相同逻辑漂移。
 ///
-/// Mirrors the floating translate window's auto-hide logic:
-/// - `Focused(true)` marks that the window has received genuine focus.
-/// - `Focused(false)` hides the window if `clipboard_hide_on_unfocus` is enabled,
-///   the window isn't being dragged, and it has previously had real focus.
+/// 行为：
+/// - `Focused(true)` 时清掉拖拽交互标记并记下「曾真正聚焦过」；
+/// - `Focused(false)` 时若拖拽交互标记被吃掉（拖拽瞬间失焦）则忽略；
+/// - 否则按 `should_hide_on_unfocus()` 决定是否调用 `hide()`。
+///
+/// `pick_interacting` 返回当前窗口对应的拖拽交互原子标志（如 `clipboard_interacting`）。
+fn register_auto_hide_on_blur<R, FInteract, FHide, FFlag>(
+    window: &WebviewWindow<R>,
+    app: &tauri::AppHandle<R>,
+    pick_interacting: FInteract,
+    should_hide_on_unfocus: FFlag,
+    hide: FHide,
+) where
+    R: Runtime,
+    FInteract: Fn(&crate::app_state::AppState) -> Arc<AtomicBool> + Send + Sync + 'static,
+    FFlag: Fn(&crate::config::AppConfig) -> bool + Send + Sync + 'static,
+    FHide: Fn(&tauri::AppHandle<R>) + Send + Sync + 'static,
+{
+    let app_handle = app.clone();
+    let had_true_focus = Arc::new(AtomicBool::new(false));
+
+    window.on_window_event(move |event| match event {
+        WindowEvent::Focused(true) => {
+            let app_state = app_handle.state::<crate::app_state::AppState>();
+            pick_interacting(&app_state).store(false, Ordering::SeqCst);
+            had_true_focus.store(true, Ordering::SeqCst);
+        }
+        WindowEvent::Focused(false) => {
+            let app_state = app_handle.state::<crate::app_state::AppState>();
+            if pick_interacting(&app_state).swap(false, Ordering::SeqCst) {
+                return;
+            }
+            let do_hide = {
+                let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
+                let guard = crate::app_state::lock_poisoned(&*cfg_state);
+                should_hide_on_unfocus(&guard)
+            };
+            if do_hide && had_true_focus.load(Ordering::SeqCst) {
+                hide(&app_handle);
+            }
+        }
+        _ => {}
+    });
+}
+
+/// Register focus/blur handlers for the clipboard popup window.
 fn register_clipboard_popup_handlers<R: Runtime>(
     window: &WebviewWindow<R>,
     app: &tauri::AppHandle<R>,
 ) {
-    let app_handle = app.clone();
-    let had_true_focus = Arc::new(AtomicBool::new(false));
-
-    window.on_window_event(move |event| {
-        match event {
-            WindowEvent::Focused(true) => {
-                let app_state = app_handle.state::<crate::app_state::AppState>();
-                app_state.clipboard_interacting.store(false, Ordering::SeqCst);
-                had_true_focus.store(true, Ordering::SeqCst);
-            }
-            WindowEvent::Focused(false) => {
-                let app_state = app_handle.state::<crate::app_state::AppState>();
-                if app_state.clipboard_interacting.swap(false, Ordering::SeqCst) {
-                    return;
-                }
-                let hide_on_unfocus = {
-                    let cfg_state = app_handle.state::<std::sync::Mutex<crate::config::AppConfig>>();
-                    let hide = crate::app_state::lock_poisoned(&*cfg_state).clipboard_hide_on_unfocus;
-                    hide
-                };
-                if hide_on_unfocus && had_true_focus.load(Ordering::SeqCst) {
-                    hide_clipboard_popup(&app_handle);
-                }
-            }
-            _ => {}
-        }
-    });
+    register_auto_hide_on_blur(
+        window,
+        app,
+        |state| state.clipboard_interacting.clone(),
+        |cfg| cfg.clipboard_hide_on_unfocus,
+        |handle| hide_clipboard_popup(handle),
+    );
 }
 
 /// Toggle clipboard popup based on visible state (regardless of focus).
@@ -393,6 +456,17 @@ pub fn show_launcher<R: Runtime>(app: &tauri::AppHandle<R>) {
 
 /// 失焦时按配置决定是否自动隐藏；拖拽瞬间失焦不隐藏（与剪贴板/翻译浮层一致，见 `launcher_interacting`）。
 fn register_launcher_handlers<R: Runtime>(window: &WebviewWindow<R>, app: &tauri::AppHandle<R>) {
+    register_auto_hide_on_blur(
+        window,
+        app,
+        |state| state.launcher_interacting.clone(),
+        |cfg| cfg.launcher_hide_on_unfocus,
+        |handle| hide_launcher(handle),
+    );
+}
+
+#[allow(dead_code)]
+fn register_launcher_handlers_legacy<R: Runtime>(window: &WebviewWindow<R>, app: &tauri::AppHandle<R>) {
     let app_handle = app.clone();
     let had_true_focus = Arc::new(AtomicBool::new(false));
 

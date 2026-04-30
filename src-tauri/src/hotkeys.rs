@@ -21,7 +21,11 @@ static CURRENT_SELECTION_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_SCREENSHOT_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_LAUNCHER_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 
-/// 保存前校验：任意项可为空以关闭该全局快捷键；非空项之间不得重复（忽略大小写）。
+/// 保存前校验：任意项可为空以关闭该全局快捷键；非空项之间不得重复。
+///
+/// 比较时按 Tauri 的 `Shortcut` 解析后归一化键位，避免 `Ctrl+Shift+V` 与 `Shift+Ctrl+V`、
+/// `CmdOrCtrl+Shift+V` 与 `Ctrl+Shift+V` 等等价组合通过校验后到注册阶段才以「already registered」失败。
+/// 解析失败时退化为 `to_lowercase()` 比较（与旧逻辑兼容）。
 pub fn validate_hotkey_config(config: &crate::config::AppConfig) -> Result<(), String> {
     let mut seen: HashSet<String> = HashSet::new();
     for s in [
@@ -33,11 +37,30 @@ pub fn validate_hotkey_config(config: &crate::config::AppConfig) -> Result<(), S
         if s.is_empty() {
             continue;
         }
-        if !seen.insert(s.to_lowercase()) {
+        let key = normalize_shortcut_key(s);
+        if !seen.insert(key) {
             return Err(format!("快捷键不能重复：{}", s));
         }
     }
     Ok(())
+}
+
+/// 把快捷键字符串归一化为稳定可比串：
+/// 1. 优先用 Tauri 的 `Shortcut::from_str` 解析（自动消化 `CmdOrCtrl` / `Cmd` / `Command` 等别名）；
+///    成功后用 `{:?}` Debug 输出（包含修饰位集合与主键），物理等价的两个写法 Debug 字符串相同。
+/// 2. 解析失败回退到拆分小写排序，仍能消除大小写与修饰键顺序差异。
+fn normalize_shortcut_key(input: &str) -> String {
+    let trimmed = input.trim();
+    if let Ok(parsed) = trimmed.parse::<Shortcut>() {
+        return format!("{:?}", parsed);
+    }
+    let mut parts: Vec<String> = trimmed
+        .split('+')
+        .map(|p| p.trim().to_lowercase())
+        .filter(|p| !p.is_empty())
+        .collect();
+    parts.sort();
+    parts.join("+")
 }
 
 // ── Clipboard shortcut ──────────────────────────────────────────────────

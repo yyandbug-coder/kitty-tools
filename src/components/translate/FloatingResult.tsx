@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
+import GlobalToaster from '@/components/shared/GlobalToaster'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useKittyIsDarkMode } from '@/hooks/useKittyIsDarkMode'
 import { cn } from '@/lib/utils'
@@ -52,7 +53,7 @@ export default function FloatingResult() {
   autoCopyRef.current = config.autoCopy
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
-    [config.appThemePreset, config.customHue, isDarkMode],
+    [config.appThemePreset, config.customHue, isDarkMode]
   )
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export default function FloatingResult() {
             setLoading(true)
             setError(null)
             setDetectedSourceLang(null)
-          }),
+          })
         ])
         if (cancelled) {
           fnResult()
@@ -124,11 +125,7 @@ export default function FloatingResult() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [config.floatingPinned])
 
-  const runTranslation = async (
-    text: string,
-    sourceLang = config.sourceLang,
-    targetLang = config.targetLang,
-  ) => {
+  const runTranslation = async (text: string, sourceLang = config.sourceLang, targetLang = config.targetLang) => {
     if (!text.trim()) {
       setTranslatedText('')
       setError(null)
@@ -143,7 +140,7 @@ export default function FloatingResult() {
       const result = await invoke<RawTranslateResult>('translate_text', {
         text,
         sourceLang,
-        targetLang,
+        targetLang
       })
       if (seq !== translateSeqRef.current) return
       setSourceText(result.sourceText ?? result.source_text ?? text)
@@ -193,7 +190,11 @@ export default function FloatingResult() {
   }
 
   const handleOpenSettings = async () => {
-    try { await invoke('open_settings_window') } catch (e) { toastInvokeError('无法打开设置', e) }
+    try {
+      await invoke('open_settings_window')
+    } catch (e) {
+      toastInvokeError('无法打开设置', e)
+    }
   }
 
   const handleTogglePin = async () => {
@@ -223,7 +224,7 @@ export default function FloatingResult() {
       <div
         className={cn(
           'flex h-screen w-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
-          isDarkMode && 'dark',
+          isDarkMode && 'dark'
         )}
         data-kitty-theme-scope
         data-theme={config.appThemePreset}
@@ -320,7 +321,11 @@ export default function FloatingResult() {
                       disabled={!sourceText.trim()}
                       aria-label={copied === 'source' ? '已复制原文' : '复制原文'}
                     >
-                      {copied === 'source' ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
+                      {copied === 'source' ? (
+                        <Check className="size-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{copied === 'source' ? '已复制原文' : '复制原文'}</TooltipContent>
@@ -328,7 +333,11 @@ export default function FloatingResult() {
               </div>
               <div className="min-h-0 flex-1 overflow-hidden p-3">
                 {loading && !sourceText.trim() ? (
-                  <div className="flex h-full min-h-28 items-center justify-center gap-2 px-2 text-center text-sm text-muted-foreground" aria-busy aria-live="polite">
+                  <div
+                    className="flex h-full min-h-28 items-center justify-center gap-2 px-2 text-center text-sm text-muted-foreground"
+                    aria-busy
+                    aria-live="polite"
+                  >
                     <Loader2 className="size-4 shrink-0 animate-spin" />
                     <span>正在识别截图中的文字…</span>
                   </div>
@@ -345,10 +354,12 @@ export default function FloatingResult() {
             </section>
 
             {/* 译文区 */}
-            <section className={cn(
-              'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 shadow-sm',
-              error ? 'bg-destructive/5' : 'bg-card/80'
-            )}>
+            <section
+              className={cn(
+                'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 shadow-sm',
+                error ? 'bg-destructive/5' : 'bg-card/80'
+              )}
+            >
               <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
                 <p className="min-w-0 truncate text-xs text-muted-foreground">
                   <span className="font-semibold text-foreground">译文</span>
@@ -365,7 +376,11 @@ export default function FloatingResult() {
                       disabled={!translatedText.trim()}
                       aria-label={copied === 'target' ? '已复制译文' : '复制译文'}
                     >
-                      {copied === 'target' ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
+                      {copied === 'target' ? (
+                        <Check className="size-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{copied === 'target' ? '已复制译文' : '复制译文'}</TooltipContent>
@@ -376,8 +391,14 @@ export default function FloatingResult() {
                   <ScrollArea className="h-full min-h-0">
                     <div className="flex flex-col gap-2 rounded-xl border border-destructive/20 bg-background/75 px-3 py-2">
                       <p className="text-sm leading-6 text-destructive">{error}</p>
-                      <Button variant="outline" size="sm" onClick={() => void runTranslation(sourceText)} className="w-fit">
-                        <RotateCcw className="mr-1.5 size-3.5" />重试
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void runTranslation(sourceText)}
+                        className="w-fit"
+                      >
+                        <RotateCcw className="mr-1.5 size-3.5" />
+                        重试
                       </Button>
                     </div>
                   </ScrollArea>
@@ -425,9 +446,7 @@ export default function FloatingResult() {
                       </span>
                     </span>
                   ) : null}
-                  <p className="min-w-0 flex-1 text-xs leading-snug text-muted-foreground">
-                    可随时修改原文后再次翻译
-                  </p>
+                  <p className="min-w-0 flex-1 text-xs leading-snug text-muted-foreground">可随时修改原文后再次翻译</p>
                 </>
               )}
             </div>
@@ -438,8 +457,13 @@ export default function FloatingResult() {
               className="min-w-28"
             >
               {loading ? (
-                <><Loader2 className="size-3.5 animate-spin" />翻译中</>
-              ) : '翻译'}
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  翻译中
+                </>
+              ) : (
+                '翻译'
+              )}
             </Button>
           </div>
         </div>
@@ -450,7 +474,7 @@ export default function FloatingResult() {
           <span>拖动顶栏移动窗口</span>
         </div>
       </div>
-      <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+      <GlobalToaster />
     </TooltipProvider>
   )
 }

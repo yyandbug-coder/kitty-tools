@@ -4,7 +4,8 @@ import type { CSSProperties, PointerEvent } from 'react'
 import type { AppTheme } from '@/types'
 import { lazy, Suspense, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
+import GlobalToaster from '@/components/shared/GlobalToaster'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -36,10 +37,24 @@ export default function ClipboardHistoryPanel() {
     [config.appThemePreset, config.customHue, isDarkMode]
   )
   const {
-    history, isHistoryLoading, search, setSearch, showFavoritesOnly, setShowFavoritesOnly,
-    favoritedTotal, filtered, filterWorkerPending, selectedItem, selectedIndex,
-    setSelectedIndex, toggleItemFavorite, removeHistoryItem, handlePaste, handleKeyDown,
-    flushClipboardHistoryToDisk,
+    history,
+    isHistoryLoading,
+    search,
+    setSearch,
+    showFavoritesOnly,
+    setShowFavoritesOnly,
+    favoritedTotal,
+    filtered,
+    filterWorkerPending,
+    selectedItem,
+    selectedIndex,
+    setSelectedIndex,
+    toggleItemFavorite,
+    removeHistoryItem,
+    handlePaste,
+    handleKeyDown,
+    handleSearchCompositionEnd,
+    flushClipboardHistoryToDisk
   } = useClipboard(config)
 
   const listVirtualizer = useVirtualizer({
@@ -50,7 +65,7 @@ export default function ClipboardHistoryPanel() {
     getItemKey: (index) => {
       const it = filtered[index]
       return it ? it.id : String(index)
-    },
+    }
   })
 
   const scrollListToTop = useCallback(() => {
@@ -70,7 +85,8 @@ export default function ClipboardHistoryPanel() {
   // Exit handler
   useEffect(() => {
     let cancelled = false
-    let unlisten: (() => void) | undefined
+    let unlistenExit: (() => void) | undefined
+    let unlistenOverdue: (() => void) | undefined
     void listen('app-exit-requested', async () => {
       try {
         await flushClipboardHistoryToDisk()
@@ -86,11 +102,19 @@ export default function ClipboardHistoryPanel() {
       }
     }).then((fn) => {
       if (cancelled) fn()
-      else unlisten = fn
+      else unlistenExit = fn
+    })
+    // 后端 3s 仍未收到 ack 时通知一次：让用户知道「正在保存」，避免误以为程序卡死。
+    void listen('exit-flush-overdue', () => {
+      toast.loading('正在保存剪贴板历史，请稍候…', { duration: 12000 })
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unlistenOverdue = fn
     })
     return () => {
       cancelled = true
-      unlisten?.()
+      unlistenExit?.()
+      unlistenOverdue?.()
     }
   }, [flushClipboardHistoryToDisk])
 
@@ -142,8 +166,8 @@ export default function ClipboardHistoryPanel() {
     })
     const tauriFocus = getCurrentWindow().listen('tauri://focus', onFocus)
     return () => {
-      focusChanged.then(fn => fn()).catch(() => {})
-      tauriFocus.then(fn => fn()).catch(() => {})
+      focusChanged.then((fn) => fn()).catch(() => {})
+      tauriFocus.then((fn) => fn()).catch(() => {})
     }
   }, [])
 
@@ -158,16 +182,20 @@ export default function ClipboardHistoryPanel() {
           title: filterWorkerPending
             ? '正在后台过滤收藏条目…'
             : `在已收藏条目中匹配到 ${filtered.length} 条；收藏共 ${favoritedTotal} 条`,
-          isAtCap: false,
+          isAtCap: false
         }
       }
-      return { text: favoritedTotal === 0 ? '—' : `${favoritedTotal}`, title: favoritedTotal === 0 ? '在列表中右键或使用星标可将条目加入收藏' : `当前共 ${favoritedTotal} 条收藏`, isAtCap: false }
+      return {
+        text: favoritedTotal === 0 ? '—' : `${favoritedTotal}`,
+        title: favoritedTotal === 0 ? '在列表中右键或使用星标可将条目加入收藏' : `当前共 ${favoritedTotal} 条收藏`,
+        isAtCap: false
+      }
     }
     if (q) {
       return {
         text: `${matchLabel}/${history.length}`,
         title: filterWorkerPending ? '正在后台过滤本地历史…' : `在全部 ${history.length} 条本地历史中搜索`,
-        isAtCap: false,
+        isAtCap: false
       }
     }
     const n = history.length
@@ -175,17 +203,39 @@ export default function ClipboardHistoryPanel() {
     const full = !unlimited && n >= cap
     return {
       text: unlimited ? `${n}条` : `${n}/${cap}`,
-      title: unlimited ? `未限制列表条数，当前 ${n} 条` : full ? `已达本地上限 ${cap} 条` : `本地最多保留 ${cap} 条，当前 ${n} 条`,
-      isAtCap: full,
+      title: unlimited
+        ? `未限制列表条数，当前 ${n} 条`
+        : full
+          ? `已达本地上限 ${cap} 条`
+          : `本地最多保留 ${cap} 条，当前 ${n} 条`,
+      isAtCap: full
     }
-  }, [search, showFavoritesOnly, filtered.length, favoritedTotal, history.length, config.clipboardHistoryMax, filterWorkerPending])
+  }, [
+    search,
+    showFavoritesOnly,
+    filtered.length,
+    favoritedTotal,
+    history.length,
+    config.clipboardHistoryMax,
+    filterWorkerPending
+  ])
 
-  const handleItemSelect = useCallback((index: number) => { setSelectedIndex(index) }, [])
-  const handleItemAction = useCallback((item: ClipboardItem) => { void handlePaste(item) }, [handlePaste])
-  const handleRemoveHistoryItem = useCallback((id: string) => {
-    if (!removeHistoryItem(id)) return
-    toast.success('已删除该条记录。')
-  }, [removeHistoryItem])
+  const handleItemSelect = useCallback((index: number) => {
+    setSelectedIndex(index)
+  }, [])
+  const handleItemAction = useCallback(
+    (item: ClipboardItem) => {
+      void handlePaste(item)
+    },
+    [handlePaste]
+  )
+  const handleRemoveHistoryItem = useCallback(
+    (id: string) => {
+      if (!removeHistoryItem(id)) return
+      toast.success('已删除该条记录。')
+    },
+    [removeHistoryItem]
+  )
 
   const handleDragPointerDown = useCallback(async (event: PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement
@@ -193,13 +243,17 @@ export default function ClipboardHistoryPanel() {
     if (event.button !== 0) return
     try {
       await invoke('start_clipboard_drag')
-    } catch (e) { toastInvokeError('无法开始拖动窗口', e) }
+    } catch (e) {
+      toastInvokeError('无法开始拖动窗口', e)
+    }
   }, [])
 
   const handleOpenSettings = useCallback(async () => {
     try {
       await invoke('open_settings_window')
-    } catch (e) { toastInvokeError('无法打开设置', e) }
+    } catch (e) {
+      toastInvokeError('无法打开设置', e)
+    }
   }, [])
 
   const totalListSize = listVirtualizer.getTotalSize()
@@ -207,7 +261,7 @@ export default function ClipboardHistoryPanel() {
   if (!loaded) {
     return (
       <>
-        <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+        <GlobalToaster />
         <div className="flex h-full w-full items-center justify-center bg-background">
           <div className="flex flex-col items-center gap-3">
             <div className="relative size-8">
@@ -234,7 +288,7 @@ export default function ClipboardHistoryPanel() {
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
-      <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+      <GlobalToaster />
       <div className="flex min-h-0 min-w-0 flex-1 flex-row">
         {/* 左栏 - 列表（布局与划词翻译浮窗一致：实心背景 + 圆角卡片） */}
         <div
@@ -256,14 +310,15 @@ export default function ClipboardHistoryPanel() {
                 <div
                   className={cn(
                     'flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-input bg-background px-2.5 shadow-sm sm:gap-2.5 sm:px-3',
-                    'ring-offset-background transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-ring/50 focus-within:ring-2 focus-within:ring-ring/25 focus-within:ring-offset-0',
+                    'ring-offset-background transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-ring/50 focus-within:ring-2 focus-within:ring-ring/25 focus-within:ring-offset-0'
                   )}
                   data-no-drag="true"
                 >
                   <Input
                     ref={searchInputRef}
                     value={search}
-                    onChange={e => setSearch(e.target.value)}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onCompositionEnd={handleSearchCompositionEnd}
                     placeholder="搜索文本、文件名或路径..."
                     className={cn(
                       'h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none ring-0 file:h-10',
@@ -317,101 +372,106 @@ export default function ClipboardHistoryPanel() {
                 </div>
               </div>
 
-                {/* 历史列表（虚拟滚动，仅挂载视口附近行） */}
-                <div
-                  ref={listScrollParentRef}
-                  className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
-                  role="presentation"
-                >
-                  <div className="box-border flex min-h-0 flex-col px-1 pb-1 pt-2">
-                    {isHistoryLoading ? (
-                      <ClipboardHistoryListSkeleton />
-                    ) : filterWorkerPending && search.trim().length > 0 ? (
-                      <div
-                        role="status"
-                        aria-live="polite"
-                        className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/25 px-8 py-10 text-center"
-                      >
-                        <Loader2
-                          className="size-8 shrink-0 motion-reduce:animate-none motion-reduce:opacity-70 animate-spin text-muted-foreground"
-                          aria-hidden
-                        />
-                        <p className="text-sm font-medium text-foreground/90">正在过滤历史…</p>
-                        <p className="max-w-[420px] text-xs leading-relaxed text-muted-foreground">
-                          本地条目较多时在后台检索，不阻塞界面操作。
-                        </p>
-                      </div>
-                    ) : filtered.length === 0 ? (
-                      <div
-                        className={cn(
-                          'flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/25 px-8 text-center',
-                        )}
-                      >
-                        <p className="text-base font-semibold text-foreground">
-                          {showFavoritesOnly
-                            ? favoritedTotal === 0 ? '暂无收藏条目' : '没有匹配的收藏'
-                            : '暂时还没有剪贴板记录'}
-                        </p>
-                        <p className="mt-2 max-w-[480px] text-sm leading-6 text-muted-foreground">
-                          {showFavoritesOnly
-                            ? favoritedTotal === 0
-                              ? '在列表中右键或使用星标可将条目加入收藏。'
-                              : '试试调整搜索关键词，或切换回全部历史。'
-                            : '复制一段文本、图片或文件后，这里会立刻出现最新历史。'}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="relative w-full min-w-0" style={{ minHeight: totalListSize, height: totalListSize }}>
-                        {listVirtualizer.getVirtualItems().map((v) => {
-                          const item = filtered[v.index]
-                          if (!item) {
-                            return null
-                          }
-                          return (
-                            <div
-                              key={v.key}
-                              data-index={v.index}
-                              ref={listVirtualizer.measureElement}
-                              className="absolute top-0 left-0 w-full min-w-0 pb-2"
-                              style={{ transform: `translateY(${v.start}px)` }}
-                            >
-                              <ClipboardItemCard
-                                item={item}
-                                index={v.index}
-                                isSelected={v.index === selectedIndex}
-                                onSelect={handleItemSelect}
-                                onAction={handleItemAction}
-                                onToggleFavorite={toggleItemFavorite}
-                                onRemoveItem={handleRemoveHistoryItem}
-                                enableAutoScroll={false}
-                              />
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
+              {/* 历史列表（虚拟滚动，仅挂载视口附近行） */}
+              <div
+                ref={listScrollParentRef}
+                className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+                role="presentation"
+              >
+                <div className="box-border flex min-h-0 flex-col px-1 pb-1 pt-2">
+                  {isHistoryLoading ? (
+                    <ClipboardHistoryListSkeleton />
+                  ) : filterWorkerPending && search.trim().length > 0 ? (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/25 px-8 py-10 text-center"
+                    >
+                      <Loader2
+                        className="size-8 shrink-0 motion-reduce:animate-none motion-reduce:opacity-70 animate-spin text-muted-foreground"
+                        aria-hidden
+                      />
+                      <p className="text-sm font-medium text-foreground/90">正在过滤历史…</p>
+                      <p className="max-w-[420px] text-xs leading-relaxed text-muted-foreground">
+                        本地条目较多时在后台检索，不阻塞界面操作。
+                      </p>
+                    </div>
+                  ) : filtered.length === 0 ? (
+                    <div
+                      className={cn(
+                        'flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/25 px-8 text-center'
+                      )}
+                    >
+                      <p className="text-base font-semibold text-foreground">
+                        {showFavoritesOnly
+                          ? favoritedTotal === 0
+                            ? '暂无收藏条目'
+                            : '没有匹配的收藏'
+                          : '暂时还没有剪贴板记录'}
+                      </p>
+                      <p className="mt-2 max-w-[480px] text-sm leading-6 text-muted-foreground">
+                        {showFavoritesOnly
+                          ? favoritedTotal === 0
+                            ? '在列表中右键或使用星标可将条目加入收藏。'
+                            : '试试调整搜索关键词，或切换回全部历史。'
+                          : '复制一段文本、图片或文件后，这里会立刻出现最新历史。'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      className="relative w-full min-w-0"
+                      style={{ minHeight: totalListSize, height: totalListSize }}
+                    >
+                      {listVirtualizer.getVirtualItems().map((v) => {
+                        const item = filtered[v.index]
+                        if (!item) {
+                          return null
+                        }
+                        return (
+                          <div
+                            key={v.key}
+                            data-index={v.index}
+                            ref={listVirtualizer.measureElement}
+                            className="absolute top-0 left-0 w-full min-w-0 pb-2"
+                            style={{ transform: `translateY(${v.start}px)` }}
+                          >
+                            <ClipboardItemCard
+                              item={item}
+                              index={v.index}
+                              isSelected={v.index === selectedIndex}
+                              onSelect={handleItemSelect}
+                              onAction={handleItemAction}
+                              onToggleFavorite={toggleItemFavorite}
+                              onRemoveItem={handleRemoveHistoryItem}
+                              enableAutoScroll={false}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* 右栏 - 预览面板 */}
-          {config.clipboardShowPreview && (
-            <div className="hidden min-h-0 min-w-75 max-w-90 shrink-0 basis-[30%] flex-col lg:flex">
-              <div className="min-h-0 flex-1 p-3">
-                <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm p-2">
-                  <Suspense fallback={null}>
-                    <ClipboardPreview
-                      item={selectedItem}
-                      total={filtered.length}
-                      onPaste={selectedItem ? () => handlePaste(selectedItem) : undefined}
-                    />
-                  </Suspense>
-                </div>
+        {/* 右栏 - 预览面板 */}
+        {config.clipboardShowPreview && (
+          <div className="hidden min-h-0 min-w-75 max-w-90 shrink-0 basis-[30%] flex-col lg:flex">
+            <div className="min-h-0 flex-1 p-3">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm p-2">
+                <Suspense fallback={null}>
+                  <ClipboardPreview
+                    item={selectedItem}
+                    total={filtered.length}
+                    onPaste={selectedItem ? () => handlePaste(selectedItem) : undefined}
+                  />
+                </Suspense>
               </div>
             </div>
-          )}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -11,14 +11,29 @@ use screenshots::image::{
 use screencapturekit::cg::CGRect;
 use screencapturekit::screenshot_manager::SCScreenshotManager;
 
-const MAX_CAPTURE_LONG_EDGE: u32 = 2560;
+/// 默认长边上限（与百度图片翻译 4 MB 上限大致兼容；细字 OCR 仍可调高）。
+const DEFAULT_MAX_LONG_EDGE: u32 = 2560;
+/// 当 OCR 提供方对图片大小有更宽容上限（如 Google Vision 20MB / OpenAI Vision 较大）时，
+/// 选用更大长边以保留小字细节，提升 OCR 准确度。
+const HIGH_QUALITY_MAX_LONG_EDGE: u32 = 4096;
 const MIN_SELECTION_LOGICAL: f64 = 8.0;
+
+/// 根据 provider 选择长边上限：
+/// - `baidu`：百度文本翻译图片接口约 4MB，沿用 2560；
+/// - 其它（google / openai / youdao 等）：放宽到 4096，避免压缩破坏小字 OCR。
+pub fn max_long_edge_for_provider(provider: &str) -> u32 {
+    match provider {
+        "baidu" => DEFAULT_MAX_LONG_EDGE,
+        _ => HIGH_QUALITY_MAX_LONG_EDGE,
+    }
+}
 
 /// 将 SCK 返回的 CG 位图压到 `logical_w × logical_h`（点），并做长边限制（与全桌策略一致）
 fn sc_cgimage_to_rgba(
     cg: &screencapturekit::screenshot_manager::CGImage,
     logical_w: u32,
     logical_h: u32,
+    max_long_edge: u32,
 ) -> Result<RgbaImage, String> {
     let w = cg.width();
     let h = cg.height();
@@ -45,8 +60,8 @@ fn sc_cgimage_to_rgba(
     let tw = img.width();
     let th = img.height();
     let long = tw.max(th);
-    if long > MAX_CAPTURE_LONG_EDGE {
-        let scale = MAX_CAPTURE_LONG_EDGE as f64 / f64::from(long);
+    if max_long_edge > 0 && long > max_long_edge {
+        let scale = f64::from(max_long_edge) / f64::from(long);
         let nw = ((f64::from(tw) * scale).round() as u32).max(1);
         let nh = ((f64::from(th) * scale).round() as u32).max(1);
         img = resize(&img, nw, nh, FilterType::Triangle);
@@ -55,7 +70,8 @@ fn sc_cgimage_to_rgba(
     Ok(img)
 }
 
-/// 在隐藏选区层之后，按与原来 `crop_from_viewport_mapping` 一致的几何关系只截选区（全局点坐标系）
+/// 在隐藏选区层之后，按与原来 `crop_from_viewport_mapping` 一致的几何关系只截选区（全局点坐标系）。
+/// `max_long_edge`：由调用方按 provider 传入；0 表示不做长边限制。
 pub fn capture_overlay_selection_sck(
     vx: i32,
     vy: i32,
@@ -67,6 +83,7 @@ pub fn capture_overlay_selection_sck(
     h: f64,
     viewport_w: f64,
     viewport_h: f64,
+    max_long_edge: u32,
 ) -> Result<RgbaImage, String> {
     if viewport_w <= 0.0 || viewport_h <= 0.0 {
         return Err("视口尺寸无效".to_string());
@@ -90,5 +107,5 @@ pub fn capture_overlay_selection_sck(
 
     let cg = SCScreenshotManager::capture_image_in_rect(rect)
         .map_err(|e| format!("ScreenCaptureKit(选区): {:?}", e))?;
-    sc_cgimage_to_rgba(&cg, out_w, out_h)
+    sc_cgimage_to_rgba(&cg, out_w, out_h, max_long_edge)
 }

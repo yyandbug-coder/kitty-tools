@@ -6,14 +6,14 @@ import { getThemeRuntimeStyle } from '@/lib/theme'
 import type { AppTheme } from '@/types'
 import SettingsPanel from '@/components/settings/SettingsPanel'
 import { cn } from '@/lib/utils'
-import { Toaster } from 'react-hot-toast'
+import GlobalToaster from '@/components/shared/GlobalToaster'
 
 export default function SettingsApp() {
   const { config, loaded } = useAppConfig()
   const isDarkMode = useKittyIsDarkMode(config.theme)
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
-    [config.appThemePreset, config.customHue, isDarkMode],
+    [config.appThemePreset, config.customHue, isDarkMode]
   )
 
   if (!loaded) {
@@ -27,7 +27,7 @@ export default function SettingsApp() {
             <span className="text-xs text-muted-foreground">加载配置中…</span>
           </div>
         </div>
-        <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+        <GlobalToaster />
       </>
     )
   }
@@ -36,14 +36,14 @@ export default function SettingsApp() {
     <div
       className={cn(
         'flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
-        isDarkMode && 'dark',
+        isDarkMode && 'dark'
       )}
       data-kitty-theme-scope
       data-theme={config.appThemePreset}
       style={appStyle}
     >
       <SettingsPanel />
-      <Toaster position="top-center" toastOptions={{ duration: 3200, className: 'text-sm' }} />
+      <GlobalToaster />
     </div>
   )
 }

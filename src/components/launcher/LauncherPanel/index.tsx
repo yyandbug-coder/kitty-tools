@@ -3,15 +3,7 @@
  * 输入关键词筛选内置动作、系统快捷项、已安装应用（Windows 开始菜单 / macOS 应用程序）、URL、路径、书签等；find/open 前缀按 Alfred 习惯搜文件（揭示目录 / 打开文件）；
  * 标题行与搜索条外圈通过 start_launcher_drag 原生拖动（与剪贴板/翻译浮层一致）；工具栏、搜索框等为 data-no-drag。
  */
-import {
-  startTransition,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type PointerEvent,
-} from 'react'
+import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -30,11 +22,38 @@ import { isFindOrOpenFileCommandQuery } from '@/lib/launcherFilePrefix'
 import type { LauncherItem } from '@/types'
 import LauncherResultItem from '@/components/launcher/LauncherResultItem'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
+import { prefetchIcons } from '@/lib/sourceAppIconCache'
 
 const PAGE_STEP = 10
 const FIND_OPEN_DEBOUNCE_MS = 160
 /** 普通关键词：防抖略长，避免与后端 `spawn_blocking` 查询重叠排队导致输入卡顿（尤其书签较多时）。 */
 const GENERAL_SEARCH_DEBOUNCE_MS = 130
+
+/** 后端返回与当前列表语义一致时保留原 Array 引用，避免虚拟列表 / `LauncherResultItem`
+ *  memo 被无谓击穿。仅比较稳定可见字段，不深比 payload 内部结构。 */
+function launcherItemsEqual(a: LauncherItem[], b: LauncherItem[]): boolean {
+  if (a === b) {
+    return true
+  }
+  if (a.length !== b.length) {
+    return false
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    const x = a[i]
+    const y = b[i]
+    if (
+      x.id !== y.id ||
+      x.kind !== y.kind ||
+      x.payload !== y.payload ||
+      x.title !== y.title ||
+      x.subtitle !== y.subtitle ||
+      x.iconPath !== y.iconPath
+    ) {
+      return false
+    }
+  }
+  return true
+}
 
 function LauncherPanel() {
   const { config, loaded, updateConfig } = useAppConfig()
@@ -51,6 +70,11 @@ function LauncherPanel() {
   const imeSuppressEnterRef = useRef(false)
   queryForResultRef.current = query
 
+  /** 让 `executeAt` / 可点击回调不依赖 items state，避免每次 setItems 都产生
+   *  新引用、击穿 LauncherResultItem 的 memo。 */
+  const itemsRef = useRef<LauncherItem[]>(items)
+  itemsRef.current = items
+
   const handleCompositionEnd = useCallback(() => {
     imeSuppressEnterRef.current = true
     queueMicrotask(() => {
@@ -66,7 +90,7 @@ function LauncherPanel() {
     getItemKey: (index) => {
       const it = items[index]
       return it ? `${it.id}-${index}` : String(index)
-    },
+    }
   })
 
   useLayoutEffect(() => {
@@ -76,6 +100,14 @@ function LauncherPanel() {
     const idx = Math.min(selected, items.length - 1)
     listVirtualizer.scrollToIndex(idx, { align: 'auto' })
   }, [items, selected, listVirtualizer])
+
+  /** 结果集变化时一次性预取整列 iconPath，把 N 次 IPC 往返合成 1 次；
+   *  命中缓存或在飞中的项会被自动跳过，等价结果集不会触发（依赖项保留原 Array 引用）。 */
+  useEffect(() => {
+    if (items.length === 0) return
+    const paths = items.map((it) => it.iconPath ?? '')
+    prefetchIcons(paths)
+  }, [items])
 
   /** 空串 / find·open：防抖后查询（含慢速文件 walk）；其它关键词：短防抖后 launcher_query。 */
   useEffect(() => {
@@ -125,13 +157,13 @@ function LauncherPanel() {
                 return
               }
               startTransition(() => {
-                setItems(res)
+                setItems((prev) => (launcherItemsEqual(prev, res) ? prev : res))
                 setSelected(0)
               })
             })
             .catch((e) => {
               handleError(e, queryStr)
-            }),
+            })
         )
       }
       if (q.length === 0) {
@@ -160,13 +192,13 @@ function LauncherPanel() {
               return
             }
             startTransition(() => {
-              setItems(res)
+              setItems((prev) => (launcherItemsEqual(prev, res) ? prev : res))
               setSelected(0)
             })
           })
           .catch((e) => {
             handleError(e, q)
-          }),
+          })
       )
     }, GENERAL_SEARCH_DEBOUNCE_MS)
     return () => {
@@ -175,21 +207,33 @@ function LauncherPanel() {
     }
   }, [query, loaded])
 
-  const executeAt = useCallback(
+  // 读 `itemsRef` 代替闭包依赖 items 状态，使 `executeAt` 在会话内引用不变，
+  // 随后可作为 `useCallback` 的稳定依赖进一步传递给后续回调。
+  const executeAt = useCallback((index: number) => {
+    const item = itemsRef.current[index]
+    if (!item) {
+      return
+    }
+    void invoke('launcher_execute', { kind: item.kind, payload: item.payload })
+      .then(() => {
+        setQuery('')
+      })
+      .catch((e) => {
+        toast.error(typeof e === 'string' ? e : '执行失败')
+      })
+  }, [])
+
+  // 传给 `LauncherResultItem` 的两个稳定回调：MouseEnter 只负责 setSelected，
+  // Activate 同时 setSelected + executeAt。全闭包无 items / executeAt 外的依赖。
+  const handleMouseEnterIndex = useCallback((index: number) => {
+    setSelected(index)
+  }, [])
+  const handleActivateIndex = useCallback(
     (index: number) => {
-      const item = items[index]
-      if (!item) {
-        return
-      }
-      void invoke('launcher_execute', { kind: item.kind, payload: item.payload })
-        .then(() => {
-          setQuery('')
-        })
-        .catch((e) => {
-          toast.error(typeof e === 'string' ? e : '执行失败')
-        })
+      setSelected(index)
+      executeAt(index)
     },
-    [items],
+    [executeAt]
   )
 
   const hidePanel = useCallback(() => {
@@ -355,18 +399,20 @@ function LauncherPanel() {
                       <Kbd>↑</Kbd>
                       <Kbd>↓</Kbd>
                     </KbdGroup>
-                    选择 · <Kbd>PageUp</Kbd>/<Kbd>PageDown</Kbd> 翻页 · <Kbd>Home</Kbd>/<Kbd>End</Kbd> 至首条/末条 · 前 9 条右侧为{' '}
-                    {isMacOs() ? <Kbd>⌘</Kbd> : <Kbd>Ctrl</Kbd>}
+                    选择 · <Kbd>PageUp</Kbd>/<Kbd>PageDown</Kbd> 翻页 · <Kbd>Home</Kbd>/<Kbd>End</Kbd> 至首条/末条 · 前
+                    9 条右侧为 {isMacOs() ? <Kbd>⌘</Kbd> : <Kbd>Ctrl</Kbd>}
                     <Kbd>1</Kbd>～<Kbd>9</Kbd> · <Kbd>Enter</Kbd> 打开当前项 · <Kbd>Esc</Kbd> 关闭窗口。
                   </p>
                 </div>
                 <div className="border-t border-border/60 pt-2">
                   <p className="mb-1 font-semibold text-popover-foreground">搜本地文件（find / open）</p>
                   <p className="text-muted-foreground [&_[data-slot=kbd]]:text-[10px]">
-                    输入 <Kbd>find</Kbd> + 空格 + 关键词：在资源管理器/访达中<strong className="font-medium text-popover-foreground">揭示</strong>
+                    输入 <Kbd>find</Kbd> + 空格 + 关键词：在资源管理器/访达中
+                    <strong className="font-medium text-popover-foreground">揭示</strong>
                     命中文件所在文件夹。
                     <span className="mt-1 block">
-                      输入 <Kbd>open</Kbd> + 空格 + 关键词：<strong className="font-medium text-popover-foreground">打开</strong>匹配文件。
+                      输入 <Kbd>open</Kbd> + 空格 + 关键词：
+                      <strong className="font-medium text-popover-foreground">打开</strong>匹配文件。
                     </span>
                   </p>
                 </div>
@@ -404,7 +450,7 @@ function LauncherPanel() {
           <div
             className={cn(
               'flex w-full min-w-0 items-center rounded-lg border border-input bg-background px-2.5 py-1.5 shadow-sm',
-              'ring-offset-background focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-0',
+              'ring-offset-background focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-0'
             )}
             data-no-drag="true"
           >
@@ -436,91 +482,89 @@ function LauncherPanel() {
             </span>
           </div>
         </div>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
-          <div
-            ref={scrollParentRef}
-            className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-clip overflow-y-auto overscroll-y-contain"
-            role="presentation"
-          >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
             <div
-              className="box-border w-full min-w-0 max-w-full flex-col p-1.5"
-              role="listbox"
-              aria-label="结果"
-              aria-busy={listLoading}
+              ref={scrollParentRef}
+              className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-clip overflow-y-auto overscroll-y-contain"
+              role="presentation"
             >
-              {items.length === 0 ? (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="text-muted-foreground px-3 py-8 text-center text-sm leading-relaxed"
-                >
-                  {listLoading ? (
-                    <div className="flex flex-col items-center justify-center gap-3 py-2">
-                      <Loader2
-                        className="size-7 shrink-0 motion-reduce:animate-none motion-reduce:opacity-70 animate-spin text-muted-foreground"
-                        aria-hidden
-                      />
-                      <p className="text-sm font-medium text-foreground/85">正在搜索…</p>
-                      <p className="text-xs text-muted-foreground">若需搜本地文件，可尝试 find 或 open 前缀</p>
-                    </div>
-                  ) : query.trim() === '' ? (
-                    <>
-                      <p className="font-medium text-foreground/80">暂无条目</p>
-                      <p className="mt-1.5 text-xs text-muted-foreground">
-                        输入应用名、URL、路径或关键词即可搜索（含本机已安装应用）；使用 find / open 前缀可搜配置目录及开始菜单/应用程序内的文件。
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-medium text-foreground/80">无匹配项</p>
-                      <p className="mt-1.5 text-xs text-muted-foreground">
-                        可换关键词，或输入 <span className="whitespace-nowrap font-mono text-[11px]">find</span> /{' '}
-                        <span className="whitespace-nowrap font-mono text-[11px]">open</span> 后加空格再搜文件名。
-                      </p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div
-                  className={cn('relative w-full min-w-0', listLoading && 'opacity-[0.92] transition-opacity')}
-                  style={{ minHeight: totalListSize, height: totalListSize }}
-                >
-                  {listVirtualizer.getVirtualItems().map((v) => {
-                    const item = items[v.index]
-                    if (!item) {
-                      return null
-                    }
-                    return (
-                      <div
-                        key={v.key}
-                        data-index={v.index}
-                        ref={listVirtualizer.measureElement}
-                        className="absolute top-0 left-0 w-full min-w-0 max-w-full"
-                        style={{ transform: `translateY(${v.start}px)` }}
-                      >
-                        <div className="w-full min-w-0 max-w-full contain-[inline-size]">
-                          <LauncherResultItem
-                            id={`launcher-option-${v.index}`}
-                            item={item}
-                            listIndex={v.index}
-                            selected={v.index === selected}
-                            onMouseEnter={() => setSelected(v.index)}
-                            onActivate={() => {
-                              setSelected(v.index)
-                              executeAt(v.index)
-                            }}
-                          />
-                        </div>
+              <div
+                className="box-border w-full min-w-0 max-w-full flex-col p-1.5"
+                role="listbox"
+                aria-label="结果"
+                aria-busy={listLoading}
+              >
+                {items.length === 0 ? (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="text-muted-foreground px-3 py-8 text-center text-sm leading-relaxed"
+                  >
+                    {listLoading ? (
+                      <div className="flex flex-col items-center justify-center gap-3 py-2">
+                        <Loader2
+                          className="size-7 shrink-0 motion-reduce:animate-none motion-reduce:opacity-70 animate-spin text-muted-foreground"
+                          aria-hidden
+                        />
+                        <p className="text-sm font-medium text-foreground/85">正在搜索…</p>
+                        <p className="text-xs text-muted-foreground">若需搜本地文件，可尝试 find 或 open 前缀</p>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
+                    ) : query.trim() === '' ? (
+                      <>
+                        <p className="font-medium text-foreground/80">暂无条目</p>
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                          输入应用名、URL、路径或关键词即可搜索（含本机已安装应用）；使用 find / open
+                          前缀可搜配置目录及开始菜单/应用程序内的文件。
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-foreground/80">无匹配项</p>
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                          可换关键词，或输入 <span className="whitespace-nowrap font-mono text-[11px]">find</span> /{' '}
+                          <span className="whitespace-nowrap font-mono text-[11px]">open</span> 后加空格再搜文件名。
+                        </p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className={cn('relative w-full min-w-0', listLoading && 'opacity-[0.92] transition-opacity')}
+                    style={{ minHeight: totalListSize, height: totalListSize }}
+                  >
+                    {listVirtualizer.getVirtualItems().map((v) => {
+                      const item = items[v.index]
+                      if (!item) {
+                        return null
+                      }
+                      return (
+                        <div
+                          key={v.key}
+                          data-index={v.index}
+                          ref={listVirtualizer.measureElement}
+                          className="absolute top-0 left-0 w-full min-w-0 max-w-full"
+                          style={{ transform: `translateY(${v.start}px)` }}
+                        >
+                          <div className="w-full min-w-0 max-w-full contain-[inline-size]">
+                            <LauncherResultItem
+                              id={`launcher-option-${v.index}`}
+                              item={item}
+                              index={v.index}
+                              selected={v.index === selected}
+                              onMouseEnterIndex={handleMouseEnterIndex}
+                              onActivateIndex={handleActivateIndex}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
     </TooltipProvider>
   )

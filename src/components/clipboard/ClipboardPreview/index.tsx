@@ -4,7 +4,6 @@
  * 文本正文在预览区内按行虚拟化；文件路径过多时仍仅列出前若干条（列表未虚拟化）
  * 仅下方滚动正文区使用 select-text；顶部类型/时间/来源/粘贴按钮为 select-none
  */
-import dayjs from 'dayjs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ClipboardItem } from '@/types'
 import { Clock3Icon, CopyIcon } from 'lucide-react'
@@ -14,6 +13,7 @@ import SourceAppIcon from '@/components/clipboard/SourceAppIcon'
 import SvgIcon from '@/components/shared/SvgIcon'
 import VirtualTextPreview from '@/components/clipboard/VirtualTextPreview'
 import { peekClipboardImagePreviewUrl, warmClipboardImagePreview } from '@/app/clipboard/lib/clipboard-image-preview'
+import { formatClipboardTimeLong } from '@/app/clipboard/lib/format-clipboard-time'
 import { formatFileSize, sumFileByteSizes } from '@/lib/format-bytes'
 import { cn } from '@/lib/utils'
 
@@ -85,7 +85,7 @@ export default function ClipboardPreview({ item, total, onPaste }: Props) {
           <div
             className={cn(
               'bg-[color-mix(in_oklch,var(--accent)_44%,transparent)] text-[color-mix(in_oklch,var(--accent-foreground)_88%,transparent)]',
-              'flex size-9 items-center justify-center rounded-xl text-muted-foreground',
+              'flex size-9 items-center justify-center rounded-xl text-muted-foreground'
             )}
           >
             <CopyIcon className="size-4" />
@@ -104,23 +104,21 @@ export default function ClipboardPreview({ item, total, onPaste }: Props) {
     )
   }
 
-  const sourceTitle = item.sourceApp
-    ? `复制自 ${item.sourceApp}`
-    : item.sourceAppPath ?? undefined
+  const sourceTitle = item.sourceApp ? `复制自 ${item.sourceApp}` : (item.sourceAppPath ?? undefined)
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[18px]">
       <div
         className={cn(
           'border-[color-mix(in_oklch,var(--border)_26%,transparent)]',
-          'flex select-none flex-col gap-2 border-b px-3 py-2.5 sm:px-3.5',
+          'flex select-none flex-col gap-2 border-b px-3 py-2.5 sm:px-3.5'
         )}
       >
         <div className="flex items-center gap-2.5">
           <div
             className={cn(
               'bg-[color-mix(in_oklch,var(--accent)_44%,transparent)] text-[color-mix(in_oklch,var(--accent-foreground)_88%,transparent)]',
-              'flex size-8 shrink-0 items-center justify-center rounded-lg',
+              'flex size-8 shrink-0 items-center justify-center rounded-lg'
             )}
           >
             {item.type === 'text' && <SvgIcon name="txt" className="size-4 text-[#9dc8ff]" title="文本" />}
@@ -155,7 +153,13 @@ export default function ClipboardPreview({ item, total, onPaste }: Props) {
           </div>
         </div>
 
-        <Button variant="default" size="sm" className="h-8 w-full rounded-lg text-xs" onClick={onPaste} disabled={!onPaste}>
+        <Button
+          variant="default"
+          size="sm"
+          className="h-8 w-full rounded-lg text-xs"
+          onClick={onPaste}
+          disabled={!onPaste}
+        >
           粘贴到前台
         </Button>
       </div>
@@ -169,7 +173,7 @@ export default function ClipboardPreview({ item, total, onPaste }: Props) {
           <div
             className={cn(
               'border border-[color-mix(in_oklch,var(--border)_35%,transparent)] bg-card/40',
-              'overflow-hidden rounded-xl py-2',
+              'overflow-hidden rounded-xl py-2'
             )}
           >
             <VirtualTextPreview scrollParentRef={previewScrollRef} content={item.content} />
@@ -180,7 +184,7 @@ export default function ClipboardPreview({ item, total, onPaste }: Props) {
           <div
             className={cn(
               'border border-[color-mix(in_oklch,var(--border)_35%,transparent)] bg-card/40',
-              'flex flex-col items-center gap-2 rounded-xl p-3',
+              'flex flex-col items-center gap-2 rounded-xl p-3'
             )}
           >
             {imagePreviewSrc ? (
@@ -258,7 +262,9 @@ export default function ClipboardPreview({ item, total, onPaste }: Props) {
                         {path.split(/[/\\]/).pop() ?? path}
                       </p>
                       {showSize ? (
-                        <span className="text-muted-foreground shrink-0 tabular-nums text-[10px]">{formatFileSize(byteSize)}</span>
+                        <span className="text-muted-foreground shrink-0 tabular-nums text-[10px]">
+                          {formatFileSize(byteSize)}
+                        </span>
                       ) : null}
                     </div>
                     <p className="text-muted-foreground mt-0.5 break-all text-[10px] leading-snug">{path}</p>
@@ -267,7 +273,9 @@ export default function ClipboardPreview({ item, total, onPaste }: Props) {
               )
             })}
             {!item.filePaths?.length && (
-              <p className="text-muted-foreground rounded-lg border border-border/30 px-2 py-1.5 text-xs">暂无路径信息</p>
+              <p className="text-muted-foreground rounded-lg border border-border/30 px-2 py-1.5 text-xs">
+                暂无路径信息
+              </p>
             )}
           </div>
         )}
@@ -283,8 +291,5 @@ function labelForType(type: ClipboardItem['type']) {
 }
 
 function formatDateTime(timestamp: number) {
-  const d = dayjs(timestamp)
-  const now = dayjs()
-  if (d.year() !== now.year()) return d.format('YYYY/MM/DD HH:mm')
-  return d.format('MM/DD HH:mm')
+  return formatClipboardTimeLong(timestamp)
 }

@@ -23,7 +23,11 @@ import {
 } from '@/app/clipboard/lib/clipboard-history-worker'
 import { filterHistoryByRetention } from '@/app/clipboard/lib/clipboard-retention'
 import { applyClipboardHistoryMaxSlice } from '@/app/clipboard/lib/history-settings'
-import { loadClipboardHistoryItemsFromDb, replaceClipboardHistoryInDb } from '@/services/database'
+import {
+  applyClipboardHistoryDeltaInDb,
+  loadClipboardHistoryItemsFromDb,
+  replaceClipboardHistoryInDb
+} from '@/services/database'
 
 export function useClipboard(config: AppConfig) {
   const [history, setHistory] = useState<ClipboardItem[]>([])
@@ -40,6 +44,8 @@ export function useClipboard(config: AppConfig) {
   const historyRef = useRef(history)
   const persistGenerationRef = useRef(0)
   const filterWorkerGenRef = useRef(0)
+  /** 上一次成功落库的快照（id → item 引用）。增量持久化时用于计算 diff。 */
+  const lastPersistedRef = useRef<Map<string, ClipboardItem>>(new Map())
   /** 中文等 IME：compositionend 后紧随的 Enter 用于上屏，部分浏览器 isComposing 已为 false，需短暂忽略一次。 */
   const imeSuppressEnterRef = useRef(false)
   retentionDaysRef.current = config.clipboardHistoryRetentionDays
@@ -47,24 +53,15 @@ export function useClipboard(config: AppConfig) {
   historyRef.current = history
 
   useEffect(() => {
+    // 合并 retention 与 max 的限制：一次 setHistory 同时应用两个阈值，避免连续两次写入。
     setHistory((prev) => {
-      const next = filterHistoryByRetention(prev, config.clipboardHistoryRetentionDays)
+      const sliced = applyClipboardHistoryMaxSlice(prev, config.clipboardHistoryMax)
+      const next = filterHistoryByRetention(sliced, config.clipboardHistoryRetentionDays)
       if (next.length === prev.length && next.every((item, idx) => item === prev[idx])) return prev
       pruneClipboardImagePreviewCache(next.map((item) => item.id))
       return next
     })
-  }, [config.clipboardHistoryRetentionDays])
-
-  useEffect(() => {
-    const cap = config.clipboardHistoryMax
-    if (cap <= 0) return
-    setHistory((prev) => {
-      const next = applyClipboardHistoryMaxSlice(prev, cap)
-      if (next.length === prev.length && next.every((item, idx) => item === prev[idx])) return prev
-      pruneClipboardImagePreviewCache(next.map((item) => item.id))
-      return next
-    })
-  }, [config.clipboardHistoryMax])
+  }, [config.clipboardHistoryRetentionDays, config.clipboardHistoryMax])
 
   useEffect(() => {
     if (config.clipboardHistoryRetentionDays <= 0) return
@@ -135,6 +132,9 @@ export function useClipboard(config: AppConfig) {
           retentionDaysRef.current
         )
         if (cancelled || cachedHistory.length === 0) return
+        // 与 DB 一致的快照：DB 行 = fromTable，下次 diff 应基于此而非裁剪后的列表，
+        // 否则 retention/max 裁掉的条目会被误判为「待删除」并立刻发回 DB。
+        lastPersistedRef.current = new Map(fromTable.map((item) => [item.id, item]))
         setHistory((prev) => {
           if (prev.length === 0) return cachedHistory
           const merged = filterHistoryByRetention(
@@ -166,18 +166,45 @@ export function useClipboard(config: AppConfig) {
     const persistDelayMs = historyRef.current.length > 2000 ? 650 : 350
     const timeout = window.setTimeout(() => {
       const snap = historyRef.current
-      const imageIds = snap.filter((item) => item.type === 'image').map((item) => item.id)
+      // 与 lastPersistedRef diff，得到本次需要 upsert/delete 的最小集合。
+      const prev = lastPersistedRef.current
+      const upserts: ClipboardItem[] = []
+      const deletes: string[] = []
+      let deletedAnyImage = false
+      const nextSnapshot = new Map<string, ClipboardItem>()
+      for (const item of snap) {
+        nextSnapshot.set(item.id, item)
+        const prevItem = prev.get(item.id)
+        if (prevItem !== item) {
+          upserts.push(item.type === 'image' ? { ...item, imageRgba: undefined } : item)
+        }
+      }
+      for (const [id, prevItem] of prev) {
+        if (!nextSnapshot.has(id)) {
+          deletes.push(id)
+          if (prevItem.type === 'image') deletedAnyImage = true
+        }
+      }
+      if (upserts.length === 0 && deletes.length === 0) {
+        return
+      }
+      // 乐观更新：在调用前先标记为「已持久」，确保后续 diff 基于最新快照计算。
+      // 写库失败会通过 toast 反馈，下次启动重新从 DB 读取以纠偏。
+      lastPersistedRef.current = nextSnapshot
       void (async () => {
         if (generation !== persistGenerationRef.current) return
         try {
-          await replaceClipboardHistoryInDb(snap)
+          await applyClipboardHistoryDeltaInDb(upserts, deletes)
         } catch (error) {
           toastInvokeError('保存剪贴板历史失败', error)
           return
         }
+        // 仅在删除了图片条目时清磁盘缓存，避免每次新增/收藏都扫目录。
+        if (!deletedAnyImage) return
         if (generation !== persistGenerationRef.current) return
+        const keepImageIds = snap.filter((item) => item.type === 'image').map((item) => item.id)
         try {
-          await invoke('prune_clipboard_image_store', { keepIds: imageIds })
+          await invoke('prune_clipboard_image_store', { keepIds: keepImageIds })
         } catch (error) {
           toastInvokeError('清理剪贴板图片缓存失败', error)
         }
@@ -192,6 +219,13 @@ export function useClipboard(config: AppConfig) {
     () => (showFavoritesOnly ? history.filter((item) => item.favorited) : history),
     [history, showFavoritesOnly]
   )
+
+  /** baseList 的 id → item 索引，避免 worker 命中 ids 后每次 filtered useMemo 都重建 Map。 */
+  const baseListById = useMemo(() => {
+    const map = new Map<string, ClipboardItem>()
+    for (const item of baseList) map.set(item.id, item)
+    return map
+  }, [baseList])
 
   const keywordLower = deferredSearch.toLowerCase().trim()
   const useWorkerForFilter = baseList.length >= CLIPBOARD_FILTER_WORKER_MIN_ITEMS && keywordLower.length > 0
@@ -231,16 +265,15 @@ export function useClipboard(config: AppConfig) {
     if (workerMatchIds === null) {
       return []
     }
-    const byId = new Map(baseList.map((item) => [item.id, item]))
     const out: ClipboardItem[] = []
     for (const id of workerMatchIds) {
-      const item = byId.get(id)
+      const item = baseListById.get(id)
       if (item) {
         out.push(item)
       }
     }
     return out
-  }, [baseList, keywordLower, useWorkerForFilter, workerMatchIds])
+  }, [baseList, baseListById, keywordLower, useWorkerForFilter, workerMatchIds])
 
   useEffect(() => {
     userBrowsingRef.current = false
@@ -362,6 +395,7 @@ export function useClipboard(config: AppConfig) {
       const fromTable = await loadClipboardHistoryItemsFromDb()
       if (fromTable.length === 0) {
         clearClipboardImagePreviewCache()
+        lastPersistedRef.current = new Map()
         startTransition(() => {
           setHistory([])
           setSelectedIndex(0)
@@ -373,6 +407,8 @@ export function useClipboard(config: AppConfig) {
         retentionDaysRef.current
       )
       pruneClipboardImagePreviewCache(cachedHistory.map((item) => item.id))
+      // DB 行 = fromTable，下次 diff 应基于此而非 retention/max 之后的列表。
+      lastPersistedRef.current = new Map(fromTable.map((item) => [item.id, item]))
       startTransition(() => {
         setHistory(cachedHistory)
         setSelectedIndex(0)
@@ -423,7 +459,10 @@ export function useClipboard(config: AppConfig) {
     const snap = historyRef.current
     const imageIds = snap.filter((item) => item.type === 'image').map((item) => item.id)
     try {
+      // 退出前一次性全表替换，保证 DB 与内存一致；同时刷新 lastPersistedRef，
+      // 让随后可能挂起的 delta 调用不会误把这次写入的条目当作「待新增」。
       await replaceClipboardHistoryInDb(snap)
+      lastPersistedRef.current = new Map(snap.map((item) => [item.id, item]))
     } catch (error) {
       console.error('退出前保存剪贴板历史失败:', error)
       throw error

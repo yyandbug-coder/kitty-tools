@@ -72,7 +72,7 @@ fn favorited_i(b: bool) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::build_batch_insert_sql;
+    use super::{build_batch_insert_sql, build_batch_upsert_sql};
 
     #[test]
     fn batch_insert_sql_one_row_thirteen_placeholders() {
@@ -87,6 +87,14 @@ mod tests {
         let s = build_batch_insert_sql(2);
         assert!(s.contains("?13), (?14"), "{}", s);
         assert!(s.ends_with("?26)"), "{}", s);
+    }
+
+    #[test]
+    fn batch_upsert_sql_has_on_conflict_clause() {
+        let s = build_batch_upsert_sql(1);
+        assert!(s.contains("ON CONFLICT(id) DO UPDATE"), "{}", s);
+        assert!(s.contains("favorited=excluded.favorited"), "{}", s);
+        assert!(s.contains("?13)"), "{}", s);
     }
 }
 
@@ -163,6 +171,49 @@ fn append_row_params(
     ))));
 }
 
+fn build_batch_upsert_sql(chunk_len: usize) -> String {
+    // INSERT … VALUES … ON CONFLICT(id) DO UPDATE，配合 13 列占位串。
+    // SQLite 的 excluded.col 表示同一行中“被插入的新值”。
+    let placeholders = (0..chunk_len)
+        .map(|ri| {
+            let o = ri * 13;
+            format!(
+                "(?{},?{},?{},?{},?{},?{},?{},?{},?{},?{},?{},?{},?{})",
+                o + 1,
+                o + 2,
+                o + 3,
+                o + 4,
+                o + 5,
+                o + 6,
+                o + 7,
+                o + 8,
+                o + 9,
+                o + 10,
+                o + 11,
+                o + 12,
+                o + 13
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "INSERT INTO clipboard_history ({INSERT_COLS}) VALUES {placeholders} \
+         ON CONFLICT(id) DO UPDATE SET \
+            type=excluded.type, \
+            content=excluded.content, \
+            content_hash=excluded.content_hash, \
+            image_byte_size=excluded.image_byte_size, \
+            file_byte_sizes=excluded.file_byte_sizes, \
+            file_paths=excluded.file_paths, \
+            image_width=excluded.image_width, \
+            image_height=excluded.image_height, \
+            timestamp=excluded.timestamp, \
+            source_app=excluded.source_app, \
+            source_app_path=excluded.source_app_path, \
+            favorited=excluded.favorited"
+    )
+}
+
 fn replace_clipboard_history_blocking(
     path: PathBuf,
     items: Vec<ClipboardHistoryReplaceItem>,
@@ -190,6 +241,57 @@ fn replace_clipboard_history_blocking(
     Ok(())
 }
 
+fn apply_clipboard_history_delta_blocking(
+    path: PathBuf,
+    upserts: Vec<ClipboardHistoryReplaceItem>,
+    deletes: Vec<String>,
+) -> Result<(), String> {
+    if upserts.is_empty() && deletes.is_empty() {
+        return Ok(());
+    }
+    let mut conn = Connection::open(path).map_err(|e| e.to_string())?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| e.to_string())?;
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    if !deletes.is_empty() {
+        // SQLite 默认参数上限 999；分批 DELETE … WHERE id IN (?, ?, …)。
+        const DELETE_BATCH: usize = 500;
+        for chunk in deletes.chunks(DELETE_BATCH) {
+            let placeholders = (0..chunk.len())
+                .map(|i| format!("?{}", i + 1))
+                .collect::<Vec<_>>()
+                .join(",");
+            let sql = format!(
+                "DELETE FROM clipboard_history WHERE id IN ({placeholders})"
+            );
+            let params: Vec<rusqlite::types::Value> = chunk
+                .iter()
+                .map(|s| rusqlite::types::Value::Text(s.clone()))
+                .collect();
+            tx.execute(&sql, rusqlite::params_from_iter(params.iter()))
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    if !upserts.is_empty() {
+        for chunk in upserts.chunks(BATCH_ROWS) {
+            let sql = build_batch_upsert_sql(chunk.len());
+            let mut flat: Vec<rusqlite::types::Value> =
+                Vec::with_capacity(chunk.len().saturating_mul(13));
+            for item in chunk {
+                append_row_params(&mut flat, item);
+            }
+            let par = rusqlite::params_from_iter(flat.iter());
+            tx.execute(&sql, par).map_err(|e| e.to_string())?;
+        }
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn replace_clipboard_history_items(
     app: AppHandle,
@@ -199,5 +301,22 @@ pub async fn replace_clipboard_history_items(
     match tokio::task::spawn_blocking(move || replace_clipboard_history_blocking(path, items)).await {
         Ok(inner) => inner,
         Err(e) => Err(format!("replace_clipboard_history join: {e}")),
+    }
+}
+
+#[tauri::command]
+pub async fn apply_clipboard_history_delta(
+    app: AppHandle,
+    upserts: Vec<ClipboardHistoryReplaceItem>,
+    deletes: Vec<String>,
+) -> Result<(), String> {
+    let path = kitty_settings_db_path(&app)?;
+    match tokio::task::spawn_blocking(move || {
+        apply_clipboard_history_delta_blocking(path, upserts, deletes)
+    })
+    .await
+    {
+        Ok(inner) => inner,
+        Err(e) => Err(format!("apply_clipboard_history_delta join: {e}")),
     }
 }

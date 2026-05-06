@@ -9,7 +9,7 @@ import type { ClipboardItem } from '@/types'
 import {
   CLIPBOARD_HISTORY_LEGACY_SETTINGS_KEY,
   ensureClipboardHistorySchema,
-  loadClipboardHistoryRows,
+  loadClipboardHistoryRows
 } from '@/services/clipboard-history-db'
 
 const DB_PATH = 'sqlite:kitty-settings.db'
@@ -57,10 +57,7 @@ interface SettingsRow {
 
 export async function loadSettingsFromDb(): Promise<string | null> {
   const db = await getDb()
-  const rows = await db.select<SettingsRow[]>(
-    'SELECT value FROM settings WHERE key = $1',
-    [SETTINGS_KEY],
-  )
+  const rows = await db.select<SettingsRow[]>('SELECT value FROM settings WHERE key = $1', [SETTINGS_KEY])
   return rows.length > 0 ? rows[0].value : null
 }
 
@@ -84,12 +81,24 @@ export async function replaceClipboardHistoryInDb(items: ClipboardItem[]): Promi
   return run
 }
 
+export async function applyClipboardHistoryDeltaInDb(upserts: ClipboardItem[], deletes: string[]): Promise<void> {
+  if (upserts.length === 0 && deletes.length === 0) return
+  const run = clipboardReplaceQueue.then(async () => {
+    await getDb()
+    await invoke('apply_clipboard_history_delta', { upserts, deletes })
+  })
+  clipboardReplaceQueue = run.catch(() => {
+    /* 单次失败不打断队列；调用方自行决定是否兜底为全表替换 */
+  })
+  return run
+}
+
 async function saveKeyValueToDb(key: string, value: string): Promise<void> {
   const db = await getDb()
   const now = dayjs().valueOf()
   await db.execute(
     `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)
      ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3`,
-    [key, value, now],
+    [key, value, now]
   )
 }

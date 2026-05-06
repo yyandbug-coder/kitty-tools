@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use rayon::join;
 
@@ -21,9 +21,12 @@ use crate::window;
 
 mod bookmarks;
 mod files;
+mod fuzzy;
 mod installed_apps;
 mod recency;
 mod system_apps;
+#[cfg(target_os = "windows")]
+pub(crate) mod uwp;
 
 use files::FileOpenMode;
 
@@ -77,29 +80,53 @@ pub struct LauncherItem {
     pub icon_path: Option<String>,
 }
 
-/// 启动器内「可匹配行」的统一抽象：每个行需要给出
-/// 1) `matches_lowered(q_lower)`：在所有需要匹配的字段上做 `contains`，命中任一即返回 true；
-/// 2) `item()`：导出对应的 `LauncherItem` 副本以供前端使用。
-///
-/// 用于 `builtins_table()` / `system_apps`，让两条 pipeline 共享一份「q 空 ⇒ 返回全部，否则按子串过滤」语义，
-/// 同时仍把高度优化的 `installed_apps`（带前缀优先排序）保留为独立实现。
+/// 启动器内「可匹配行」的统一抽象：
+/// 1) `match_text()`：预拼接的「标题 + 副标题 + alias」小写串，供 nucleo 打分；
+/// 2) `frecency_key()`：返回 `(kind, payload)` 供 frecency 二级排序；
+/// 3) `to_item()`：导出对应的 `LauncherItem` 副本。
 pub(crate) trait MatchableRow {
-    fn matches_lowered(&self, q_lower: &str) -> bool;
+    fn match_text(&self) -> &str;
+    fn frecency_key(&self) -> (&str, &str);
     fn to_item(&self) -> LauncherItem;
 }
 
-/// 通用过滤：`q` 为空时返回全部；否则用 `q_lower` 过滤。所有行实现 `MatchableRow` 即可复用。
-pub(crate) fn collect_matches<R: MatchableRow>(rows: &[R], q: &str, q_lower: &str) -> Vec<LauncherItem> {
+/// 通用查询过滤：
+/// - `q` 为空：返回全部项（保留静态顺序，不按 frecency 重排），避免用户第一眼看到的面板
+///   「随机」徽乱。
+/// - `q` 非空：用 [`fuzzy::compile_atom`] 编译查询，对每行 `match_text()` 评分，仅保留命中项；
+///   按（匹配分 降，frecency 分 降）排序。
+pub(crate) fn collect_matches<R: MatchableRow>(rows: &[R], q: &str, _q_lower: &str) -> Vec<LauncherItem> {
     if q.trim().is_empty() {
         return rows.iter().map(|r| r.to_item()).collect();
     }
-    if q_lower.is_empty() {
+    let Some(atom) = fuzzy::compile_atom(q) else {
         return Vec::new();
-    }
-    rows.iter()
-        .filter(|r| r.matches_lowered(q_lower))
-        .map(|r| r.to_item())
-        .collect()
+    };
+    let snap = recency::snapshot();
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let mut scored: Vec<(u16, &R)> = rows
+        .iter()
+        .filter_map(|r| fuzzy::score(&atom, r.match_text()).map(|s| (s, r)))
+        .collect();
+    scored.sort_by(|(sa, ra), (sb, rb)| {
+        sb.cmp(sa).then_with(|| {
+            let (ka, pa) = ra.frecency_key();
+            let (kb, pb) = rb.frecency_key();
+            let fa = recency::score_or_zero(&snap, now_ms, ka, pa);
+            let fb = recency::score_or_zero(&snap, now_ms, kb, pb);
+            fb.partial_cmp(&fa).unwrap_or(std::cmp::Ordering::Equal)
+        })
+    });
+    scored.into_iter().map(|(_, r)| r.to_item()).collect()
+}
+
+/// 进程启动后调用一次：在后台线程预热已安装应用缓存（Win 端 walkdir 整个开始菜单），
+/// 让用户首次按下启动器快捷键时就能命中缓存，免去秒级冷启延迟。
+pub fn prewarm_in_background() {
+    std::thread::Builder::new()
+        .name("launcher-prewarm".into())
+        .spawn(installed_apps::warmup)
+        .ok();
 }
 
 /// 供前端 `invoke` 的启动器查询（内置、书签、已安装应用、系统项等）。
@@ -213,10 +240,10 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
 
 struct MergedFileRootsCache {
     fp: u64,
-    paths: Vec<String>,
+    paths: Arc<Vec<String>>,
 }
 
-static MERGED_FILE_ROOTS: Mutex<Option<MergedFileRootsCache>> = Mutex::new(None);
+static MERGED_FILE_ROOTS: RwLock<Option<MergedFileRootsCache>> = RwLock::new(None);
 
 fn launcher_file_roots_fingerprint(config: &AppConfig) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -227,22 +254,28 @@ fn launcher_file_roots_fingerprint(config: &AppConfig) -> u64 {
 }
 
 /// 用户配置的搜索目录 + 平台默认「应用/快捷方式」目录（仅用于 `find`/`open` 文件遍历）。
-/// 按配置路径指纹缓存，减少每次 `find`/`open` 查询的分配。
-fn merged_launcher_file_search_paths(config: &AppConfig) -> Vec<String> {
+/// 按配置路径指纹缓存；返回 `Arc<Vec<String>>` 避免按键路径上的 Vec deep clone。
+fn merged_launcher_file_search_paths(config: &AppConfig) -> Arc<Vec<String>> {
     let fp = launcher_file_roots_fingerprint(config);
-    {
-        let g = MERGED_FILE_ROOTS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Ok(g) = MERGED_FILE_ROOTS.read() {
         if let Some(c) = g.as_ref() {
             if c.fp == fp {
-                return c.paths.clone();
+                return Arc::clone(&c.paths);
             }
         }
     }
-    let paths = compute_merged_file_search_paths(config);
-    *MERGED_FILE_ROOTS.lock().unwrap_or_else(|e| e.into_inner()) = Some(MergedFileRootsCache {
-        fp,
-        paths: paths.clone(),
-    });
+    let paths = Arc::new(compute_merged_file_search_paths(config));
+    if let Ok(mut g) = MERGED_FILE_ROOTS.write() {
+        if let Some(c) = g.as_ref() {
+            if c.fp == fp {
+                return Arc::clone(&c.paths);
+            }
+        }
+        *g = Some(MergedFileRootsCache {
+            fp,
+            paths: Arc::clone(&paths),
+        });
+    }
     paths
 }
 
@@ -270,59 +303,55 @@ fn compute_merged_file_search_paths(config: &AppConfig) -> Vec<String> {
 
 struct BuiltinRow {
     item: LauncherItem,
-    title_lower: String,
-    sub_lower: String,
+    /// 预拼接的小写匹配文本（标题 + 副标题），供 nucleo 评分。
+    match_text: String,
 }
 
 impl MatchableRow for BuiltinRow {
-    fn matches_lowered(&self, q_lower: &str) -> bool {
-        self.title_lower.contains(q_lower) || self.sub_lower.contains(q_lower)
+    fn match_text(&self) -> &str {
+        &self.match_text
+    }
+    fn frecency_key(&self) -> (&str, &str) {
+        (&self.item.kind, &self.item.payload)
     }
     fn to_item(&self) -> LauncherItem {
         self.item.clone()
     }
 }
 
+fn make_builtin(item: LauncherItem) -> BuiltinRow {
+    let match_text = format!("{} {}", item.title.to_lowercase(), item.subtitle.to_lowercase());
+    BuiltinRow { item, match_text }
+}
+
 fn builtins_table() -> &'static [BuiltinRow] {
     static ROWS: OnceLock<Vec<BuiltinRow>> = OnceLock::new();
     ROWS.get_or_init(|| {
         vec![
-            BuiltinRow {
-                item: LauncherItem {
-                    id: "action-settings".into(),
-                    title: "打开设置".into(),
-                    subtitle: "Kitty Tools 偏好与快捷键".into(),
-                    kind: "action".into(),
-                    payload: "settings".into(),
-                    icon_path: None,
-                },
-                title_lower: "打开设置".to_lowercase(),
-                sub_lower: "kitty tools 偏好与快捷键".to_lowercase(),
-            },
-            BuiltinRow {
-                item: LauncherItem {
-                    id: "action-workspace".into(),
-                    title: "翻译工作台".into(),
-                    subtitle: "文本与 OCR 翻译".into(),
-                    kind: "action".into(),
-                    payload: "translate_workspace".into(),
-                    icon_path: None,
-                },
-                title_lower: "翻译工作台".to_lowercase(),
-                sub_lower: "文本与 ocr 翻译".to_lowercase(),
-            },
-            BuiltinRow {
-                item: LauncherItem {
-                    id: "action-clipboard".into(),
-                    title: "剪贴板历史".into(),
-                    subtitle: "打开剪贴板记录面板".into(),
-                    kind: "action".into(),
-                    payload: "clipboard".into(),
-                    icon_path: None,
-                },
-                title_lower: "剪贴板历史".to_lowercase(),
-                sub_lower: "打开剪贴板记录面板".to_lowercase(),
-            },
+            make_builtin(LauncherItem {
+                id: "action-settings".into(),
+                title: "打开设置".into(),
+                subtitle: "Kitty Tools 偏好与快捷键".into(),
+                kind: "action".into(),
+                payload: "settings".into(),
+                icon_path: None,
+            }),
+            make_builtin(LauncherItem {
+                id: "action-workspace".into(),
+                title: "翻译工作台".into(),
+                subtitle: "文本与 OCR 翻译".into(),
+                kind: "action".into(),
+                payload: "translate_workspace".into(),
+                icon_path: None,
+            }),
+            make_builtin(LauncherItem {
+                id: "action-clipboard".into(),
+                title: "剪贴板历史".into(),
+                subtitle: "打开剪贴板记录面板".into(),
+                kind: "action".into(),
+                payload: "clipboard".into(),
+                icon_path: None,
+            }),
         ]
     })
     .as_slice()
@@ -359,17 +388,32 @@ fn query_looks_like_filesystem_path(q: &str) -> bool {
     t.contains('/') || t.contains('\\')
 }
 
+/// 仅做字符串特征匹配，不在按键路径上做磁盘探测；
+/// 真正像路径的输入由 [`query_looks_like_filesystem_path`] 单独识别（互不干扰）。
 fn is_probable_url(s: &str) -> bool {
     let t = s.trim();
-    t.starts_with("https://")
-        || t.starts_with("http://")
-        || t.starts_with("mailto:")
-        || (t.contains('.') && !t.contains(' ') && t.len() > 3 && !Path::new(t).exists())
-            && (t.starts_with("www.")
-                || t.ends_with(".com")
-                || t.ends_with(".cn")
-                || t.ends_with(".net")
-                || t.ends_with(".org"))
+    if t.starts_with("https://") || t.starts_with("http://") || t.starts_with("mailto:") {
+        return true;
+    }
+    // 简单 TLD/前缀启发：长度 ≥ 4、含 `.`、不含空白；排除明显路径前缀避免误识。
+    if t.len() < 4 || t.contains(char::is_whitespace) || !t.contains('.') {
+        return false;
+    }
+    if t.starts_with('/') || t.starts_with('~') || t.starts_with("./") || t.starts_with("../") {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        let b = t.as_bytes();
+        if t.starts_with(r"\\") || (b.len() >= 2 && b[1] == b':') {
+            return false;
+        }
+    }
+    t.starts_with("www.")
+        || t.ends_with(".com")
+        || t.ends_with(".cn")
+        || t.ends_with(".net")
+        || t.ends_with(".org")
 }
 
 fn normalize_url(s: &str) -> Option<String> {
@@ -408,7 +452,6 @@ pub async fn launcher_execute<R: Runtime>(
             app.opener()
                 .open_url(&payload, None::<&str>)
                 .map_err(|e| e.to_string())?;
-            recency::record_url_opened(&payload);
         }
         "open_path" => {
             #[cfg(target_os = "windows")]
@@ -418,6 +461,8 @@ pub async fn launcher_execute<R: Runtime>(
                     Command::new("explorer")
                         .spawn()
                         .map_err(|e| format!("无法启动资源管理器: {e}"))?;
+                    // 资源管理器走专用启动路径但仍计入 frecency。
+                    recency::record(&kind, &payload);
                     return Ok(());
                 }
             }
@@ -459,5 +504,7 @@ pub async fn launcher_execute<R: Runtime>(
         }
         _ => return Err("未知类型".into()),
     }
+    // 成功执行后统一记录 frecency；下次相似查询排在更前。
+    recency::record(&kind, &payload);
     Ok(())
 }

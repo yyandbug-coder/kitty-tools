@@ -3,7 +3,6 @@
  * 显示条目类型图标、内容摘要、收藏标记与时间戳；右键菜单可收藏/取消收藏或删除
  * 使用 React.memo 避免未选中项在 selectedIndex 变化时重渲染
  */
-import dayjs from 'dayjs'
 import { memo, useEffect, useRef } from 'react'
 import { Star } from 'lucide-react'
 import { ClipboardItem } from '@/types'
@@ -17,6 +16,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
+import { formatClipboardTimeShort } from '@/app/clipboard/lib/format-clipboard-time'
 import { formatFileSize, sumFileByteSizes } from '@/lib/format-bytes'
 import { formatListQuickSlotShortcut } from '@/lib/platform'
 import { cn } from '@/lib/utils'
@@ -81,13 +81,13 @@ export default memo(function ClipboardItemCard({
             'relative border border-transparent bg-[color-mix(in_oklch,var(--card)_20%,transparent)] transition-[background-color,border-color,box-shadow,transform] duration-[160ms] ease-out hover:bg-[color-mix(in_oklch,var(--theme-accent,var(--ring))_36%,transparent)]',
             'grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_max-content] items-center gap-2.5 rounded-[18px] px-3 py-1',
             isSelected &&
-              "bg-[color-mix(in_oklch,var(--primary)_16%,var(--card)_84%)] border-[color-mix(in_oklch,var(--primary)_52%,transparent)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--primary)_20%,transparent),inset_0_1px_0_color-mix(in_oklch,white_26%,transparent)] before:pointer-events-none before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-[3px] before:rounded-full before:bg-[color-mix(in_oklch,var(--primary)_86%,white_14%)] before:[content:'']",
+              "bg-[color-mix(in_oklch,var(--primary)_16%,var(--card)_84%)] border-[color-mix(in_oklch,var(--primary)_52%,transparent)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--primary)_20%,transparent),inset_0_1px_0_color-mix(in_oklch,white_26%,transparent)] before:pointer-events-none before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-[3px] before:rounded-full before:bg-[color-mix(in_oklch,var(--primary)_86%,white_14%)] before:[content:'']"
           )}
         >
           <div
             className={cn(
               'bg-[color-mix(in_oklch,var(--accent)_44%,transparent)] text-[color-mix(in_oklch,var(--accent-foreground)_88%,transparent)]',
-              'flex size-10 shrink-0 items-center justify-center rounded-[14px]',
+              'flex size-10 shrink-0 items-center justify-center rounded-[14px]'
             )}
           >
             {item.type === 'text' ? (
@@ -114,7 +114,7 @@ export default memo(function ClipboardItemCard({
                       isSelected
                         ? 'text-[color-mix(in_oklch,var(--foreground)_68%,var(--primary)_32%)]'
                         : 'text-muted-foreground',
-                      'font-normal',
+                      'font-normal'
                     )}
                   >
                     {' '}
@@ -133,7 +133,7 @@ export default memo(function ClipboardItemCard({
                     isSelected
                       ? 'text-[color-mix(in_oklch,var(--foreground)_68%,var(--primary)_32%)]'
                       : 'text-muted-foreground',
-                    'line-clamp-1 text-[11px] leading-4',
+                    'line-clamp-1 text-[11px] leading-4'
                   )}
                   title={fileSecondary}
                 >
@@ -144,10 +144,7 @@ export default memo(function ClipboardItemCard({
           </div>
 
           <div className="flex shrink-0 flex-col items-end justify-center gap-1 text-right">
-            <div
-              className="flex items-center justify-end gap-1.5"
-              title={item.favorited ? '已收藏' : undefined}
-            >
+            <div className="flex items-center justify-end gap-1.5" title={item.favorited ? '已收藏' : undefined}>
               {showQuickShortcut ? (
                 <span className="inline-flex" aria-hidden>
                   <ShortcutKbd
@@ -156,7 +153,7 @@ export default memo(function ClipboardItemCard({
                     className={cn(
                       'pointer-events-none tabular-nums',
                       'h-4 min-h-4 px-1 text-[10px] font-semibold leading-none tracking-tight sm:h-[18px] sm:text-[11px]',
-                      isSelected ? 'text-primary' : 'text-muted-foreground',
+                      isSelected ? 'text-primary' : 'text-muted-foreground'
                     )}
                   />
                 </span>
@@ -167,7 +164,7 @@ export default memo(function ClipboardItemCard({
                   isSelected
                     ? 'text-[color-mix(in_oklch,var(--foreground)_68%,var(--primary)_32%)]'
                     : 'text-muted-foreground',
-                  'text-[10px] tabular-nums leading-none sm:text-[11px]',
+                  'text-[10px] tabular-nums leading-none sm:text-[11px]'
                 )}
               >
                 {formatTime(item.timestamp)}
@@ -201,7 +198,7 @@ export default memo(function ClipboardItemCard({
 })
 
 function formatTime(ts: number): string {
-  return dayjs(ts).format('MM/DD HH:mm')
+  return formatClipboardTimeShort(ts)
 }
 
 function formatImageMeta(item: ClipboardItem) {

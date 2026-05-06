@@ -6,6 +6,29 @@ use tauri::Emitter;
 use super::source::resolve_clipboard_source;
 use super::image_cache;
 
+/// 平台原生「剪贴板序列号」：仅在系统真正发生剪贴板变更时递增。
+/// 用于在 watcher 轮询循环里跳过没有变化的迭代，避免每 300ms 都做 source 解析与 get_text/get_image。
+#[cfg(target_os = "windows")]
+fn current_clipboard_sequence() -> Option<u64> {
+    use windows::Win32::System::DataExchange::GetClipboardSequenceNumber;
+    // SAFETY: WinAPI 自身线程安全，无需调用方上锁。
+    let n = unsafe { GetClipboardSequenceNumber() };
+    Some(u64::from(n))
+}
+
+#[cfg(target_os = "macos")]
+fn current_clipboard_sequence() -> Option<u64> {
+    use objc2_app_kit::NSPasteboard;
+    let cc = unsafe { NSPasteboard::generalPasteboard().changeCount() };
+    Some(cc as u64)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn current_clipboard_sequence() -> Option<u64> {
+    // Linux 等：保持原有行为（每轮都尝试读取），arboard 内部已通过比较内容做去重。
+    None
+}
+
 static CLIPBOARD_WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +68,10 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
     let app_handle = app.clone();
     std::thread::spawn(move || {
         let mut last_content = String::new();
+        // 平台原生序列号（Win: GetClipboardSequenceNumber / mac: NSPasteboard.changeCount）。
+        // 仅在序列号变化时才执行 get_text/get_image/file_paths 等读操作。
+        // Some(_) 表示已知最近一次序列号；None 表示尚未取过或当前平台不支持。
+        let mut last_sequence: Option<u64> = None;
         let mut clipboard = match arboard::Clipboard::new() {
             Ok(cb) => cb,
             Err(e) => {
@@ -56,6 +83,14 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
 
         loop {
             std::thread::sleep(Duration::from_millis(300));
+
+            // 平台序列号短路：未变即跳过本轮所有重活（包括前台应用解析）。
+            if let Some(seq) = current_clipboard_sequence() {
+                if last_sequence == Some(seq) {
+                    continue;
+                }
+                last_sequence = Some(seq);
+            }
 
             let src = resolve_clipboard_source();
 

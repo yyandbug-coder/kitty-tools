@@ -29,9 +29,13 @@ enum AppLaunch {
 
 struct SysAppCompiled {
     app: &'static SysApp,
-    title_lower: String,
-    subtitle_lower: String,
-    extras_lower: Vec<String>,
+    /// 预拼接的「标题 + 副标题 + alias」小写串，供 nucleo 评分。
+    match_text: String,
+    /// (kind, payload) 预计算为 `String`，避免每调用 `frecency_key()` 都重建。
+    kind: String,
+    payload: String,
+    /// 启动时一次性解析的图标路径，避免每次 `to_item()` 都走 `Path::exists()` 探测。
+    icon_path: Option<String>,
 }
 
 static COMPILED: OnceLock<Vec<SysAppCompiled>> = OnceLock::new();
@@ -41,11 +45,32 @@ fn compiled_apps() -> &'static [SysAppCompiled] {
         .get_or_init(|| {
             all()
                 .iter()
-                .map(|app| SysAppCompiled {
-                    app,
-                    title_lower: app.title.to_lowercase(),
-                    subtitle_lower: app.subtitle.to_lowercase(),
-                    extras_lower: app.match_extra.iter().map(|s| s.to_lowercase()).collect(),
+                .map(|app| {
+                    let extras_lower = app
+                        .match_extra
+                        .iter()
+                        .map(|s| s.to_lowercase())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    let match_text = format!(
+                        "{} {} {}",
+                        app.title.to_lowercase(),
+                        app.subtitle.to_lowercase(),
+                        extras_lower,
+                    );
+                    let (kind, payload) = match &app.act {
+                        AppLaunch::OpenPath(p) => ("open_path".to_string(), (*p).to_string()),
+                        AppLaunch::OpenUrl(u) => ("open_url".to_string(), (*u).to_string()),
+                        AppLaunch::WinStart(s) => ("win_shell".to_string(), (*s).to_string()),
+                        AppLaunch::MacOpen(s) => ("mac_open".to_string(), (*s).to_string()),
+                    };
+                    SysAppCompiled {
+                        app,
+                        match_text,
+                        kind,
+                        payload,
+                        icon_path: icon_path_for_sys_app(app),
+                    }
                 })
                 .collect()
         })
@@ -53,40 +78,29 @@ fn compiled_apps() -> &'static [SysAppCompiled] {
 }
 
 impl MatchableRow for SysAppCompiled {
-    fn matches_lowered(&self, q_lower: &str) -> bool {
-        self.title_lower.contains(q_lower)
-            || self.subtitle_lower.contains(q_lower)
-            || self.extras_lower.iter().any(|e| e.contains(q_lower))
+    fn match_text(&self) -> &str {
+        &self.match_text
+    }
+    fn frecency_key(&self) -> (&str, &str) {
+        (&self.kind, &self.payload)
     }
     fn to_item(&self) -> LauncherItem {
-        self.app.to_item()
-    }
-}
-
-/// 无关键词时展示全部；有关键词时按标题/副标题/附加词过滤。委托给 `super::collect_matches`，
-/// 与 `builtins_table()` 共用同一份「空查询⇒全部 / 否则子串过滤」语义。
-pub fn items_for_query(q: &str, q_lower: &str) -> Vec<LauncherItem> {
-    collect_matches(compiled_apps(), q, q_lower)
-}
-
-impl SysApp {
-    fn to_item(&self) -> LauncherItem {
-        let (kind, payload) = match &self.act {
-            AppLaunch::OpenPath(p) => ("open_path", (*p).to_string()),
-            AppLaunch::OpenUrl(u) => ("open_url", (*u).to_string()),
-            AppLaunch::WinStart(s) => ("win_shell", (*s).to_string()),
-            AppLaunch::MacOpen(s) => ("mac_open", (*s).to_string()),
-        };
-        let icon_path = icon_path_for_sys_app(self);
         LauncherItem {
-            id: self.id.to_string(),
-            title: self.title.to_string(),
-            subtitle: self.subtitle.to_string(),
-            kind: kind.to_string(),
-            payload,
-            icon_path,
+            id: self.app.id.to_string(),
+            title: self.app.title.to_string(),
+            subtitle: self.app.subtitle.to_string(),
+            kind: self.kind.clone(),
+            payload: self.payload.clone(),
+            icon_path: self.icon_path.clone(),
         }
     }
+}
+
+/// 委托给 [`collect_matches`]：
+/// - 空查询保留静态顺序、返回全部；
+/// - 非空查询走 nucleo 模糊评分 + frecency 二级排序。
+pub fn items_for_query(q: &str, q_lower: &str) -> Vec<LauncherItem> {
+    collect_matches(compiled_apps(), q, q_lower)
 }
 
 /// 为「系统应用」列表项解析可用于 `get_app_icon_data_url` 的路径
@@ -134,18 +148,40 @@ fn windows_icon_path_by_id(id: &str) -> Option<String> {
         "sys-odbcad32" => &[r"C:\Windows\System32\odbcad32.exe"],
         _ => return None,
     };
-    first_existing(candidates)
+    if let Some(p) = first_existing(candidates) {
+        return Some(p);
+    }
+    // Win11 已把「画图 / 截图工具 / 记事本 / 计算器」等迁为 UWP/MSIX，
+    // System32 下不再保留 Win32 桩；回退到 %LOCALAPPDATA%\Microsoft\WindowsApps
+    // 下的执行别名（IO_REPARSE_TAG_APPEXECLINK），shell 会解析为真实图标。
+    let alias = match id {
+        "sys-mspaint" => Some("mspaint.exe"),
+        "sys-snipping" => Some("SnippingTool.exe"),
+        "sys-notepad" => Some("notepad.exe"),
+        "sys-calc" => Some("calc.exe"),
+        _ => None,
+    };
+    alias.and_then(windows_app_alias_exe)
 }
 
 #[cfg(target_os = "windows")]
-fn windows_terminal_exe() -> Option<String> {
+fn windows_app_alias_exe(filename: &str) -> Option<String> {
     let local = std::env::var("LOCALAPPDATA").ok()?;
     let p = Path::new(&local)
         .join("Microsoft")
         .join("WindowsApps")
-        .join("wt.exe");
+        .join(filename);
     if p.exists() {
-        return Some(p.to_string_lossy().into_owned());
+        Some(p.to_string_lossy().into_owned())
+    } else {
+        None
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_terminal_exe() -> Option<String> {
+    if let Some(p) = windows_app_alias_exe("wt.exe") {
+        return Some(p);
     }
     let alt = Path::new(r"C:\Program Files\WindowsTerminal\wt.exe");
     if alt.exists() {
@@ -231,7 +267,17 @@ fn win_shell_icon_path(cmd: &str) -> Option<String> {
         "devmgmt.msc" => &[r"C:\Windows\System32\devmgmt.msc"],
         _ => &[],
     };
-    first_existing(candidates)
+    if let Some(p) = first_existing(candidates) {
+        return Some(p);
+    }
+    // 同上：UWP 迁移后回退到 WindowsApps 执行别名。
+    let alias = match c {
+        "calc" => Some("calc.exe"),
+        "mspaint" => Some("mspaint.exe"),
+        "SnippingTool" | "snippingtool" => Some("SnippingTool.exe"),
+        _ => None,
+    };
+    alias.and_then(windows_app_alias_exe)
 }
 
 /// `MacOpen` 的 payload 为应用名，尝试常见 .app 路径

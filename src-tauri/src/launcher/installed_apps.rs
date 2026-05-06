@@ -22,8 +22,6 @@ struct CachedEntry {
     item: LauncherItem,
     /// 扫描时预计算，避免每次按键对数千条重复 `to_lowercase`。
     search_lower: String,
-    /// 用于排序：标题前缀匹配优先于仅子串匹配。
-    title_lower: String,
 }
 
 struct Cache {
@@ -43,6 +41,12 @@ fn stable_id(path: &str) -> String {
 
 fn cache_stale(c: &Cache, now: Instant) -> bool {
     now.duration_since(c.built_at) > CACHE_TTL
+}
+
+/// 进程启动后调用一次：让首次查询不必等开始菜单 walkdir。结果直接喂入 `CACHE`，
+/// 内部已用 `REFRESH_LOCK` 保证只有一条线程做扫描。
+pub(super) fn warmup() {
+    let _ = scan_or_cached();
 }
 
 /// 扫描在锁外执行，避免长时间占用全局锁阻塞其它启动器查询。
@@ -86,41 +90,42 @@ fn scan_or_cached() -> Arc<Vec<CachedEntry>> {
 }
 
 /// 有关键词时返回名称/路径匹配的已安装应用；空查询不展开（由内置「系统应用」短列表兜底）。
-/// **标题前缀匹配**优先，其次子串匹配；组内按标题长度升序。两遍收集避免对超大量命中做一次大排序。
+/// 用 nucleo 模糊评分（自带前缀/词首加权 — 比手写「prefix 桶」更细腻），再用 frecency
+/// 与标题长度做二级 / 三级 tie-break。
 pub fn items_for_query(q: &str, q_lower: &str) -> Vec<LauncherItem> {
     if q.trim().is_empty() || q_lower.is_empty() {
         return Vec::new();
     }
+    let Some(atom) = super::fuzzy::compile_atom(q) else {
+        return Vec::new();
+    };
     let entries = scan_or_cached();
-    let mut prefix_idx: Vec<usize> = Vec::new();
-    let mut rest_idx: Vec<usize> = Vec::new();
-    for (i, e) in entries.iter().enumerate() {
-        if !e.search_lower.contains(q_lower) {
-            continue;
-        }
-        if e.title_lower.starts_with(q_lower) {
-            prefix_idx.push(i);
-        } else {
-            rest_idx.push(i);
-        }
-    }
-    prefix_idx.sort_by_key(|&i| entries[i].item.title.len());
-    rest_idx.sort_by_key(|&i| entries[i].item.title.len());
 
-    let mut out = Vec::with_capacity(MAX_MATCH.min(prefix_idx.len() + rest_idx.len()));
-    for i in prefix_idx {
-        if out.len() >= MAX_MATCH {
-            break;
-        }
-        out.push(entries[i].item.clone());
-    }
-    for i in rest_idx {
-        if out.len() >= MAX_MATCH {
-            break;
-        }
-        out.push(entries[i].item.clone());
-    }
-    out
+    let mut scored: Vec<(u16, usize)> = entries
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| super::fuzzy::score(&atom, &e.search_lower).map(|s| (s, i)))
+        .collect();
+
+    let frecency = super::recency::snapshot();
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    scored.sort_by(|(sa, ia), (sb, ib)| {
+        sb.cmp(sa).then_with(|| {
+            let ea = &entries[*ia];
+            let eb = &entries[*ib];
+            let fa = super::recency::score_or_zero(&frecency, now_ms, &ea.item.kind, &ea.item.payload);
+            let fb = super::recency::score_or_zero(&frecency, now_ms, &eb.item.kind, &eb.item.payload);
+            fb.partial_cmp(&fa)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| ea.item.title.len().cmp(&eb.item.title.len()))
+        })
+    });
+
+    scored
+        .into_iter()
+        .take(MAX_MATCH)
+        .map(|(_, i)| entries[i].item.clone())
+        .collect()
 }
 
 /// `find` / `open` 文件搜索时合并进用户配置目录，便于搜到开始菜单快捷方式与 macOS 应用包（类似 Alfred 常用范围）。
@@ -191,6 +196,7 @@ fn scan_all_installed_entries() -> Vec<CachedEntry> {
 #[cfg(target_os = "windows")]
 fn scan_windows_lnk() -> Vec<CachedEntry> {
     let mut seen_payload = HashSet::<String>::new();
+    let mut seen_title_lower = HashSet::<String>::new();
     let mut out = Vec::new();
     for root in windows_start_menu_roots() {
         if !root.is_dir() {
@@ -226,6 +232,7 @@ fn scan_windows_lnk() -> Vec<CachedEntry> {
             }
             let title = name.to_string();
             let title_lower = title.to_lowercase();
+            seen_title_lower.insert(title_lower.clone());
             let subtitle: String = "已安装应用 · 开始菜单".into();
             // 副标题无拉丁大写，直接拼接避免每行 `to_lowercase`。
             let search_lower = format!(
@@ -245,11 +252,50 @@ fn scan_windows_lnk() -> Vec<CachedEntry> {
                     icon_path,
                 },
                 search_lower,
-                title_lower,
             });
         }
     }
+    // Win32 .lnk 扫描完成后追加 UWP / MSIX 条目（Win11 内置工具基本都在这里）。
+    // 同名（如「计算器」）的 .lnk 已存在时跳过 UWP 项，避免列表里出现重复。
+    append_windows_uwp_entries(&mut out, &mut seen_payload, &seen_title_lower);
     out
+}
+
+#[cfg(target_os = "windows")]
+fn append_windows_uwp_entries(
+    out: &mut Vec<CachedEntry>,
+    seen_payload: &mut HashSet<String>,
+    seen_title_lower: &HashSet<String>,
+) {
+    for entry in super::uwp::enumerate_uwp_apps() {
+        if out.len() >= MAX_INSTALLED {
+            return;
+        }
+        let title_lower = entry.name.to_lowercase();
+        if seen_title_lower.contains(&title_lower) {
+            // 同名 Win32 .lnk 已存在；让带真实路径 / 图标的 .lnk 项胜出。
+            continue;
+        }
+        let payload = super::uwp::shell_apps_folder_uri(&entry.app_id);
+        if !seen_payload.insert(payload.clone()) {
+            continue;
+        }
+        let subtitle: String = "已安装应用 · Microsoft Store".into();
+        let search_lower = format!("{} {} {}", &title_lower, subtitle, entry.app_id.to_lowercase());
+        // icon_path 直接复用 payload；resolve_icon_data_url 会识别 `shell:AppsFolder\\` 走 COM 拉图标。
+        let icon_path = Some(payload.clone());
+        out.push(CachedEntry {
+            item: LauncherItem {
+                id: stable_id(&payload),
+                title: entry.name,
+                subtitle,
+                kind: "win_shell".into(),
+                payload,
+                icon_path,
+            },
+            search_lower,
+        });
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -343,7 +389,6 @@ fn push_macos_app_dir(
                 icon_path,
             },
             search_lower,
-            title_lower,
         });
     }
     false

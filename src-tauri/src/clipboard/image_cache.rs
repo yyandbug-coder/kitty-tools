@@ -4,11 +4,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
 use std::sync::Mutex;
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-};
 use tauri::Manager;
+use xxhash_rust::xxh3::Xxh3;
 
 use crate::app_state::lock_poisoned;
 
@@ -101,22 +98,6 @@ fn rgba_to_preview_png_bytes(
         .write_image(thumb.as_raw(), nw, nh, image::ExtendedColorType::Rgba8)
         .ok()?;
     Some(png_buf)
-}
-
-fn persist_clipboard_preview<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    id: &str,
-    width: usize,
-    height: usize,
-    bytes: &[u8],
-) {
-    let Some(path) = clipboard_preview_path(app, id) else {
-        return;
-    };
-    let Some(png) = rgba_to_preview_png_bytes(width, height, bytes, PREVIEW_MAX_EDGE) else {
-        return;
-    };
-    let _ = fs::write(path, png);
 }
 
 fn persist_clipboard_image<R: tauri::Runtime>(
@@ -214,10 +195,8 @@ fn prune_image_memory_cache(keep: &HashSet<String>) {
 
 pub fn cache_image<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str, width: usize, height: usize, bytes: &[u8]) -> Option<usize> {
     let byte_size = persist_clipboard_image(app, id, width, height, bytes);
-    // 原图持久化失败则不再写 preview，避免产生「有 preview 无 .kchi」的孤儿（前端会取到无效预览）。
-    if byte_size.is_some() {
-        persist_clipboard_preview(app, id, width, height, bytes);
-    }
+    // 预览图改为按需生成（首次 `get_image_preview_asset_path` 时再做缩略图编码并落盘），
+    // 节省一次同步 resize + PNG 编码（大图常占 50–100ms），不阻塞 watcher emit。
     if bytes.len() <= MAX_IN_MEMORY_RGBA_BYTES {
         put_image_in_memory_cache(id, width, height, bytes);
     }
@@ -275,17 +254,22 @@ pub fn load_image_for_paste<R: tauri::Runtime>(
 }
 
 pub fn hash_image(bytes: &[u8], width: usize, height: usize) -> String {
-    let mut hasher = DefaultHasher::new();
-    width.hash(&mut hasher);
-    height.hash(&mut hasher);
-    bytes.hash(&mut hasher);
-    format!("image:{:x}", hasher.finish())
+    // xxh3 在 ~10MB RGBA 上比 SipHash-1-3 快约 5-10 倍。仅做去重比较，无加密需求。
+    let mut hasher = Xxh3::new();
+    hasher.update(&(width as u64).to_le_bytes());
+    hasher.update(&(height as u64).to_le_bytes());
+    hasher.update(bytes);
+    format!("image:{:x}", hasher.digest())
 }
 
 pub fn hash_file_paths(paths: &[String]) -> String {
-    let mut hasher = DefaultHasher::new();
-    paths.hash(&mut hasher);
-    format!("file:{:x}", hasher.finish())
+    let mut hasher = Xxh3::new();
+    hasher.update(&(paths.len() as u64).to_le_bytes());
+    for p in paths {
+        hasher.update(&(p.len() as u64).to_le_bytes());
+        hasher.update(p.as_bytes());
+    }
+    format!("file:{:x}", hasher.digest())
 }
 
 pub fn summarize_file_paths(paths: &[String]) -> String {

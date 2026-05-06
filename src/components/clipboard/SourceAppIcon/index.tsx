@@ -1,28 +1,11 @@
 /**
- * 来源应用图标 - 按路径 invoke 拉取 PNG data URL，会话内缓存；失败用占位图标
+ * 来源应用图标 - 按路径拉取 PNG data URL；会话级缓存 + 批量预取由
+ * `src/lib/sourceAppIconCache.ts` 统一负责，本组件只负责呈现与状态。
  */
 import { AppWindow } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import { cn } from '@/lib/utils'
-
-/** 会话内图标缓存上限（FIFO淘汰），避免路径种类极多时 Map 无限增长 */
-const ICON_CACHE_CAP = 128
-const cache = new Map<string, string | null>()
-const cacheInsertOrder: string[] = []
-
-function rememberIconCache(key: string, value: string | null) {
-  if (!cache.has(key)) {
-    cache.set(key, value)
-    cacheInsertOrder.push(key)
-    while (cacheInsertOrder.length > ICON_CACHE_CAP) {
-      const oldest = cacheInsertOrder.shift()
-      if (oldest) cache.delete(oldest)
-    }
-    return
-  }
-  cache.set(key, value)
-}
+import { getOrFetchIcon, lookupIconCache } from '@/lib/sourceAppIconCache'
 
 interface Props {
   path?: string
@@ -33,29 +16,28 @@ interface Props {
 
 export default function SourceAppIcon({ path, title, sizePx = 14, className }: Props) {
   const key = path?.trim() ?? ''
-  const [url, setUrl] = useState<string | null>(() =>
-    key && cache.has(key) ? (cache.get(key) as string | null) : null,
-  )
+  const [url, setUrl] = useState<string | null>(() => {
+    if (!key) {
+      return null
+    }
+    const { hit, value } = lookupIconCache(key)
+    return hit ? value : null
+  })
 
   useEffect(() => {
     if (!key) {
       setUrl(null)
       return
     }
-    if (cache.has(key)) {
-      setUrl(cache.get(key) ?? null)
+    const cached = lookupIconCache(key)
+    if (cached.hit) {
+      setUrl(cached.value)
       return
     }
     let cancelled = false
-    invoke<string | null>('get_app_icon_data_url', { path: key })
-      .then((dataUrl) => {
-        rememberIconCache(key, dataUrl ?? null)
-        if (!cancelled) setUrl(dataUrl ?? null)
-      })
-      .catch(() => {
-        rememberIconCache(key, null)
-        if (!cancelled) setUrl(null)
-      })
+    void getOrFetchIcon(key).then((value) => {
+      if (!cancelled) setUrl(value)
+    })
     return () => {
       cancelled = true
     }
@@ -71,7 +53,7 @@ export default function SourceAppIcon({ path, title, sizePx = 14, className }: P
         title={title}
         className={cn(
           'h-[length:var(--src-icon)] w-[length:var(--src-icon)] shrink-0 rounded-[4px] object-contain',
-          className,
+          className
         )}
         style={iconBoxStyle}
         draggable={false}
@@ -85,10 +67,7 @@ export default function SourceAppIcon({ path, title, sizePx = 14, className }: P
       className="inline-flex h-[length:var(--src-icon)] w-[length:var(--src-icon)] shrink-0"
       style={iconBoxStyle}
     >
-      <AppWindow
-        className={cn('size-full text-muted-foreground opacity-80', className)}
-        aria-hidden
-      />
+      <AppWindow className={cn('size-full text-muted-foreground opacity-80', className)} aria-hidden />
     </span>
   )
 }

@@ -60,7 +60,17 @@ export default function ClipboardHistoryPanel() {
   const listVirtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => listScrollParentRef.current,
-    estimateSize: () => 76,
+    // 按 type 与文本长度估算更贴合实际行高，减少 measureElement 后再次 invalidateMeasurements 的抖动。
+    // 1 行 text/image 约 60，2 行 text 或带副标题的 file 约 76。
+    estimateSize: (index) => {
+      const it = filtered[index]
+      if (!it) return 76
+      if (it.type === 'text') {
+        return it.content.length > 60 || it.content.includes('\n') ? 76 : 60
+      }
+      if (it.type === 'file') return 76
+      return 60
+    },
     overscan: 8,
     getItemKey: (index) => {
       const it = filtered[index]

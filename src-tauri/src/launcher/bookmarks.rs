@@ -8,11 +8,16 @@ use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
 use super::recency;
 use super::LauncherItem;
+
+/// 书签源「只在 TTL 到期后才 stat 文件」：在连续输入场景下避免每键击都去
+/// 调 6+ 个 Bookmarks 文件的 `metadata().modified()`。
+const BOOKMARK_VERIFY_TTL: Duration = Duration::from_secs(30);
 
 #[derive(Clone)]
 struct BookmarkFlatRow {
@@ -25,6 +30,8 @@ struct BookmarkFlatRow {
 
 struct BookmarkFlatCache {
     sig: u64,
+    /// 上次“签名验证”的时间点（后续在 TTL 内跳过重新 stat）。
+    last_verified_at: Instant,
     rows: Arc<Vec<BookmarkFlatRow>>,
 }
 
@@ -114,14 +121,26 @@ fn load_all_flat_rows(chrome: bool, edge: bool, brave: bool) -> Vec<BookmarkFlat
 }
 
 fn cached_flat_rows(chrome: bool, edge: bool, brave: bool) -> Arc<Vec<BookmarkFlatRow>> {
-    let sig = bookmark_sources_signature(chrome, edge, brave);
+    // 热路径：TTL 未到期直接返回缓存，不走 metadata 抓取。
     if let Ok(g) = FLAT_CACHE.read() {
         if let Some(c) = g.as_ref() {
-            if c.sig == sig {
+            if c.last_verified_at.elapsed() < BOOKMARK_VERIFY_TTL {
                 return Arc::clone(&c.rows);
             }
         }
     }
+    // TTL 过期或首次使用：重新计算签名。
+    let sig = bookmark_sources_signature(chrome, edge, brave);
+    if let Ok(mut g) = FLAT_CACHE.write() {
+        if let Some(c) = g.as_mut() {
+            if c.sig == sig {
+                // 签名未变：仅“点亮”验证时间后返回。
+                c.last_verified_at = Instant::now();
+                return Arc::clone(&c.rows);
+            }
+        }
+    }
+    // 签名不一致或无缓存：重建。允许加载在写锁外完成以减轻阻塞。
     let rows = Arc::new(load_all_flat_rows(chrome, edge, brave));
     if let Ok(mut g) = FLAT_CACHE.write() {
         if let Some(c) = g.as_ref() {
@@ -131,11 +150,17 @@ fn cached_flat_rows(chrome: bool, edge: bool, brave: bool) -> Arc<Vec<BookmarkFl
         }
         *g = Some(BookmarkFlatCache {
             sig,
+            last_verified_at: Instant::now(),
             rows: Arc::clone(&rows),
         });
     }
     rows
 }
+
+/// 书签结果的最终展示上限（与原行为保持一致）。
+const BOOKMARK_MAX_OUT: usize = 50;
+/// 候选规模软上限：扫到这个量就停，避免对超大书签库排序整整一遍只为前 50 条。
+const BOOKMARK_MAX_CANDIDATES: usize = 256;
 
 pub fn bookmark_items_for_query(
     query: &str,
@@ -154,9 +179,10 @@ pub fn bookmark_items_for_query(
     }
 
     let rows = cached_flat_rows(chrome, edge, brave);
-    let recency = recency::url_recency_snapshot();
+    let frecency = recency::snapshot();
+    let now_ms = chrono::Utc::now().timestamp_millis();
 
-    let mut out = Vec::new();
+    let mut out: Vec<LauncherItem> = Vec::with_capacity(BOOKMARK_MAX_CANDIDATES.min(rows.len()));
     for row in rows.iter() {
         if !row.title_lower.contains(&q_lower) && !row.url_lower.contains(&q_lower) {
             continue;
@@ -172,15 +198,19 @@ pub fn bookmark_items_for_query(
             payload: row.url.clone(),
             icon_path: None,
         });
+        if out.len() >= BOOKMARK_MAX_CANDIDATES {
+            break;
+        }
     }
     out.sort_by(|a, b| {
-        let ka = recency::normalize_url_key(&a.payload);
-        let kb = recency::normalize_url_key(&b.payload);
-        let ta = recency.get(&ka).copied().unwrap_or(0);
-        let tb = recency.get(&kb).copied().unwrap_or(0);
-        tb.cmp(&ta).then_with(|| a.title.cmp(&b.title))
+        let sa = recency::score_or_zero(&frecency, now_ms, &a.kind, &a.payload);
+        let sb = recency::score_or_zero(&frecency, now_ms, &b.kind, &b.payload);
+        // 分数高者靠前；分数完全相同（含两侧均为 0）按标题字典序，与旧版保持一致。
+        sb.partial_cmp(&sa)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.title.cmp(&b.title))
     });
-    out.truncate(50);
+    out.truncate(BOOKMARK_MAX_OUT);
     out
 }
 

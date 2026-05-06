@@ -687,7 +687,9 @@ pub fn run() {
             clipboard::image_cache::get_image_preview_asset_path,
             clipboard::image_cache::prune_clipboard_image_store,
             clipboard::app_icon::get_app_icon_data_url,
+            clipboard::app_icon::get_app_icons_data_url,
             clipboard::history_db::replace_clipboard_history_items,
+            clipboard::history_db::apply_clipboard_history_delta,
             // Translate commands
             get_config,
             save_config_cmd,
@@ -734,6 +736,9 @@ pub fn run() {
 
             // 启动时清理孤儿 preview（preview 存在但同名 .kchi 已不存在的情况）
             let _ = clipboard::image_cache::cleanup_orphan_previews(app.handle());
+
+            // 启动器：后台预热已安装应用扫描，避免首次按下启动器快捷键时等待 walkdir。
+            launcher::prewarm_in_background();
 
             // Pre-create clipboard, floating, region-select, launcher, settings and onboarding windows
             let _ = window::get_or_create_clipboard_popup_window(app.handle());

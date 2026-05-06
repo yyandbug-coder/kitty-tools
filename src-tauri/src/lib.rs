@@ -249,18 +249,19 @@ async fn region_overlay_complete(
         // 不同 OCR 服务对图片大小容忍度不同：百度走 2560 长边压缩；Google/OpenAI 等放宽到 4096，保留小字细节。
         let max_long_edge =
             crate::screenshot_macos_sck::max_long_edge_for_provider(&cfg.translate_provider);
-        let image = tauri::async_runtime::spawn_blocking({
+        // 把 capture + PNG 编码放在同一个 spawn_blocking 闭包里，避免 PNG 编码 (~50-150ms) 跑在 tokio worker 上。
+        let png_bytes = tauri::async_runtime::spawn_blocking({
             let params = (vx, vy, vw, vh, x, y, width, height, viewport_w, viewport_h);
-            move || {
+            move || -> Result<Vec<u8>, String> {
                 let (vx, vy, vw, vh, x, y, w, h, vvw, vvh) = params;
-                crate::screenshot_macos_sck::capture_overlay_selection_sck(
+                let image = crate::screenshot_macos_sck::capture_overlay_selection_sck(
                     vx, vy, vw, vh, x, y, w, h, vvw, vvh, max_long_edge,
-                )
+                )?;
+                screenshot::rgba_to_png(&image)
             }
         })
         .await
         .map_err(|e| e.to_string())??;
-        let png_bytes = screenshot::rgba_to_png(&image)?;
         spawn_screenshot_translate_pipeline(&app, png_bytes, source_lang, target_lang, &cfg);
         Ok(())
     }
@@ -270,10 +271,16 @@ async fn region_overlay_complete(
             return Err("无截屏缓存".to_string());
         };
 
-        let cropped = screenshot::crop_from_viewport_mapping(
-            &full, x, y, width, height, viewport_w, viewport_h,
-        )?;
-        let png_bytes = screenshot::rgba_to_png(&cropped)?;
+        // crop + PNG 编码均为 CPU 密集（4K 全屏 PNG 编码可达 100-200ms），
+        // 不能直接跑在 #[tauri::command] async 的 tokio worker 上，否则会阻塞其他 HTTP/翻译任务。
+        let png_bytes = tauri::async_runtime::spawn_blocking(move || {
+            let cropped = screenshot::crop_from_viewport_mapping(
+                &full, x, y, width, height, viewport_w, viewport_h,
+            )?;
+            screenshot::rgba_to_png(&cropped)
+        })
+        .await
+        .map_err(|e| e.to_string())??;
 
         window::hide_region_overlay(&app);
 
@@ -683,6 +690,7 @@ pub fn run() {
             show_onboarding_window_cmd,
             exit_after_flush,
             clipboard::paste::paste_item,
+            clipboard::paste::write_text_to_clipboard,
             update_global_shortcut,
             clipboard::image_cache::get_image_preview_asset_path,
             clipboard::image_cache::prune_clipboard_image_store,
@@ -739,6 +747,11 @@ pub fn run() {
 
             // 启动器：后台预热已安装应用扫描，避免首次按下启动器快捷键时等待 walkdir。
             launcher::prewarm_in_background();
+
+            // 翻译：后台预热 Lingua 语种检测器，避免用户首次「自动检测」翻译时同步等 build()（500-2000ms）。
+            std::thread::spawn(|| {
+                lang_detect::warmup_detector_blocking();
+            });
 
             // Pre-create clipboard, floating, region-select, launcher, settings and onboarding windows
             let _ = window::get_or_create_clipboard_popup_window(app.handle());

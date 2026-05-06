@@ -57,6 +57,27 @@ pub async fn translate(
     provider: &str,
     creds: &TranslateCreds,
 ) -> Result<TranslateResult, String> {
+    // 顶层一次性 Lingua 检测：把 source_lang == "auto" 替换为检测结果（命中时）。
+    // 下游各 provider 内仍调用 effective_source_lang，但请求里已是非 auto 时会立刻短路返回，
+    // 避免对同一请求重复跑 Lingua（视文本长度可省 10-50ms × N）。
+    // 检测失败时保持 "auto"，由各 provider 交给在线引擎自动判定。
+    let resolved;
+    let request = if request.source_lang == "auto" {
+        let detected = crate::lang_detect::detect_source_for_auto(&request.text);
+        match detected {
+            Some(code) => {
+                resolved = TranslateRequest {
+                    text: request.text.clone(),
+                    source_lang: code.to_string(),
+                    target_lang: request.target_lang.clone(),
+                };
+                &resolved
+            }
+            None => request,
+        }
+    } else {
+        request
+    };
     match provider {
         "baidu" => baidu_translate(client, request, &creds.baidu_app_id, &creds.baidu_secret).await,
         "google" => google_translate(client, request, creds).await,

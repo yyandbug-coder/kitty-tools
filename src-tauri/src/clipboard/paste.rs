@@ -14,6 +14,15 @@ use objc2_foundation::{NSArray, NSString, NSURL};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::NSPasteboard;
 
+/// 把任意文本写入系统剪贴板。前端 `navigator.clipboard.writeText` 在窗口失焦或无权限时会被拒绝，
+/// 自动复制译文等场景需要此命令做兜底；走 OS 原生 API（arboard）不依赖 Web 权限。
+#[tauri::command]
+pub async fn write_text_to_clipboard(text: String) -> Result<(), String> {
+    // arboard 句柄申请/写入均很快（毫秒级），直接在 tokio worker 上同步执行可接受。
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+    clipboard.set_text(&text).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn paste_item(item: ClipboardEvent, app: tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("clipboard-popup") {

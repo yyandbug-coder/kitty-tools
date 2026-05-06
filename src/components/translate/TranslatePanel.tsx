@@ -15,6 +15,7 @@ import { getLanguageDisplayName, getProviderDisplayName } from '@/types'
 import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { formatShortcutForDisplay, translateSubmitShortcutLabel } from '@/lib/platform'
 import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
+import { copyTextWithFallback } from '@/lib/copy-text'
 import toast from 'react-hot-toast'
 
 interface ScreenshotResultPayload {
@@ -27,46 +28,53 @@ interface ScreenshotResultPayload {
 
 export default function TranslatePanel() {
   const { config, updateConfig } = useAppConfig()
-  const { result, loading, error, translate, retry, clearResult, applyResult, applyError, setLoadingState } = useTranslate()
+  const { result, loading, error, translate, retry, clearResult, applyResult, applyError, setLoadingState } =
+    useTranslate()
   const [inputText, setInputText] = useState('')
   const [copied, setCopied] = useState(false)
   const MAX_INPUT_LENGTH = 5000
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 监听截图/划词翻译结果，回显到面板（与 ConfigProvider 相同：listen resolve 时若已卸载则立即解绑）
+  // 监听截图/划词翻译结果，回显到面板。
+  // 两个 listen 用 Promise.all 并行注册，省一次 IPC RTT；解绑遵循「resolve 时若已卸载则立即解绑」模式。
   useEffect(() => {
     let cancelled = false
     let unlistenResult: UnlistenFn | undefined
     let unlistenStart: UnlistenFn | undefined
 
-    void listen<string>('translate-selection-start', (event) => {
-      if (event.payload) {
-        setInputText(typeof event.payload === 'string' ? event.payload : '')
+    void Promise.all([
+      listen<string>('translate-selection-start', (event) => {
+        if (!event.payload) return
+        // 避免覆盖用户在面板里已经手动输入的内容：仅在输入框为空时才回显源文本。
+        // 否则用户正在编辑时被划词/截图事件打断会丢失输入。
+        const incoming = typeof event.payload === 'string' ? event.payload : ''
+        setInputText((current) => (current.trim().length === 0 ? incoming : current))
         setLoadingState(true)
+      }),
+      listen<ScreenshotResultPayload>('translate-selection-result', (event) => {
+        const p = event.payload
+        if (p?.error) {
+          applyError(p.error)
+        } else if (p?.translatedText) {
+          setInputText(p.sourceText ?? '')
+          applyResult({
+            sourceText: p.sourceText ?? '',
+            translatedText: p.translatedText,
+            sourceLang: p.sourceLang ?? '',
+            targetLang: p.targetLang ?? '',
+            provider: ''
+          })
+        }
+      })
+    ]).then(([fnStart, fnResult]) => {
+      if (cancelled) {
+        fnStart()
+        fnResult()
+        return
       }
-    }).then((fn) => {
-      if (cancelled) fn()
-      else unlistenStart = fn
-    })
-
-    void listen<ScreenshotResultPayload>('translate-selection-result', (event) => {
-      const p = event.payload
-      if (p?.error) {
-        applyError(p.error)
-      } else if (p?.translatedText) {
-        setInputText(p.sourceText ?? '')
-        applyResult({
-          sourceText: p.sourceText ?? '',
-          translatedText: p.translatedText,
-          sourceLang: p.sourceLang ?? '',
-          targetLang: p.targetLang ?? '',
-          provider: '',
-        })
-      }
-    }).then((fn) => {
-      if (cancelled) fn()
-      else unlistenResult = fn
+      unlistenStart = fnStart
+      unlistenResult = fnResult
     })
 
     return () => {
@@ -80,14 +88,18 @@ export default function TranslatePanel() {
     inputRef.current?.focus()
   }, [])
 
-  useEffect(() => () => {
-    if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
+    },
+    []
+  )
 
   const autoCopyResult = async (text: string) => {
     if (!config.autoCopy || !text) return
     try {
-      await navigator.clipboard.writeText(text)
+      // navigator.clipboard 失败时回落到后端 arboard 写入，避免失焦/权限场景丢译文。
+      await copyTextWithFallback(text)
     } catch (e) {
       toast.error(`自动复制译文失败：${getInvokeErrorMessage(e)}`, { duration: 4000 })
     }
@@ -95,7 +107,11 @@ export default function TranslatePanel() {
 
   const handleTranslate = async () => {
     if (!inputText.trim()) return
-    const res = await translate({ text: inputText.trim(), source_lang: config.sourceLang, target_lang: config.targetLang })
+    const res = await translate({
+      text: inputText.trim(),
+      source_lang: config.sourceLang,
+      target_lang: config.targetLang
+    })
     if (res?.translatedText) await autoCopyResult(res.translatedText)
   }
 
@@ -120,7 +136,7 @@ export default function TranslatePanel() {
   const handleCopy = async () => {
     if (!result?.translatedText) return
     try {
-      await navigator.clipboard.writeText(result.translatedText)
+      await copyTextWithFallback(result.translatedText)
       if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
       setCopied(true)
       copyResetTimerRef.current = setTimeout(() => {
@@ -152,10 +168,7 @@ export default function TranslatePanel() {
       {/* 语言选择栏 */}
       <div className="flex items-center gap-2">
         <div className="flex-1">
-          <LanguageSelector
-            value={config.sourceLang}
-            onChange={(v) => void updateConfig({ sourceLang: v })}
-          />
+          <LanguageSelector value={config.sourceLang} onChange={(v) => void updateConfig({ sourceLang: v })} />
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -172,10 +185,7 @@ export default function TranslatePanel() {
           <TooltipContent>交换语言</TooltipContent>
         </Tooltip>
         <div className="flex-1">
-          <LanguageSelector
-            value={config.targetLang}
-            onChange={(v) => void updateConfig({ targetLang: v })}
-          />
+          <LanguageSelector value={config.targetLang} onChange={(v) => void updateConfig({ targetLang: v })} />
         </div>
       </div>
 
@@ -227,7 +237,9 @@ export default function TranslatePanel() {
           <Textarea
             ref={inputRef}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value.slice(0, MAX_INPUT_LENGTH))}
+            // textarea 自带 `maxLength` 已能限制输入，外层再 slice 是冗余路径；
+            // 保留 maxLength 作为单一截断点，外部「来自事件回灌」的写入由各自来源保证不超长。
+            onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={`输入要翻译的文本…（${translateSubmitShortcutLabel()} 翻译）`}
             maxLength={MAX_INPUT_LENGTH}
@@ -252,8 +264,7 @@ export default function TranslatePanel() {
                   <span className="mx-1.5 text-border">·</span>
                   <span className="text-[11px]">
                     {getProviderDisplayName(result.provider as 'baidu' | 'google' | 'youdao' | 'openai')} ·{' '}
-                    {getLanguageDisplayName(result.sourceLang)} →{' '}
-                    {getLanguageDisplayName(result.targetLang)}
+                    {getLanguageDisplayName(result.sourceLang)} → {getLanguageDisplayName(result.targetLang)}
                   </span>
                 </>
               ) : null}
@@ -279,7 +290,8 @@ export default function TranslatePanel() {
                 <div className="flex flex-col gap-2">
                   <p className="text-sm leading-relaxed text-destructive">{error}</p>
                   <Button variant="outline" size="sm" onClick={() => void retry()} className="w-fit">
-                    <RotateCcw className="mr-1.5 size-3.5" />重试
+                    <RotateCcw className="mr-1.5 size-3.5" />
+                    重试
                   </Button>
                 </div>
               ) : loading ? (
@@ -305,8 +317,13 @@ export default function TranslatePanel() {
         size="lg"
       >
         {loading ? (
-          <><Loader2 className="mr-2 size-4 animate-spin" />翻译中...</>
-        ) : '翻译'}
+          <>
+            <Loader2 className="mr-2 size-4 animate-spin" />
+            翻译中...
+          </>
+        ) : (
+          '翻译'
+        )}
       </Button>
     </div>
   )

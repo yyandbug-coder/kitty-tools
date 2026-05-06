@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { getInvokeErrorMessage, toastInvokeError } from '@/lib/invoke-helpers'
 import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { translateSubmitShortcutLabel } from '@/lib/platform'
+import { copyTextWithFallback } from '@/lib/copy-text'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import { type AppTheme, getLanguageDisplayName } from '@/types'
 
@@ -79,7 +80,8 @@ export default function FloatingResult() {
               const sl = event.payload?.sourceLang
               setDetectedSourceLang(sl && sl !== 'auto' ? sl : null)
               if (autoCopyRef.current && translated.trim()) {
-                void navigator.clipboard.writeText(translated).catch(() => {
+                // 浮窗失焦时 navigator.clipboard 常被拒，回落到后端 arboard 写入。
+                void copyTextWithFallback(translated).catch(() => {
                   toast.error('自动复制译文失败，请手动复制', { duration: 4000 })
                 })
               }
@@ -160,7 +162,7 @@ export default function FloatingResult() {
   const handleCopy = async (text: string, target: Exclude<CopyTarget, null>) => {
     if (!text.trim()) return
     try {
-      await navigator.clipboard.writeText(text)
+      await copyTextWithFallback(text)
       setCopied(target)
       setTimeout(() => {
         setCopied((current) => (current === target ? null : current))

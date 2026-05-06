@@ -70,3 +70,12 @@ pub fn detect_source_for_auto(text: &str) -> Option<&'static str> {
         .map(lingua_to_app_code)
         .filter(|&code| code != "auto")
 }
+
+/// 启动期预热：把 `LanguageDetector::build()`（10 种语言模型加载，常 500-2000ms）
+/// 摊到后台线程，避免用户首次「自动检测」翻译时同步等待。
+/// 调用方应在子线程里执行；多次调用安全（OnceLock 幂等）。
+pub fn warmup_detector_blocking() {
+    // 触发 OnceLock 初始化即可；为了让 lingua 预加载具体模型，再做一次小尺寸 detect。
+    // "Hello world" 既能命中拉丁字母分支、又确保 build 后的真实推断路径被走通。
+    let _ = app_detector().detect_language_of("Hello world");
+}

@@ -65,11 +65,17 @@ export function clearClipboardImagePreviewCache() {
 }
 
 export function pruneClipboardImagePreviewCache(validIds: string[]) {
+  // 多数情况下用户尚未浏览过图片或 cache 已经为空：先 O(1) 早退，省一次 Set 构造与 N 次 has 查找。
+  if (previewUrlCache.size === 0 && previewPromiseCache.size === 0) return
   const validIdSet = new Set(validIds)
   for (const [id, url] of previewUrlCache.entries()) {
     if (validIdSet.has(id)) continue
     if (url.startsWith('blob:')) URL.revokeObjectURL(url)
     previewUrlCache.delete(id)
     previewPromiseCache.delete(id)
+  }
+  // 兜底：刚发起还未完成的预览同样清理（按 id 回收）。
+  for (const id of previewPromiseCache.keys()) {
+    if (!validIdSet.has(id)) previewPromiseCache.delete(id)
   }
 }

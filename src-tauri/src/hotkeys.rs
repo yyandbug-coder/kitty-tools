@@ -216,11 +216,14 @@ pub fn register_launcher_shortcut<R: Runtime>(
 /// Register all global shortcuts based on the current config.
 ///
 /// This is the main entry point called during app setup and after config changes.
+///
+/// 注：`save_config_cmd` 在调用本函数前已自行 `validate_hotkey_config`，本函数不再重复校验，
+/// 避免一次保存路径上重复扫描配置；首次启动 `setup` 路径里 `load_config()` 不经此校验，
+/// 但应用启动期不期望热键冲突阻断初始化（即便有冲突，下游单项 `register_*` 会自然报错）。
 pub fn sync_all_hotkeys<R: Runtime>(
     app: &tauri::AppHandle<R>,
     config: &crate::config::AppConfig,
 ) -> Result<(), String> {
-    validate_hotkey_config(config)?;
     register_clipboard_shortcut(app, config.clipboard_shortcut.trim())?;
     register_translate_shortcuts(
         app,

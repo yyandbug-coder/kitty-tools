@@ -3,9 +3,13 @@
 //!
 //! 数据库路径必须与前端 `Database.load("sqlite:kitty-settings.db")` 一致：即
 //! `app.path().app_config_dir()` + `kitty-settings.db`（与 `tauri-plugin-sql` 的 path_mapper 相同）。
+//!
+//! 连接首次创建后驻留进程并通过 `Mutex` 串行化写入（前端侧 `clipboardReplaceQueue` 已串行化，
+//! 但仍通过 `busy_timeout` + WAL 抗住与 plugin-sql 池外连接的写争用）。
 use rusqlite::Connection;
 use serde::Deserialize;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Manager};
 
 const INSERT_COLS: &str =
@@ -214,13 +218,50 @@ fn build_batch_upsert_sql(chunk_len: usize) -> String {
     )
 }
 
+/// (连接路径, Mutex<Connection>)。首次按 path 创建后保持，避免每次写库都重开 SQLite。
+/// 路径在用户登录会话内不会变化；若极端情况下 path 真变（多 profile？），重新初始化即可。
+static CONN: OnceLock<Mutex<(PathBuf, Connection)>> = OnceLock::new();
+
+fn ensure_connection(path: &std::path::Path) -> Result<&'static Mutex<(PathBuf, Connection)>, String> {
+    if let Some(slot) = CONN.get() {
+        let guard = slot.lock().map_err(|e| e.to_string())?;
+        if guard.0 == path {
+            drop(guard);
+            return Ok(slot);
+        }
+    }
+    let conn = open_history_connection(path)?;
+    let _ = CONN.set(Mutex::new((path.to_path_buf(), conn)));
+    let slot = CONN.get().expect("CONN just initialized");
+    // path 切换：复位为新连接。
+    {
+        let mut guard = slot.lock().map_err(|e| e.to_string())?;
+        if guard.0 != path {
+            guard.1 = open_history_connection(path)?;
+            guard.0 = path.to_path_buf();
+        }
+    }
+    Ok(slot)
+}
+
+fn open_history_connection(path: &std::path::Path) -> Result<Connection, String> {
+    let conn = Connection::open(path).map_err(|e| e.to_string())?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| e.to_string())?;
+    // WAL：与前端 `database.ts` 在 plugin-sql 通道开启的 PRAGMA 一致；synchronous=NORMAL
+    // 在 WAL 下足够安全且写入更快。`PRAGMA` 用 `pragma_update` 走查询接口避免被其它 PRAGMA 影响。
+    let _ = conn.pragma_update(None, "journal_mode", "WAL");
+    let _ = conn.pragma_update(None, "synchronous", "NORMAL");
+    Ok(conn)
+}
+
 fn replace_clipboard_history_blocking(
     path: PathBuf,
     items: Vec<ClipboardHistoryReplaceItem>,
 ) -> Result<(), String> {
-    let mut conn = Connection::open(path).map_err(|e| e.to_string())?;
-    conn.busy_timeout(std::time::Duration::from_secs(5))
-        .map_err(|e| e.to_string())?;
+    let slot = ensure_connection(&path)?;
+    let mut guard = slot.lock().map_err(|e| e.to_string())?;
+    let conn = &mut guard.1;
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM clipboard_history", [])
@@ -249,9 +290,9 @@ fn apply_clipboard_history_delta_blocking(
     if upserts.is_empty() && deletes.is_empty() {
         return Ok(());
     }
-    let mut conn = Connection::open(path).map_err(|e| e.to_string())?;
-    conn.busy_timeout(std::time::Duration::from_secs(5))
-        .map_err(|e| e.to_string())?;
+    let slot = ensure_connection(&path)?;
+    let mut guard = slot.lock().map_err(|e| e.to_string())?;
+    let conn = &mut guard.1;
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 

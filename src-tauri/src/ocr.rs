@@ -5,10 +5,63 @@
 use base64::Engine;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 const BAIDU_OCR_GENERAL_BASIC_DOC: &str = "https://cloud.baidu.com/doc/OCR/s/zk3h7xz52";
 const DEFAULT_BAIDU_AIP_BASE: &str = "https://aip.baidubce.com";
 const DEFAULT_GOOGLE_VISION_ANNOTATE_URL: &str = "https://vision.googleapis.com/v1/images:annotate";
+
+/// 百度 access_token 官方 30 天有效；保守用 25 天即换。token 真过期时 `general_basic`
+/// 仍会返回错误码（如 110），由调用方 `Err` 路径自然回退（极偶发，单次重试代价小）。
+const BAIDU_TOKEN_TTL: Duration = Duration::from_secs(60 * 60 * 24 * 25);
+
+#[derive(Clone)]
+struct CachedBaiduToken {
+    token: String,
+    fetched_at: Instant,
+}
+
+/// (api_key, secret_key, aip_base) → token，进程内缓存。
+/// 并发同 key 取 token 可能短窗内双取，最后写入会覆盖；不会泄漏，简化为无 per-key 锁。
+static BAIDU_TOKEN_CACHE: OnceLock<Mutex<HashMap<String, CachedBaiduToken>>> = OnceLock::new();
+
+fn baidu_token_cache() -> &'static Mutex<HashMap<String, CachedBaiduToken>> {
+    BAIDU_TOKEN_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn baidu_token_cache_key(api_key: &str, secret_key: &str, aip_base: &str) -> String {
+    format!("{}\u{1f}{}\u{1f}{}", api_key, secret_key, aip_base)
+}
+
+fn lookup_cached_baidu_token(key: &str) -> Option<String> {
+    let cache = baidu_token_cache().lock().ok()?;
+    let entry = cache.get(key)?;
+    if entry.fetched_at.elapsed() <= BAIDU_TOKEN_TTL {
+        Some(entry.token.clone())
+    } else {
+        None
+    }
+}
+
+fn store_cached_baidu_token(key: String, token: String) {
+    if let Ok(mut cache) = baidu_token_cache().lock() {
+        cache.insert(
+            key,
+            CachedBaiduToken {
+                token,
+                fetched_at: Instant::now(),
+            },
+        );
+    }
+}
+
+fn invalidate_cached_baidu_token(key: &str) {
+    if let Ok(mut cache) = baidu_token_cache().lock() {
+        cache.remove(key);
+    }
+}
 
 fn effective_baidu_ocr_aip_base(config_base: &str) -> String {
     let t = config_base.trim();
@@ -72,12 +125,19 @@ async fn baidu_fetch_token(
         .ok_or_else(|| "百度 OCR 未返回 access_token".to_string())
 }
 
+/// 百度 OCR 业务错误码：token 失效 / 无权限。命中时调用方应清缓存重取一次。
+fn is_baidu_token_invalid_code(code: &str) -> bool {
+    matches!(code, "110" | "111" | "100")
+}
+
+/// 调用「通用文字识别」。`Ok(Ok(text))` = 成功；`Ok(Err((code, msg)))` = 业务错误（含 token 过期）；
+/// `Err(_)` = 网络/解析错误。
 async fn baidu_general_basic(
     client: &Client,
     access_token: &str,
     image_b64: &str,
     aip_base: &str,
-) -> Result<String, String> {
+) -> Result<Result<String, (String, String)>, String> {
     let url = format!(
         "{}/rest/2.0/ocr/v1/general_basic?access_token={}",
         aip_base,
@@ -111,8 +171,9 @@ async fn baidu_general_basic(
         let msg = body
             .get("error_msg")
             .and_then(|m| m.as_str())
-            .unwrap_or("未知错误");
-        return Err(format!("百度 OCR 错误 {}: {}", code_str, msg));
+            .unwrap_or("未知错误")
+            .to_string();
+        return Ok(Err((code_str, msg)));
     }
 
     let text = body
@@ -126,9 +187,10 @@ async fn baidu_general_basic(
         })
         .unwrap_or_default();
 
-    Ok(text)
+    Ok(Ok(text))
 }
 
+/// 命中缓存时直接复用 access_token；token 真过期时清缓存重取一次（仅一次，避免无限重试）。
 async fn recognize_with_baidu(
     client: &Client,
     image_data: &[u8],
@@ -146,14 +208,41 @@ async fn recognize_with_baidu(
     }
 
     let aip_base = effective_baidu_ocr_aip_base(ocr_aip_base_cfg);
-    let token = baidu_fetch_token(client, &api_key, &secret_key, &aip_base).await?;
+    let cache_key = baidu_token_cache_key(&api_key, &secret_key, &aip_base);
     let b64 = base64::engine::general_purpose::STANDARD.encode(image_data);
-    let text = baidu_general_basic(client, &token, &b64, &aip_base).await?;
 
-    Ok(OcrResult {
-        text,
-        confidence: 1.0,
-    })
+    let mut token = match lookup_cached_baidu_token(&cache_key) {
+        Some(t) => t,
+        None => {
+            let fresh = baidu_fetch_token(client, &api_key, &secret_key, &aip_base).await?;
+            store_cached_baidu_token(cache_key.clone(), fresh.clone());
+            fresh
+        }
+    };
+
+    for attempt in 0..2 {
+        match baidu_general_basic(client, &token, &b64, &aip_base).await? {
+            Ok(text) => {
+                return Ok(OcrResult {
+                    text,
+                    confidence: 1.0,
+                });
+            }
+            Err((code, msg)) => {
+                // token 过期/无效：清缓存后重取一次；其它业务错误直接抛出。
+                if attempt == 0 && is_baidu_token_invalid_code(&code) {
+                    invalidate_cached_baidu_token(&cache_key);
+                    let fresh = baidu_fetch_token(client, &api_key, &secret_key, &aip_base).await?;
+                    store_cached_baidu_token(cache_key.clone(), fresh.clone());
+                    token = fresh;
+                    continue;
+                }
+                return Err(format!("百度 OCR 错误 {}: {}", code, msg));
+            }
+        }
+    }
+    // 理论上 2 次循环必然命中 return；保留兜底以满足借用检查。
+    Err("百度 OCR 重试后仍失败".to_string())
 }
 
 async fn recognize_with_google(

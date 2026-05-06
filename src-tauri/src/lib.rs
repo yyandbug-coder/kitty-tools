@@ -373,7 +373,8 @@ fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
     let source_lang = resolved.source_lang;
     let target_lang = resolved.target_lang;
     let provider = cfg.translate_provider.clone();
-    let creds = TranslateCreds::from_config(&cfg);
+    // Arc 共享凭证：spawn 的 future 只需 Arc::clone 而不必 deep-clone 10+ 字符串。
+    let creds = Arc::new(TranslateCreds::from_config(&cfg));
     let client = app.state::<app_state::AppState>().client.clone();
 
     tauri::async_runtime::spawn(async move {
@@ -501,12 +502,8 @@ fn spawn_screenshot_translate_pipeline<R: Runtime>(
 
     let app_clone = app.clone();
     let provider = cfg.translate_provider.clone();
-    let creds = TranslateCreds::from_config(cfg);
-    let baidu_app_id = cfg.baidu.app_id.clone();
-    let baidu_secret = cfg.baidu.secret.clone();
-    let baidu_ocr_api_key = cfg.baidu.ocr_api_key.clone();
-    let baidu_ocr_secret_key = cfg.baidu.ocr_secret_key.clone();
-    let baidu_ocr_aip_base_url = cfg.baidu.ocr_aip_base_url.clone();
+    // 全部凭证在 Arc 内，spawn 时仅一次 Arc::clone（cfg 中的 baidu_ocr_*、google_vision_api_url 等已合并入袋）。
+    let creds = Arc::new(TranslateCreds::from_config(cfg));
     let client = app.state::<app_state::AppState>().client.clone();
 
     tauri::async_runtime::spawn(async move {
@@ -516,8 +513,8 @@ fn spawn_screenshot_translate_pipeline<R: Runtime>(
                 &image_data,
                 &source_lang,
                 &target_lang,
-                &baidu_app_id,
-                &baidu_secret,
+                &creds.baidu_app_id,
+                &creds.baidu_secret,
             )
             .await
             {
@@ -537,10 +534,12 @@ fn spawn_screenshot_translate_pipeline<R: Runtime>(
             &image_data,
             &provider,
             &creds.google_cloud_api_key,
-            &creds.google_translate_api_url,
-            &baidu_ocr_api_key,
-            &baidu_ocr_secret_key,
-            &baidu_ocr_aip_base_url,
+            // 注意：Vision OCR 用 google_vision_api_url；之前误传了 google_translate_api_url（同 host 但路径不同）。
+            // 修正为正确字段，避免在用户自定义 vision URL 时识图地址被覆盖为翻译地址。
+            &creds.google_vision_api_url,
+            &creds.baidu_ocr_api_key,
+            &creds.baidu_ocr_secret_key,
+            &creds.baidu_ocr_aip_base_url,
             &creds.youdao_app_key,
             &creds.youdao_app_secret,
         )

@@ -20,14 +20,23 @@ pub struct TranslateResult {
     pub provider: String,
 }
 
-/// 各厂商翻译凭证（来自设置；在异步任务中可整体 clone）。
+/// 各厂商翻译 + 截图识字凭证（来自设置；用 `Arc<TranslateCreds>` 在异步任务间共享）。
+///
+/// 把翻译与 OCR 字段合并到同一袋是为了：截图翻译流水线（`spawn_screenshot_translate_pipeline`）
+/// 一次 `Arc::clone` 就能把所有需要的字段传给 `tauri::async_runtime::spawn` 里的 future，
+/// 避免之前每次 spawn 时单独 `to_string()` ~10 个字段（每张截图 ~1KB 临时分配）。
 #[derive(Debug, Clone)]
 pub struct TranslateCreds {
     pub baidu_app_id: String,
     pub baidu_secret: String,
+    /// 截图识字（百度智能云通用 OCR）API Key
+    pub baidu_ocr_api_key: String,
+    pub baidu_ocr_secret_key: String,
+    pub baidu_ocr_aip_base_url: String,
     pub google_translate_api_url: String,
     /// 与 Cloud Vision 共用同一 GCP API Key
     pub google_cloud_api_key: String,
+    pub google_vision_api_url: String,
     pub openai_api_base_url: String,
     pub openai_api_key: String,
     pub openai_model: String,
@@ -40,8 +49,12 @@ impl TranslateCreds {
         Self {
             baidu_app_id: cfg.baidu.app_id.clone(),
             baidu_secret: cfg.baidu.secret.clone(),
+            baidu_ocr_api_key: cfg.baidu.ocr_api_key.clone(),
+            baidu_ocr_secret_key: cfg.baidu.ocr_secret_key.clone(),
+            baidu_ocr_aip_base_url: cfg.baidu.ocr_aip_base_url.clone(),
             google_translate_api_url: cfg.google.translate_api_url.clone(),
             google_cloud_api_key: cfg.google.api_key.clone(),
+            google_vision_api_url: cfg.google.vision_api_url.clone(),
             openai_api_base_url: cfg.openai.api_base_url.clone(),
             openai_api_key: cfg.openai.api_key.clone(),
             openai_model: cfg.openai.model.clone(),

@@ -2,9 +2,19 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::Emitter;
+use xxhash_rust::xxh3::Xxh3;
 
 use super::source::resolve_clipboard_source;
 use super::image_cache;
+
+/// 文本去重指纹：长度 + xxh3 摘要。比直接比较 / 克隆整段 String 更轻量；
+/// 1MB 文本上 xxh3 ≈ 100µs，相对每轮 300ms 轮询完全可忽略。
+fn text_fingerprint(text: &str) -> String {
+    let mut hasher = Xxh3::new();
+    hasher.update(&(text.len() as u64).to_le_bytes());
+    hasher.update(text.as_bytes());
+    format!("text:{:x}:{}", hasher.digest(), text.len())
+}
 
 /// 平台原生「剪贴板序列号」：仅在系统真正发生剪贴板变更时递增。
 /// 用于在 watcher 轮询循环里跳过没有变化的迭代，避免每 300ms 都做 source 解析与 get_text/get_image。
@@ -155,10 +165,12 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
                 if text.len() > MAX_TEXT_BYTES {
                     continue;
                 }
-                if last_content == text {
+                // 用 xxh3 指纹替代 String 等值比较，避免每轮存一份完整文本（最坏 5MB）。
+                let fp = text_fingerprint(&text);
+                if last_content == fp {
                     continue;
                 }
-                last_content = text.clone();
+                last_content = fp;
                 let event = ClipboardEvent {
                     id: uuid::Uuid::new_v4().to_string(),
                     r#type: "text".to_string(),

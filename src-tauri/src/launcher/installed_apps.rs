@@ -109,7 +109,7 @@ pub fn items_for_query(q: &str, q_lower: &str) -> Vec<LauncherItem> {
 
     let frecency = super::recency::snapshot();
     let now_ms = chrono::Utc::now().timestamp_millis();
-    scored.sort_by(|(sa, ia), (sb, ib)| {
+    let cmp = |(sa, ia): &(u16, usize), (sb, ib): &(u16, usize)| {
         sb.cmp(sa).then_with(|| {
             let ea = &entries[*ia];
             let eb = &entries[*ib];
@@ -119,8 +119,18 @@ pub fn items_for_query(q: &str, q_lower: &str) -> Vec<LauncherItem> {
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| ea.item.title.len().cmp(&eb.item.title.len()))
         })
-    });
+    };
 
+    // Top-k：当命中数远大于 `MAX_MATCH` 时（极少数热门关键词如 `e`、`a` 会在 4000 条 lnk 上命中数百）
+    // 用 `select_nth_unstable_by` 在 O(N) 切出前 k 个，再仅对这 k 个全排，避免对 N 全排序的 O(N log N) 开销。
+    if scored.len() > MAX_MATCH {
+        let (left, _pivot, _right) = scored.select_nth_unstable_by(MAX_MATCH, cmp);
+        // 截取前 MAX_MATCH 项后做完整排序（k=80 排序 ~5µs）
+        let mut top: Vec<(u16, usize)> = left.to_vec();
+        top.sort_by(cmp);
+        return top.into_iter().map(|(_, i)| entries[i].item.clone()).collect();
+    }
+    scored.sort_by(cmp);
     scored
         .into_iter()
         .take(MAX_MATCH)

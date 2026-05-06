@@ -58,7 +58,8 @@ export function useClipboard(config: AppConfig) {
       const sliced = applyClipboardHistoryMaxSlice(prev, config.clipboardHistoryMax)
       const next = filterHistoryByRetention(sliced, config.clipboardHistoryRetentionDays)
       if (next.length === prev.length && next.every((item, idx) => item === prev[idx])) return prev
-      pruneClipboardImagePreviewCache(next.map((item) => item.id))
+      // 仅在真正减条数时清预览缓存（增条数 / 内容微调不会孤立 image preview）。
+      if (next.length < prev.length) pruneClipboardImagePreviewCache(next.map((item) => item.id))
       return next
     })
   }, [config.clipboardHistoryRetentionDays, config.clipboardHistoryMax])
@@ -69,7 +70,7 @@ export function useClipboard(config: AppConfig) {
       setHistory((prev) => {
         const next = filterHistoryByRetention(prev, retentionDaysRef.current)
         if (next.length === prev.length && next.every((item, idx) => item === prev[idx])) return prev
-        pruneClipboardImagePreviewCache(next.map((item) => item.id))
+        if (next.length < prev.length) pruneClipboardImagePreviewCache(next.map((item) => item.id))
         return next
       })
     }
@@ -103,7 +104,10 @@ export function useClipboard(config: AppConfig) {
               ),
               retentionDaysRef.current
             )
-            pruneClipboardImagePreviewCache(nextHistory.map((item) => item.id))
+            // 入站常常是新增（length 不减），多数路径无 image 被孤立；length 减少时再清预览。
+            if (nextHistory.length < prev.length) {
+              pruneClipboardImagePreviewCache(nextHistory.map((item) => item.id))
+            }
             return nextHistory
           })
           if (!userBrowsingRef.current) {
@@ -141,7 +145,8 @@ export function useClipboard(config: AppConfig) {
             applyClipboardHistoryMaxSlice(mergeClipboardHistoriesForSync(prev, cachedHistory), historyMaxRef.current),
             retentionDaysRef.current
           )
-          pruneClipboardImagePreviewCache(merged.map((item) => item.id))
+          // merge 后 length 通常不变或增加；只有 retention 命中时才会减少，从而需要清孤立的 image preview。
+          if (merged.length < prev.length) pruneClipboardImagePreviewCache(merged.map((item) => item.id))
           return merged
         })
       } catch (error) {
@@ -364,6 +369,7 @@ export function useClipboard(config: AppConfig) {
       applyClipboardHistoryMaxSlice(await normalizeSyncMergedHistoryAsync(items), historyMaxRef.current),
       retentionDaysRef.current
     )
+    // 替换路径无法基于 length 判断；但 prune 内部已早退 (cache size 0)，开销可忽略。
     pruneClipboardImagePreviewCache(nextHistory.map((item) => item.id))
     startTransition(() => {
       setHistory(nextHistory)
@@ -378,7 +384,7 @@ export function useClipboard(config: AppConfig) {
         applyClipboardHistoryMaxSlice(mergeClipboardHistoriesForSync(prev, items), historyMaxRef.current),
         retentionDaysRef.current
       )
-      pruneClipboardImagePreviewCache(merged.map((item) => item.id))
+      if (merged.length < prev.length) pruneClipboardImagePreviewCache(merged.map((item) => item.id))
       return merged
     })
     setSelectedIndex(0)
@@ -406,6 +412,7 @@ export function useClipboard(config: AppConfig) {
         applyClipboardHistoryMaxSlice(fromTable, historyMaxRef.current),
         retentionDaysRef.current
       )
+      // 数据库重载属于罕见路径；prune 内部早退保证 cache 为空时立即返回。
       pruneClipboardImagePreviewCache(cachedHistory.map((item) => item.id))
       // DB 行 = fromTable，下次 diff 应基于此而非 retention/max 之后的列表。
       lastPersistedRef.current = new Map(fromTable.map((item) => [item.id, item]))

@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import toast from 'react-hot-toast'
 import type { AppConfig, SaveConfigCmdResult } from '@/types'
 import { DEFAULT_CONFIG } from '@/types'
 import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
 import { AppConfigContext } from './config-context'
 import { useTheme } from '@/hooks/useTheme'
+import { useTauriEvent } from '@/hooks/useTauriEvent'
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG)
@@ -32,35 +32,15 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       })
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    let unlisten: (() => void) | undefined
-    void listen<AppConfig>('config-updated', (e) => {
-      setConfig(e.payload)
-    }).then((fn) => {
-      if (cancelled) fn()
-      else unlisten = fn
-    })
-    return () => {
-      cancelled = true
-      unlisten?.()
-    }
-  }, [])
+  // 后端在 save_config_cmd 后广播；其它窗口订阅以同步配置（如设置变更后浮窗即时刷新主题）。
+  useTauriEvent<AppConfig>('config-updated', (e) => {
+    setConfig(e.payload)
+  })
 
-  useEffect(() => {
-    let cancelled = false
-    let unlisten: (() => void) | undefined
-    void listen<string>('autostart-sync-failed', (e) => {
-      toast.error(`开机自启未同步：${e.payload}`, { duration: 6000 })
-    }).then((fn) => {
-      if (cancelled) fn()
-      else unlisten = fn
-    })
-    return () => {
-      cancelled = true
-      unlisten?.()
-    }
-  }, [])
+  // 开机自启同步失败的非致命提示由后端 emit；前端 toast 即可。
+  useTauriEvent<string>('autostart-sync-failed', (e) => {
+    toast.error(`开机自启未同步：${e.payload}`, { duration: 6000 })
+  })
 
   const updateConfig = useCallback(async (updates: Partial<AppConfig>) => {
     const previous = configRef.current

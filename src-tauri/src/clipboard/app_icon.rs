@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::{LazyLock, Mutex};
 
@@ -9,19 +9,58 @@ use crate::app_state::lock_poisoned;
 
 const APP_ICON_CACHE_CAP: usize = 64;
 
-static APP_ICON_CACHE: LazyLock<Mutex<HashMap<String, String>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+/// LRU 字典：`order` 记录访问顺序（最近的在尾），`map` 存路径→data URL。
+/// 之前用 `HashMap` + 「满则 `clear()`」，会一次性丢掉所有图标，列表里下一帧重新批量调用全部回到 worker，
+/// 出现可见的图标闪烁；这里改为按容量淘汰最久未使用的一条即可。
+struct AppIconCache {
+    map: std::collections::HashMap<String, String>,
+    order: VecDeque<String>,
+}
+
+impl AppIconCache {
+    fn new() -> Self {
+        Self {
+            map: std::collections::HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
+
+    fn get(&mut self, key: &str) -> Option<String> {
+        let value = self.map.get(key).cloned()?;
+        if let Some(pos) = self.order.iter().position(|k| k == key) {
+            // 命中即提到队尾标记为最新使用。
+            if let Some(k) = self.order.remove(pos) {
+                self.order.push_back(k);
+            }
+        }
+        Some(value)
+    }
+
+    fn put(&mut self, key: String, value: String) {
+        if self.map.contains_key(&key) {
+            if let Some(pos) = self.order.iter().position(|k| k == &key) {
+                self.order.remove(pos);
+            }
+        } else if self.map.len() >= APP_ICON_CACHE_CAP {
+            // 淘汰最早进入且未再访问过的一条，保留其它热路径。
+            if let Some(oldest) = self.order.pop_front() {
+                self.map.remove(&oldest);
+            }
+        }
+        self.map.insert(key.clone(), value);
+        self.order.push_back(key);
+    }
+}
+
+static APP_ICON_CACHE: LazyLock<Mutex<AppIconCache>> =
+    LazyLock::new(|| Mutex::new(AppIconCache::new()));
 
 fn app_icon_cache_get(path: &str) -> Option<String> {
-    lock_poisoned(&*APP_ICON_CACHE).get(path).cloned()
+    lock_poisoned(&*APP_ICON_CACHE).get(path)
 }
 
 fn app_icon_cache_put(path: String, data_url: String) {
-    let mut g = lock_poisoned(&*APP_ICON_CACHE);
-    if g.len() >= APP_ICON_CACHE_CAP && !g.contains_key(&path) {
-        g.clear();
-    }
-    g.insert(path, data_url);
+    lock_poisoned(&*APP_ICON_CACHE).put(path, data_url);
 }
 
 #[cfg(target_os = "macos")]

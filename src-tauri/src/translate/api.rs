@@ -757,7 +757,9 @@ async fn youdao_translate(
         );
     }
 
-    if request.text.len() > 5000 {
+    // 有道接口按「字符数」计；用 `len()`（字节数）会对中文等多字节文本提前误报
+    // （UTF-8 下 5000 字节 ≈ 1666 个汉字），改为字符计数与提示一致。
+    if request.text.chars().count() > 5000 {
         return Err("有道翻译单次文本建议不超过 5000 字符，请缩短后重试".to_string());
     }
 

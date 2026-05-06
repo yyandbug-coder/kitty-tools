@@ -106,9 +106,12 @@ fn resolve_clipboard_source_windows() -> ClipboardSource {
             .next()
             .or_else(|| full.rsplit('/').next())
             .unwrap_or(&full);
+        // Windows 路径大小写不敏感（NTFS）；扩展名可能写成 `.Exe`、`.EXE` 等任意大小写，
+        // 之前只 strip `.exe` / `.EXE` 会让 `Foo.Exe` 之类被原样保留，UI 显示不统一。
         let base = base
-            .strip_suffix(".exe")
-            .or_else(|| base.strip_suffix(".EXE"))
+            .rsplit_once('.')
+            .filter(|(_, ext)| ext.eq_ignore_ascii_case("exe"))
+            .map(|(stem, _)| stem)
             .unwrap_or(base)
             .trim();
         let app_name = if base.is_empty() {

@@ -369,19 +369,21 @@ fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
     let _ = app.emit("translate-selection-start", &text);
 
     let app_clone = app.clone();
-    let text_to_translate = resolved.text.clone();
-    let source_lang = resolved.source_lang;
-    let target_lang = resolved.target_lang;
-    let provider = cfg.translate_provider.clone();
+    // 顺序敏感：先 from_config(&cfg) 借出读引用，借用结束后再把 cfg 字段 move 出来；
+    // 这样 provider / 后续 spawn 内部 String 字段都无需 clone。
     // Arc 共享凭证：spawn 的 future 只需 Arc::clone 而不必 deep-clone 10+ 字符串。
     let creds = Arc::new(TranslateCreds::from_config(&cfg));
+    let provider = cfg.translate_provider; // move
+    let text_to_translate = resolved.text; // move（只在 spawn 内部消费一次）
+    let source_lang = resolved.source_lang;
+    let target_lang = resolved.target_lang;
     let client = app.state::<app_state::AppState>().client.clone();
 
     tauri::async_runtime::spawn(async move {
         let request = TranslateRequest {
             text: text_to_translate,
             source_lang,
-            target_lang: target_lang.clone(),
+            target_lang, // move，spawn 闭包后续不再使用 target_lang。
         };
         match translate::api::translate(&client, &request, &provider, &creds).await {
             Ok(result) => {
@@ -553,10 +555,12 @@ fn spawn_screenshot_translate_pipeline<R: Runtime>(
                 }
                 let _ = app_clone.emit("translate-selection-start", &ocr.text);
 
+                // baidu 分支（上面的 if）已经 `return`，到这里 source_lang / target_lang 不再被使用，
+                // 直接 move 进 TranslateRequest 即可，省两次 String 复制。
                 let request = TranslateRequest {
                     text: ocr.text,
-                    source_lang: source_lang.clone(),
-                    target_lang: target_lang.clone(),
+                    source_lang,
+                    target_lang,
                 };
                 match translate::api::translate(
                     &client,

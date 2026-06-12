@@ -61,10 +61,11 @@ export default function FloatingResult() {
     let cancelled = false
     let unlistenResult: UnlistenFn | undefined
     let unlistenLoading: UnlistenFn | undefined
+    let unlistenIdle: UnlistenFn | undefined
 
     void (async () => {
       try {
-        const [fnResult, fnLoading] = await Promise.all([
+        const [fnResult, fnLoading, fnIdle] = await Promise.all([
           listen<EventPayload>('translate-selection-result', (event) => {
             setLoading(false)
             const text = event.payload?.text ?? ''
@@ -93,15 +94,24 @@ export default function FloatingResult() {
             setLoading(true)
             setError(null)
             setDetectedSourceLang(null)
+          }),
+          listen('translate-panel-idle', () => {
+            setSourceText('')
+            setTranslatedText('')
+            setLoading(false)
+            setError(null)
+            setDetectedSourceLang(null)
           })
         ])
         if (cancelled) {
           fnResult()
           fnLoading()
+          fnIdle()
           return
         }
         unlistenResult = fnResult
         unlistenLoading = fnLoading
+        unlistenIdle = fnIdle
         await invoke('floating_ready')
       } catch (e) {
         if (!cancelled) {
@@ -114,6 +124,7 @@ export default function FloatingResult() {
       cancelled = true
       unlistenResult?.()
       unlistenLoading?.()
+      unlistenIdle?.()
     }
   }, [])
 

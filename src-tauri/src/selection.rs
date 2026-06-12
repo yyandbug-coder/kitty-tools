@@ -1,5 +1,70 @@
+use std::time::Duration;
+
+/// 划词检测轮询参数。
+#[derive(Clone, Copy)]
+pub struct SelectionOptions {
+    pub max_wait: Duration,
+    pub poll_interval: Duration,
+    /// 最短轮询次数（避免模拟复制尚未完成就提前退出）。
+    pub min_polls: u32,
+    /// 连续空剪贴板达到此次数且已超过 `min_polls` 时提前结束。
+    pub early_exit_empty_polls: u32,
+}
+
+impl Default for SelectionOptions {
+    fn default() -> Self {
+        Self {
+            max_wait: Duration::from_millis(800),
+            poll_interval: Duration::from_millis(40),
+            min_polls: 3,
+            early_exit_empty_polls: 12,
+        }
+    }
+}
+
+impl SelectionOptions {
+    /// 划词快捷键：略短于默认超时，无选区时提前结束以减少空等。
+    pub fn for_hotkey() -> Self {
+        Self {
+            max_wait: Duration::from_millis(600),
+            poll_interval: Duration::from_millis(30),
+            min_polls: 3,
+            early_exit_empty_polls: 6,
+        }
+    }
+}
+
+pub fn get_selected_text_for_hotkey() -> Result<String, String> {
+    get_selected_text_with_options(SelectionOptions::for_hotkey())
+}
+
+pub fn get_selected_text_with_options(opts: SelectionOptions) -> Result<String, String> {
+    get_selected_text_with_options_impl(opts)
+}
+
+fn poll_clipboard_text<F>(mut read_text: F, opts: SelectionOptions) -> Option<String>
+where
+    F: FnMut() -> Option<String>,
+{
+    let max_iters = ((opts.max_wait.as_millis() + opts.poll_interval.as_millis() - 1)
+        / opts.poll_interval.as_millis())
+        .max(1) as u32;
+    let mut empty_streak = 0u32;
+    for i in 0..max_iters {
+        std::thread::sleep(opts.poll_interval);
+        match read_text() {
+            Some(t) if !t.trim().is_empty() => return Some(t.trim().to_string()),
+            _ => empty_streak += 1,
+        }
+        if i + 1 >= opts.min_polls && empty_streak >= opts.early_exit_empty_polls {
+            break;
+        }
+    }
+    None
+}
+
 #[cfg(target_os = "windows")]
-pub fn get_selected_text() -> Result<String, String> {
+fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String, String> {
     use windows::Win32::Foundation::HGLOBAL;
     use windows::Win32::System::DataExchange::{
         CloseClipboard, EmptyClipboard, GetClipboardData, OpenClipboard, SetClipboardData,
@@ -125,29 +190,20 @@ pub fn get_selected_text() -> Result<String, String> {
     // Step 5: Simulate Ctrl+C to copy whatever text is currently selected.
     unsafe { crate::win_input::inject_ctrl_c() };
 
-    // Step 6: Poll the clipboard for up to 1.5 seconds waiting for text.
-    let mut new_text: Option<String> = None;
-    for _ in 0..30 {
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        if let Some(t) = unsafe { get_clipboard_text() } {
-            if !t.trim().is_empty() {
-                new_text = Some(t);
-                break;
-            }
-        }
-    }
+    // Step 6: 轮询剪贴板等待新文本（默认最长 ~800ms，无选区时提前退出）。
+    let new_text = poll_clipboard_text(|| unsafe { get_clipboard_text() }, opts);
 
     // Step 7: Restore the original clipboard content (all formats).
     unsafe { restore_clipboard_all(&saved_clipboard) };
 
     match new_text {
-        Some(t) => Ok(t.trim().to_string()),
+        Some(t) => Ok(t),
         None => Err("No text selected".to_string()),
     }
 }
 
 #[cfg(target_os = "macos")]
-pub fn get_selected_text() -> Result<String, String> {
+fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String, String> {
     use std::process::Command;
     use std::thread;
     use std::time::Duration;
@@ -311,28 +367,19 @@ pub fn get_selected_text() -> Result<String, String> {
         );
     }
 
-    // Step 5: 1.5 s 内轮询是否有新文本到达。
-    let mut new_text: Option<String> = None;
-    for _ in 0..30 {
-        thread::sleep(Duration::from_millis(50));
-        if let Some(t) = unsafe { read_text_now() } {
-            if !t.trim().is_empty() {
-                new_text = Some(t);
-                break;
-            }
-        }
-    }
+    // Step 5: 轮询是否有新文本到达（默认最长 ~800ms，无选区时提前退出）。
+    let new_text = poll_clipboard_text(|| unsafe { read_text_now() }, opts);
 
     // Step 6: 还原原剪贴板（包括图片/文件/RTF 等所有格式）。
     unsafe { restore_pasteboard_all(&saved) };
 
     match new_text {
-        Some(t) => Ok(t.trim().to_string()),
+        Some(t) => Ok(t),
         None => Err("未检测到选中文本".into()),
     }
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-pub fn get_selected_text() -> Result<String, String> {
+fn get_selected_text_with_options_impl(_opts: SelectionOptions) -> Result<String, String> {
     Err("Selected text retrieval not supported on this platform".to_string())
 }

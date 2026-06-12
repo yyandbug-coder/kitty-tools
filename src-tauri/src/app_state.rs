@@ -37,7 +37,7 @@ pub struct AppState {
 /// Holds the current in-progress translation result for the floating window.
 #[derive(Debug, Clone)]
 pub struct PendingTranslation {
-    pub state: String, // "loading" | "result" | "error"
+    pub state: String, // "idle" | "loading" | "result" | "error"
     pub source_text: String,
     pub translated_text: Option<String>,
     pub source_lang: Option<String>,

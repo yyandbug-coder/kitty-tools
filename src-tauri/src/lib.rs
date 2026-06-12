@@ -292,8 +292,7 @@ async fn region_overlay_complete(
 
 #[tauri::command]
 async fn translate_selection(app: tauri::AppHandle) -> Result<(), String> {
-    let text = selection::get_selected_text()?;
-    do_translate_selection(&app, text);
+    handle_selection_translate_hotkey(&app);
     Ok(())
 }
 
@@ -307,9 +306,12 @@ fn floating_ready(app: tauri::AppHandle) {
     let app_state = app.state::<app_state::AppState>();
     let pending = app_state::lock_poisoned_arc(&app_state.pending_translation).take();
     if let Some(pt) = pending {
-        let _ = app.emit("translate-selection-start", &pt.source_text);
         match pt.state.as_str() {
+            "idle" => {
+                let _ = app.emit("translate-panel-idle", ());
+            }
             "result" => {
+                let _ = app.emit("translate-selection-start", &pt.source_text);
                 let _ = app.emit("translate-selection-result", serde_json::json!({
                     "text": pt.source_text,
                     "translated": pt.translated_text.unwrap_or_default(),
@@ -317,13 +319,16 @@ fn floating_ready(app: tauri::AppHandle) {
                 }));
             }
             "error" => {
+                let _ = app.emit("translate-selection-start", &pt.source_text);
                 let _ = app.emit("translate-selection-result", serde_json::json!({
                     "text": pt.source_text,
                     "translated": "",
                     "error": pt.error.unwrap_or_default(),
                 }));
             }
-            _ => {}
+            _ => {
+                let _ = app.emit("translate-selection-start", &pt.source_text);
+            }
         }
     }
 }
@@ -339,6 +344,35 @@ fn show_translate_workspace_window<R: Runtime>(app: tauri::AppHandle<R>) -> Resu
 }
 
 // ── Translate pipeline helpers ──────────────────────────────────────────────
+
+/// 划词翻译快捷键：须先同步获取选区再弹窗（浮窗 `set_focus` 会取消原应用选区）。
+/// 无选区时依赖 `get_selected_text_for_hotkey` 的短轮询提前退出（约 200–400ms），不再等满 1.5s。
+fn handle_selection_translate_hotkey<R: Runtime>(app: &tauri::AppHandle<R>) {
+    match selection::get_selected_text_for_hotkey() {
+        Ok(text) if !text.trim().is_empty() => {
+            do_translate_selection(app, text);
+        }
+        _ => show_floating_input_panel(app),
+    }
+}
+
+/// 无选中文本时打开浮窗，供用户手动输入（类似 Bob / Pot 的「输入翻译」）。
+fn show_floating_input_panel<R: Runtime>(app: &tauri::AppHandle<R>) {
+    let app_state = app.state::<app_state::AppState>();
+    {
+        let mut pt = app_state::lock_poisoned_arc(&app_state.pending_translation);
+        *pt = Some(app_state::PendingTranslation {
+            state: "idle".to_string(),
+            source_text: String::new(),
+            translated_text: None,
+            source_lang: None,
+            target_lang: None,
+            error: None,
+        });
+    }
+    let _ = window::show_floating_window(app);
+    let _ = app.emit("translate-panel-idle", ());
+}
 
 fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
     let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
@@ -767,10 +801,7 @@ pub fn run() {
             // Handle hotkey events for translate pipelines
             let app_handle = app.handle().clone();
             app.listen("hotkey-selection-translate", move |_| {
-                match selection::get_selected_text() {
-                    Ok(text) => do_translate_selection(&app_handle, text),
-                    Err(e) => eprintln!("[kitty-tools] 划词翻译获取选中文本失败: {}", e),
-                }
+                handle_selection_translate_hotkey(&app_handle);
             });
 
             let app_handle = app.handle().clone();

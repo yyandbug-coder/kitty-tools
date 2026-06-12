@@ -31,6 +31,14 @@ pub(crate) fn compile_atom(query: &str) -> Option<Atom> {
     Some(Atom::parse(q, CaseMatching::Smart, Normalization::Smart))
 }
 
+/// 子序列预筛仅适用于无 nucleo 语法修饰符的普通关键词；`^foo`、`!bar`、`'baz`、`"qux"`、`foo$` 须走全量评分。
+pub(crate) fn use_subsequence_prefilter(query: &str) -> bool {
+    let q = query.trim();
+    !q.is_empty()
+        && !q.contains(['^', '!', '\'', '"'])
+        && !q.ends_with('$')
+}
+
 /// 廉价子序列预筛：`text_lower` 须为预计算小写串；query 各字符按序出现则视为可能命中。
 /// 用于数千候选在 nucleo 全量评分前先缩圈。
 pub(crate) fn might_match_subsequence(query: &str, text_lower: &str) -> bool {
@@ -64,4 +72,33 @@ pub(crate) fn score(atom: &Atom, text: &str) -> Option<u16> {
             atom.score(utf32, &mut matcher)
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn might_match_subsequence_basic() {
+        assert!(might_match_subsequence("vs", "visual studio code"));
+        assert!(might_match_subsequence("VSC", "visual studio code"));
+        assert!(!might_match_subsequence("vx", "visual studio code"));
+        assert!(!might_match_subsequence("vs", ""));
+    }
+
+    #[test]
+    fn use_subsequence_prefilter_skips_nucleo_syntax() {
+        assert!(use_subsequence_prefilter("vscode"));
+        assert!(!use_subsequence_prefilter("^vscode"));
+        assert!(!use_subsequence_prefilter("!foo"));
+        assert!(!use_subsequence_prefilter("calc$"));
+    }
+
+    #[test]
+    fn prefilter_is_conservative_for_plain_queries() {
+        let atom = compile_atom("vs").unwrap();
+        let text = "visual studio code";
+        assert!(might_match_subsequence("vs", text));
+        assert!(score(&atom, text).is_some());
+    }
 }

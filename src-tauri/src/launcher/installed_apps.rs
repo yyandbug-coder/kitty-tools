@@ -76,20 +76,33 @@ fn scan_or_cached(abort_seq: Option<u64>) -> Arc<Vec<CachedEntry>> {
         }
     }
 
-    let fresh = Arc::new(scan_all_installed_entries(abort_seq));
+    let fresh_entries = scan_all_installed_entries(abort_seq);
+    let (entries, completed) = fresh_entries;
 
-    let mut g = CACHE.write().unwrap_or_else(|e| e.into_inner());
-    let now = Instant::now();
-    if let Some(c) = g.as_ref() {
-        if !cache_stale(c, now) {
+    if completed || abort_seq.is_none() {
+        let fresh = Arc::new(entries);
+        let mut g = CACHE.write().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        if let Some(c) = g.as_ref() {
+            if !cache_stale(c, now) {
+                return Arc::clone(&c.entries);
+            }
+        }
+        *g = Some(Cache {
+            built_at: now,
+            entries: Arc::clone(&fresh),
+        });
+        return fresh;
+    }
+
+    // 扫描被新查询中止：不写入残缺缓存；优先返回仍有效的旧缓存。
+    {
+        let g = CACHE.read().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = g.as_ref() {
             return Arc::clone(&c.entries);
         }
     }
-    *g = Some(Cache {
-        built_at: now,
-        entries: Arc::clone(&fresh),
-    });
-    fresh
+    Arc::new(Vec::new())
 }
 
 /// 有关键词时返回名称/路径匹配的已安装应用；空查询不展开（由内置「系统应用」短列表兜底）。
@@ -110,7 +123,9 @@ pub fn items_for_query(q: &str, q_lower: &str, query_seq: u64) -> Vec<LauncherIt
         .par_iter()
         .enumerate()
         .filter_map(|(i, e)| {
-            if !super::fuzzy::might_match_subsequence(q, &e.search_lower) {
+            if super::fuzzy::use_subsequence_prefilter(q)
+                && !super::fuzzy::might_match_subsequence(q, &e.search_lower)
+            {
                 return None;
             }
             super::fuzzy::score(&atom, &e.search_lower).map(|s| (s, i))
@@ -198,7 +213,7 @@ fn windows_start_menu_roots() -> Vec<std::path::PathBuf> {
     v
 }
 
-fn scan_all_installed_entries(abort_seq: Option<u64>) -> Vec<CachedEntry> {
+fn scan_all_installed_entries(abort_seq: Option<u64>) -> (Vec<CachedEntry>, bool) {
     #[cfg(target_os = "windows")]
     {
         scan_windows_lnk(abort_seq)
@@ -210,18 +225,18 @@ fn scan_all_installed_entries(abort_seq: Option<u64>) -> Vec<CachedEntry> {
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let _ = abort_seq;
-        Vec::new()
+        (Vec::new(), true)
     }
 }
 
 #[cfg(target_os = "windows")]
-fn scan_windows_lnk(abort_seq: Option<u64>) -> Vec<CachedEntry> {
+fn scan_windows_lnk(abort_seq: Option<u64>) -> (Vec<CachedEntry>, bool) {
     let mut seen_payload = HashSet::<String>::new();
     let mut seen_title_lower = HashSet::<String>::new();
     let mut out = Vec::new();
     for root in windows_start_menu_roots() {
         if should_abort_installed_scan(abort_seq) {
-            return out;
+            return (out, false);
         }
         if !root.is_dir() {
             continue;
@@ -232,10 +247,10 @@ fn scan_windows_lnk(abort_seq: Option<u64>) -> Vec<CachedEntry> {
             .filter_map(|e| e.ok())
         {
             if out.len() >= MAX_INSTALLED {
-                return out;
+                return (out, true);
             }
             if out.len() % 96 == 0 && should_abort_installed_scan(abort_seq) {
-                return out;
+                return (out, false);
             }
             if !entry.file_type().is_file() {
                 continue;
@@ -284,8 +299,8 @@ fn scan_windows_lnk(abort_seq: Option<u64>) -> Vec<CachedEntry> {
     }
     // Win32 .lnk 扫描完成后追加 UWP / MSIX 条目（Win11 内置工具基本都在这里）。
     // 同名（如「计算器」）的 .lnk 已存在时跳过 UWP 项，避免列表里出现重复。
-    append_windows_uwp_entries(&mut out, &mut seen_payload, &seen_title_lower, abort_seq);
-    out
+    let uwp_ok = append_windows_uwp_entries(&mut out, &mut seen_payload, &seen_title_lower, abort_seq);
+    (out, uwp_ok)
 }
 
 fn should_abort_installed_scan(abort_seq: Option<u64>) -> bool {
@@ -298,13 +313,16 @@ fn append_windows_uwp_entries(
     seen_payload: &mut HashSet<String>,
     seen_title_lower: &HashSet<String>,
     abort_seq: Option<u64>,
-) {
+) -> bool {
     if should_abort_installed_scan(abort_seq) {
-        return;
+        return false;
     }
     for entry in super::uwp::enumerate_uwp_apps() {
         if out.len() >= MAX_INSTALLED {
-            return;
+            return true;
+        }
+        if should_abort_installed_scan(abort_seq) {
+            return false;
         }
         let title_lower = entry.name.to_lowercase();
         if seen_title_lower.contains(&title_lower) {
@@ -331,10 +349,11 @@ fn append_windows_uwp_entries(
             search_lower,
         });
     }
+    true
 }
 
 #[cfg(target_os = "macos")]
-fn scan_macos_apps(abort_seq: Option<u64>) -> Vec<CachedEntry> {
+fn scan_macos_apps(abort_seq: Option<u64>) -> (Vec<CachedEntry>, bool) {
     let mut seen_payload = HashSet::<String>::new();
     let mut out = Vec::new();
     let mut bases: Vec<std::path::PathBuf> = vec![std::path::PathBuf::from("/Applications")];
@@ -343,7 +362,7 @@ fn scan_macos_apps(abort_seq: Option<u64>) -> Vec<CachedEntry> {
     }
     for base in bases {
         if should_abort_installed_scan(abort_seq) {
-            return out;
+            return (out, false);
         }
         if !base.is_dir() {
             continue;
@@ -351,8 +370,11 @@ fn scan_macos_apps(abort_seq: Option<u64>) -> Vec<CachedEntry> {
         // 第一层：base 下直接的 *.app；
         // 第二层：base 下普通子目录（如 `Utilities`）内的 *.app（覆盖系统自带 Terminal / Disk Utility 等）。
         // 不再向下深入，避免进入 `.app` bundle 的 `Contents/MacOS/*.app` 噪声项。
-        if push_macos_app_dir(&base, &mut seen_payload, &mut out) {
-            return out;
+        if push_macos_app_dir(&base, &mut seen_payload, &mut out, abort_seq) {
+            return (out, true);
+        }
+        if should_abort_installed_scan(abort_seq) {
+            return (out, false);
         }
         let Ok(rd) = std::fs::read_dir(&base) else {
             continue;
@@ -367,12 +389,15 @@ fn scan_macos_apps(abort_seq: Option<u64>) -> Vec<CachedEntry> {
             if is_app_bundle {
                 continue;
             }
-            if push_macos_app_dir(&p, &mut seen_payload, &mut out) {
-                return out;
+            if push_macos_app_dir(&p, &mut seen_payload, &mut out, abort_seq) {
+                return (out, true);
+            }
+            if should_abort_installed_scan(abort_seq) {
+                return (out, false);
             }
         }
     }
-    out
+    (out, true)
 }
 
 /// 把 `dir` 下的 `*.app` 入条目；返回 `true` 表示已达到 `MAX_INSTALLED`，外层应停止扫描。
@@ -381,13 +406,20 @@ fn push_macos_app_dir(
     dir: &std::path::Path,
     seen_payload: &mut HashSet<String>,
     out: &mut Vec<CachedEntry>,
+    abort_seq: Option<u64>,
 ) -> bool {
+    if should_abort_installed_scan(abort_seq) {
+        return false;
+    }
     let Ok(rd) = std::fs::read_dir(dir) else {
         return false;
     };
     for e in rd.flatten() {
         if out.len() >= MAX_INSTALLED {
             return true;
+        }
+        if out.len() % 64 == 0 && should_abort_installed_scan(abort_seq) {
+            return false;
         }
         let p = e.path();
         if !p.is_dir() {

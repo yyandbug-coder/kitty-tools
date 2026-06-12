@@ -261,12 +261,20 @@ pub fn get_app_icon_data_url(path: String) -> Option<String> {
 /// 把 N 次 IPC 往返合并成一次；命中缓存的项不会重复解析。
 /// 返回数组与入参 `paths` 一一对应；失败/无效项位为 `None`。
 #[tauri::command]
-pub fn get_app_icons_data_url(paths: Vec<String>) -> Vec<Option<String>> {
-    use rayon::prelude::*;
-    paths
-        .par_iter()
-        .map(|p| resolve_icon_data_url(p))
-        .collect()
+pub async fn get_app_icons_data_url(paths: Vec<String>) -> Vec<Option<String>> {
+    let len = paths.len();
+    match tauri::async_runtime::spawn_blocking(move || {
+        use rayon::prelude::*;
+        paths
+            .par_iter()
+            .map(|p| resolve_icon_data_url(p))
+            .collect::<Vec<Option<String>>>()
+    })
+    .await
+    {
+        Ok(v) => v,
+        Err(_) => vec![None; len],
+    }
 }
 
 fn resolve_icon_data_url(path: &str) -> Option<String> {

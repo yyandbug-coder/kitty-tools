@@ -24,7 +24,7 @@ mod youdao;
 
 #[cfg(not(target_os = "macos"))]
 use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 #[cfg(target_os = "macos")]
 use std::time::Duration;
@@ -345,15 +345,50 @@ fn show_translate_workspace_window<R: Runtime>(app: tauri::AppHandle<R>) -> Resu
 
 // ── Translate pipeline helpers ──────────────────────────────────────────────
 
-/// 划词翻译快捷键：须先同步获取选区再弹窗（浮窗 `set_focus` 会取消原应用选区）。
-/// 无选区时依赖 `get_selected_text_for_hotkey` 的短轮询提前退出（约 200–400ms），不再等满 1.5s。
-fn handle_selection_translate_hotkey<R: Runtime>(app: &tauri::AppHandle<R>) {
-    match selection::get_selected_text_for_hotkey() {
-        Ok(text) if !text.trim().is_empty() => {
-            do_translate_selection(app, text);
-        }
-        _ => show_floating_input_panel(app),
+/// 防止用户连按划词快捷键导致多个线程同时读写剪贴板（可能触发 Win32 异常或 UI 卡死）。
+static SELECTION_HOTKEY_BUSY: AtomicBool = AtomicBool::new(false);
+
+/// 窗口 / WebView 操作必须在主线程执行；失败时打日志，避免静默闪退。
+fn dispatch_to_main<R: Runtime, F: FnOnce() + Send + 'static>(
+    app: tauri::AppHandle<R>,
+    f: F,
+) {
+    if let Err(e) = app.run_on_main_thread(f) {
+        eprintln!("[kitty-tools] run_on_main_thread 失败: {}", e);
     }
+}
+
+/// 划词翻译快捷键：须先同步获取选区再弹窗（浮窗 `set_focus` 会取消原应用选区）。
+/// 剪贴板模拟复制会阻塞数百毫秒，必须在后台线程执行；窗口操作再切回主线程。
+fn handle_selection_translate_hotkey<R: Runtime + 'static>(app: &tauri::AppHandle<R>) {
+    if SELECTION_HOTKEY_BUSY.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        struct BusyGuard;
+        impl Drop for BusyGuard {
+            fn drop(&mut self) {
+                SELECTION_HOTKEY_BUSY.store(false, Ordering::SeqCst);
+            }
+        }
+        let _busy = BusyGuard;
+
+        match selection::get_selected_text_for_hotkey() {
+            Ok(text) if !text.trim().is_empty() => {
+                let app_main = app.clone();
+                dispatch_to_main(app, move || {
+                    do_translate_selection(&app_main, text);
+                });
+            }
+            _ => {
+                let app_main = app.clone();
+                dispatch_to_main(app, move || {
+                    show_floating_input_panel(&app_main);
+                });
+            }
+        }
+    });
 }
 
 /// 无选中文本时打开浮窗，供用户手动输入（类似 Bob / Pot 的「输入翻译」）。
@@ -372,6 +407,7 @@ fn show_floating_input_panel<R: Runtime>(app: &tauri::AppHandle<R>) {
     }
     let _ = window::show_floating_window(app);
     let _ = app.emit("translate-panel-idle", ());
+    let _ = app.emit("focus-floating-panel", ());
 }
 
 fn do_translate_selection<R: Runtime>(app: &tauri::AppHandle<R>, text: String) {
@@ -487,9 +523,13 @@ fn prepare_and_show_region_overlay<R: Runtime + 'static>(app: tauri::AppHandle<R
                         let mut rp = app_state::lock_poisoned(&app_state.region_pending);
                         *rp = None;
                     }
-                    let _ = app_handle.emit("region-capture-failed", serde_json::json!({
-                        "error": format!("截屏失败: {}", e),
-                    }));
+                    let err_msg = format!("截屏失败: {}", e);
+                    let app_emit = app_handle.clone();
+                    dispatch_to_main(app_handle, move || {
+                        let _ = app_emit.emit("region-capture-failed", serde_json::json!({
+                            "error": err_msg,
+                        }));
+                    });
                     return;
                 }
             };
@@ -506,7 +546,13 @@ fn prepare_and_show_region_overlay<R: Runtime + 'static>(app: tauri::AppHandle<R
             if my_seq != latest2 {
                 return;
             }
-            let _ = window::show_region_overlay(&app_handle);
+            // Win32/WebView2 窗口 API 非线程安全，禁止在截屏后台线程直接 show/focus。
+            let app_show = app_handle.clone();
+            dispatch_to_main(app_handle, move || {
+                if let Err(e) = window::show_region_overlay(&app_show) {
+                    eprintln!("[kitty-tools] 显示选区遮罩失败: {}", e);
+                }
+            });
         });
         Ok(())
     }
@@ -679,7 +725,10 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            window::show_clipboard_popup(app);
+            let app_main = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                window::show_clipboard_popup(&app_main);
+            });
         }));
     }
 

@@ -6,7 +6,7 @@
 
 use std::collections::HashSet;
 use std::str::FromStr;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use tauri::{Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
@@ -108,12 +108,17 @@ where
     }
     let _ = global_shortcut.unregister(parsed);
 
+    let handler = Arc::new(handler);
     global_shortcut
         .on_shortcut(parsed, move |app, _shortcut, event| {
             if event.state != ShortcutState::Pressed {
                 return;
             }
-            handler(app);
+            let app_main = app.clone();
+            let handler = Arc::clone(&handler);
+            let _ = app.run_on_main_thread(move || {
+                handler(&app_main);
+            });
         })
         .map_err(|e| format!("{register_label}：{e}"))?;
 

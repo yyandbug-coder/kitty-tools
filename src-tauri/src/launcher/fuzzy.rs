@@ -31,6 +31,25 @@ pub(crate) fn compile_atom(query: &str) -> Option<Atom> {
     Some(Atom::parse(q, CaseMatching::Smart, Normalization::Smart))
 }
 
+/// 廉价子序列预筛：`text_lower` 须为预计算小写串；query 各字符按序出现则视为可能命中。
+/// 用于数千候选在 nucleo 全量评分前先缩圈。
+pub(crate) fn might_match_subsequence(query: &str, text_lower: &str) -> bool {
+    let q = query.trim();
+    if q.is_empty() || text_lower.is_empty() {
+        return false;
+    }
+    let mut text_chars = text_lower.chars();
+    'outer: for qc in q.chars().flat_map(|c| c.to_lowercase()) {
+        for tc in text_chars.by_ref() {
+            if tc == qc {
+                continue 'outer;
+            }
+        }
+        return false;
+    }
+    true
+}
+
 /// 对 `text` 用线程局部 matcher 评分；不命中返回 `None`。
 pub(crate) fn score(atom: &Atom, text: &str) -> Option<u16> {
     if text.is_empty() {

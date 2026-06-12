@@ -114,10 +114,16 @@ pub fn build_tray<R: Runtime>(
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             TRAY_CLIPBOARD_ID => {
-                window::toggle_clipboard_popup(app);
+                let app_main = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    window::toggle_clipboard_popup(&app_main);
+                });
             }
             TRAY_LAUNCHER_ID => {
-                window::toggle_launcher(app);
+                let app_main = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    window::toggle_launcher(&app_main);
+                });
             }
             TRAY_SELECTION_ID => {
                 let _ = app.emit("hotkey-selection-translate", ());
@@ -126,14 +132,20 @@ pub fn build_tray<R: Runtime>(
                 let _ = app.emit("hotkey-screenshot-translate", ());
             }
             TRAY_WORKSPACE_ID => {
-                if let Err(e) = window::show_translate_workspace(app) {
-                    eprintln!("[kitty-tools] 翻译工作台（托盘菜单）: {}", e);
-                }
+                let app_main = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    if let Err(e) = window::show_translate_workspace(&app_main) {
+                        eprintln!("[kitty-tools] 翻译工作台（托盘菜单）: {}", e);
+                    }
+                });
             }
             TRAY_SETTINGS_ID => {
-                if let Err(e) = window::present_settings_window(app) {
-                    eprintln!("[kitty-tools] 打开设置窗口失败: {}", e);
-                }
+                let app_main = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    if let Err(e) = window::present_settings_window(&app_main) {
+                        eprintln!("[kitty-tools] 打开设置窗口失败: {}", e);
+                    }
+                });
             }
             TRAY_QUIT_ID => {
                 handle_quit(app);

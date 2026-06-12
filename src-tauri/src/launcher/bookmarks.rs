@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
+use rayon::prelude::*;
 use serde_json::Value;
 
 use super::recency;
@@ -182,26 +183,26 @@ pub fn bookmark_items_for_query(
     let frecency = recency::snapshot();
     let now_ms = chrono::Utc::now().timestamp_millis();
 
-    let mut out: Vec<LauncherItem> = Vec::with_capacity(BOOKMARK_MAX_CANDIDATES.min(rows.len()));
-    for row in rows.iter() {
-        if !row.title_lower.contains(&q_lower) && !row.url_lower.contains(&q_lower) {
-            continue;
-        }
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        row.url.hash(&mut h);
-        let id = format!("bm-{}-{:x}", row.src, h.finish());
-        out.push(LauncherItem {
-            id,
-            title: row.title.clone(),
-            subtitle: format!("书签 · {}", row.src),
-            kind: "open_url".into(),
-            payload: row.url.clone(),
-            icon_path: None,
-        });
-        if out.len() >= BOOKMARK_MAX_CANDIDATES {
-            break;
-        }
-    }
+    let mut out: Vec<LauncherItem> = rows
+        .par_iter()
+        .filter_map(|row| {
+            if !row.title_lower.contains(&q_lower) && !row.url_lower.contains(&q_lower) {
+                return None;
+            }
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            row.url.hash(&mut h);
+            let id = format!("bm-{}-{:x}", row.src, h.finish());
+            Some(LauncherItem {
+                id,
+                title: row.title.clone(),
+                subtitle: format!("书签 · {}", row.src),
+                kind: "open_url".into(),
+                payload: row.url.clone(),
+                icon_path: None,
+            })
+        })
+        .collect();
+    out.truncate(BOOKMARK_MAX_CANDIDATES);
     out.sort_by(|a, b| {
         let sa = recency::score_or_zero(&frecency, now_ms, &a.kind, &a.payload);
         let sb = recency::score_or_zero(&frecency, now_ms, &b.kind, &b.payload);

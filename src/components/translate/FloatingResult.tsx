@@ -1,6 +1,6 @@
 // 划词翻译浮窗结果面板 - 显示选中文字的翻译结果
 // 支持原文/译文分栏、语言切换、固定窗口、拖动移动、自动复制
-import { useEffect, useRef, useState, useMemo, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { ArrowRightLeft, Check, Copy, Loader2, Pin, RotateCcw, Settings } from 'lucide-react'
@@ -50,6 +50,7 @@ export default function FloatingResult() {
   const [detectedSourceLang, setDetectedSourceLang] = useState<string | null>(null)
   const isDarkMode = useKittyIsDarkMode(config.theme)
   const translateSeqRef = useRef(0)
+  const sourceInputRef = useRef<HTMLTextAreaElement>(null)
   const autoCopyRef = useRef(config.autoCopy)
   autoCopyRef.current = config.autoCopy
   const appStyle = useMemo(
@@ -57,15 +58,25 @@ export default function FloatingResult() {
     [config.appThemePreset, config.customHue, isDarkMode]
   )
 
+  const focusSourceInput = useCallback(() => {
+    // 等 React 提交 idle 状态后再聚焦，避免 Textarea 尚未挂载。
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        sourceInputRef.current?.focus()
+      })
+    })
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     let unlistenResult: UnlistenFn | undefined
     let unlistenLoading: UnlistenFn | undefined
     let unlistenIdle: UnlistenFn | undefined
+    let unlistenFocus: UnlistenFn | undefined
 
     void (async () => {
       try {
-        const [fnResult, fnLoading, fnIdle] = await Promise.all([
+        const [fnResult, fnLoading, fnIdle, fnFocus] = await Promise.all([
           listen<EventPayload>('translate-selection-result', (event) => {
             setLoading(false)
             const text = event.payload?.text ?? ''
@@ -101,17 +112,23 @@ export default function FloatingResult() {
             setLoading(false)
             setError(null)
             setDetectedSourceLang(null)
+            focusSourceInput()
+          }),
+          listen('focus-floating-panel', () => {
+            focusSourceInput()
           })
         ])
         if (cancelled) {
           fnResult()
           fnLoading()
           fnIdle()
+          fnFocus()
           return
         }
         unlistenResult = fnResult
         unlistenLoading = fnLoading
         unlistenIdle = fnIdle
+        unlistenFocus = fnFocus
         await invoke('floating_ready')
       } catch (e) {
         if (!cancelled) {
@@ -125,8 +142,9 @@ export default function FloatingResult() {
       unlistenResult?.()
       unlistenLoading?.()
       unlistenIdle?.()
+      unlistenFocus?.()
     }
-  }, [])
+  }, [focusSourceInput])
 
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
@@ -356,6 +374,7 @@ export default function FloatingResult() {
                   </div>
                 ) : (
                   <Textarea
+                    ref={sourceInputRef}
                     value={sourceText}
                     onChange={(e) => setSourceText(e.target.value)}
                     onKeyDown={handleSourceKeyDown}

@@ -6,9 +6,12 @@
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use rayon::join;
+use tokio::sync::oneshot;
 
 use tauri::State;
 use tauri::AppHandle;
@@ -129,22 +132,92 @@ pub fn prewarm_in_background() {
         .ok();
 }
 
+struct LauncherQueryJob {
+    seq: u64,
+    config: AppConfig,
+    query: String,
+    reply: oneshot::Sender<Vec<LauncherItem>>,
+}
+
+/// 每次 `launcher_query` 递增；worker 执行中若发现已有更新序号则提前中止。
+static LAUNCHER_QUERY_SEQ: AtomicU64 = AtomicU64::new(0);
+
+static LAUNCHER_QUERY_TX: OnceLock<Sender<LauncherQueryJob>> = OnceLock::new();
+
+fn launcher_query_stale(seq: u64) -> bool {
+    LAUNCHER_QUERY_SEQ.load(Ordering::Relaxed) != seq
+}
+
+pub(crate) fn launcher_query_aborted(seq: u64) -> bool {
+    launcher_query_stale(seq)
+}
+
+fn launcher_query_tx() -> &'static Sender<LauncherQueryJob> {
+    LAUNCHER_QUERY_TX.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<LauncherQueryJob>();
+        std::thread::Builder::new()
+            .name("launcher-query".into())
+            .spawn(move || launcher_query_worker(rx))
+            .expect("launcher query worker thread");
+        tx
+    })
+}
+
+/// 单线程串行执行启动器查询；队列中积压的多条请求合并为「只跑最后一条」，
+/// 被跳过的请求立即回空结果（前端按 generation / query 字符串丢弃过期响应）。
+fn launcher_query_worker(rx: Receiver<LauncherQueryJob>) {
+    while let Ok(mut job) = rx.recv() {
+        loop {
+            match rx.try_recv() {
+                Ok(next) => {
+                    let _ = job.reply.send(Vec::new());
+                    job = next;
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    let _ = job.reply.send(Vec::new());
+                    return;
+                }
+            }
+        }
+        let result = query_with_config_impl(&job.config, job.query, job.seq);
+        let out = if launcher_query_stale(job.seq) {
+            Vec::new()
+        } else {
+            result
+        };
+        let _ = job.reply.send(out);
+    }
+}
+
 /// 供前端 `invoke` 的启动器查询（内置、书签、已安装应用、系统项等）。
 /// 本地文件名遍历仅在输入以 `find ` / `open ` 开头时执行（见 `try_parse_file_command`）。
-/// 在阻塞线程池执行，避免 `walkdir` 长时间占用异步运行时。
+/// 投递到专用 worker 线程，避免连续按键时多路查询并行扫盘/评分把 CPU 打满。
 #[tauri::command]
 pub async fn launcher_query(
     state: State<'_, Mutex<AppConfig>>,
     query: String,
 ) -> Result<Vec<LauncherItem>, String> {
     let config: AppConfig = lock_poisoned(&*state).clone();
-    tokio::task::spawn_blocking(move || query_with_config_impl(&config, query))
-        .await
-        .map_err(|e| e.to_string())
+    let seq = LAUNCHER_QUERY_SEQ.fetch_add(1, Ordering::Relaxed) + 1;
+    let (reply_tx, reply_rx) = oneshot::channel();
+    launcher_query_tx()
+        .send(LauncherQueryJob {
+            seq,
+            config,
+            query,
+            reply: reply_tx,
+        })
+        .map_err(|e| e.to_string())?;
+    reply_rx.await.map_err(|e| e.to_string())
 }
 
-fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem> {
+fn query_with_config_impl(config: &AppConfig, query: String, seq: u64) -> Vec<LauncherItem> {
     let q = query.trim();
+
+    if launcher_query_stale(seq) {
+        return Vec::new();
+    }
 
     if let Some((kw, rest)) = try_parse_file_command(q) {
         let mode = match kw {
@@ -187,6 +260,10 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
         return out;
     }
 
+    if launcher_query_stale(seq) {
+        return Vec::new();
+    }
+
     let chrome = config.launcher_bookmarks_chrome;
     let edge = config.launcher_bookmarks_edge;
     let brave = config.launcher_bookmarks_brave;
@@ -197,8 +274,12 @@ fn query_with_config_impl(config: &AppConfig, query: String) -> Vec<LauncherItem
                 || system_apps::items_for_query(q, &q_lower),
             )
         },
-        || installed_apps::items_for_query(q, &q_lower),
+        || installed_apps::items_for_query(q, &q_lower, seq),
     );
+
+    if launcher_query_stale(seq) {
+        return Vec::new();
+    }
 
     let mut out: Vec<LauncherItem> = Vec::new();
     out.extend(bms);

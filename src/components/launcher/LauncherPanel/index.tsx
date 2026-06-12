@@ -25,9 +25,13 @@ import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import { prefetchIcons } from '@/lib/sourceAppIconCache'
 
 const PAGE_STEP = 10
-const FIND_OPEN_DEBOUNCE_MS = 160
-/** 普通关键词：防抖略长，避免与后端 `spawn_blocking` 查询重叠排队导致输入卡顿（尤其书签较多时）。 */
-const GENERAL_SEARCH_DEBOUNCE_MS = 130
+const FIND_OPEN_DEBOUNCE_MS = 200
+/** 普通关键词：防抖略长，避免连续按键时多路后端查询重叠（尤其书签/已安装应用较多时）。 */
+const GENERAL_SEARCH_DEBOUNCE_MS = 200
+/** 仅预取列表前若干条图标，避免结果集一变更就批量拉 80+ 图标阻塞 IPC。 */
+const ICON_PREFETCH_LIMIT = 24
+/** 等列表 state 落地后再预取，避免与搜索 invoke 争抢主线程/IPC。 */
+const ICON_PREFETCH_DEFER_MS = 64
 
 /** 后端返回与当前列表语义一致时保留原 Array 引用，避免虚拟列表 / `LauncherResultItem`
  *  memo 被无谓击穿。仅比较稳定可见字段，不深比 payload 内部结构。 */
@@ -101,12 +105,16 @@ function LauncherPanel() {
     listVirtualizer.scrollToIndex(idx, { align: 'auto' })
   }, [items, selected, listVirtualizer])
 
-  /** 结果集变化时一次性预取整列 iconPath，把 N 次 IPC 往返合成 1 次；
-   *  命中缓存或在飞中的项会被自动跳过，等价结果集不会触发（依赖项保留原 Array 引用）。 */
+  /** 结果集变化时预取可见区附近的 iconPath（限量 + 短延迟），避免一次性批量 IPC 卡输入。 */
   useEffect(() => {
     if (items.length === 0) return
-    const paths = items.map((it) => it.iconPath ?? '')
-    prefetchIcons(paths)
+    const paths = items.slice(0, ICON_PREFETCH_LIMIT).map((it) => it.iconPath ?? '')
+    const t = window.setTimeout(() => {
+      prefetchIcons(paths)
+    }, ICON_PREFETCH_DEFER_MS)
+    return () => {
+      window.clearTimeout(t)
+    }
   }, [items])
 
   /** 空串 / find·open：防抖后查询（含慢速文件 walk）；其它关键词：短防抖后 launcher_query。 */

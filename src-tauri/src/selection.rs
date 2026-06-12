@@ -85,16 +85,22 @@ fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String,
                 if ptr.is_null() {
                     None
                 } else {
-                    let wide: Vec<u16> = {
-                        let mut len = 0usize;
+                    let size = GlobalSize(hglobal);
+                    // CF_UNICODETEXT 应为 UTF-16；无 NUL 终止或损坏数据时须用 GlobalSize 限界，避免越界读导致闪退。
+                    if size < 2 {
+                        let _ = GlobalUnlock(hglobal);
+                        None
+                    } else {
+                        let wchar_cap = size / 2;
                         let start = ptr as *const u16;
-                        while *start.add(len) != 0 {
+                        let mut len = 0usize;
+                        while len < wchar_cap && *start.add(len) != 0 {
                             len += 1;
                         }
-                        std::slice::from_raw_parts(start, len).to_vec()
-                    };
-                    let _ = GlobalUnlock(hglobal);
-                    String::from_utf16(&wide).ok()
+                        let wide = std::slice::from_raw_parts(start, len).to_vec();
+                        let _ = GlobalUnlock(hglobal);
+                        String::from_utf16(&wide).ok()
+                    }
                 }
             }
             _ => None,

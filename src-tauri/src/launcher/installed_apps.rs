@@ -9,6 +9,8 @@ use std::time::{Duration, Instant};
 #[cfg(target_os = "windows")]
 use walkdir::WalkDir;
 
+use rayon::prelude::*;
+
 use super::files;
 use super::LauncherItem;
 
@@ -46,11 +48,12 @@ fn cache_stale(c: &Cache, now: Instant) -> bool {
 /// 进程启动后调用一次：让首次查询不必等开始菜单 walkdir。结果直接喂入 `CACHE`，
 /// 内部已用 `REFRESH_LOCK` 保证只有一条线程做扫描。
 pub(super) fn warmup() {
-    let _ = scan_or_cached();
+    let _ = scan_or_cached(None);
 }
 
 /// 扫描在锁外执行，避免长时间占用全局锁阻塞其它启动器查询。
-fn scan_or_cached() -> Arc<Vec<CachedEntry>> {
+/// `abort_seq` 为 `Some` 时，全量 walk 过程中会周期性检查是否已有更新查询。
+fn scan_or_cached(abort_seq: Option<u64>) -> Arc<Vec<CachedEntry>> {
     let now = Instant::now();
     {
         let g = CACHE.read().unwrap_or_else(|e| e.into_inner());
@@ -73,7 +76,7 @@ fn scan_or_cached() -> Arc<Vec<CachedEntry>> {
         }
     }
 
-    let fresh = Arc::new(scan_all_installed_entries());
+    let fresh = Arc::new(scan_all_installed_entries(abort_seq));
 
     let mut g = CACHE.write().unwrap_or_else(|e| e.into_inner());
     let now = Instant::now();
@@ -90,21 +93,28 @@ fn scan_or_cached() -> Arc<Vec<CachedEntry>> {
 }
 
 /// 有关键词时返回名称/路径匹配的已安装应用；空查询不展开（由内置「系统应用」短列表兜底）。
-/// 用 nucleo 模糊评分（自带前缀/词首加权 — 比手写「prefix 桶」更细腻），再用 frecency
-/// 与标题长度做二级 / 三级 tie-break。
-pub fn items_for_query(q: &str, q_lower: &str) -> Vec<LauncherItem> {
+/// `query_seq` 用于连续输入时中止过期的全量扫描/评分。
+pub fn items_for_query(q: &str, q_lower: &str, query_seq: u64) -> Vec<LauncherItem> {
     if q.trim().is_empty() || q_lower.is_empty() {
+        return Vec::new();
+    }
+    if super::launcher_query_aborted(query_seq) {
         return Vec::new();
     }
     let Some(atom) = super::fuzzy::compile_atom(q) else {
         return Vec::new();
     };
-    let entries = scan_or_cached();
+    let entries = scan_or_cached(Some(query_seq));
 
     let mut scored: Vec<(u16, usize)> = entries
-        .iter()
+        .par_iter()
         .enumerate()
-        .filter_map(|(i, e)| super::fuzzy::score(&atom, &e.search_lower).map(|s| (s, i)))
+        .filter_map(|(i, e)| {
+            if !super::fuzzy::might_match_subsequence(q, &e.search_lower) {
+                return None;
+            }
+            super::fuzzy::score(&atom, &e.search_lower).map(|s| (s, i))
+        })
         .collect();
 
     let frecency = super::recency::snapshot();
@@ -188,27 +198,31 @@ fn windows_start_menu_roots() -> Vec<std::path::PathBuf> {
     v
 }
 
-fn scan_all_installed_entries() -> Vec<CachedEntry> {
+fn scan_all_installed_entries(abort_seq: Option<u64>) -> Vec<CachedEntry> {
     #[cfg(target_os = "windows")]
     {
-        scan_windows_lnk()
+        scan_windows_lnk(abort_seq)
     }
     #[cfg(target_os = "macos")]
     {
-        scan_macos_apps()
+        scan_macos_apps(abort_seq)
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
+        let _ = abort_seq;
         Vec::new()
     }
 }
 
 #[cfg(target_os = "windows")]
-fn scan_windows_lnk() -> Vec<CachedEntry> {
+fn scan_windows_lnk(abort_seq: Option<u64>) -> Vec<CachedEntry> {
     let mut seen_payload = HashSet::<String>::new();
     let mut seen_title_lower = HashSet::<String>::new();
     let mut out = Vec::new();
     for root in windows_start_menu_roots() {
+        if should_abort_installed_scan(abort_seq) {
+            return out;
+        }
         if !root.is_dir() {
             continue;
         }
@@ -218,6 +232,9 @@ fn scan_windows_lnk() -> Vec<CachedEntry> {
             .filter_map(|e| e.ok())
         {
             if out.len() >= MAX_INSTALLED {
+                return out;
+            }
+            if out.len() % 96 == 0 && should_abort_installed_scan(abort_seq) {
                 return out;
             }
             if !entry.file_type().is_file() {
@@ -267,8 +284,12 @@ fn scan_windows_lnk() -> Vec<CachedEntry> {
     }
     // Win32 .lnk 扫描完成后追加 UWP / MSIX 条目（Win11 内置工具基本都在这里）。
     // 同名（如「计算器」）的 .lnk 已存在时跳过 UWP 项，避免列表里出现重复。
-    append_windows_uwp_entries(&mut out, &mut seen_payload, &seen_title_lower);
+    append_windows_uwp_entries(&mut out, &mut seen_payload, &seen_title_lower, abort_seq);
     out
+}
+
+fn should_abort_installed_scan(abort_seq: Option<u64>) -> bool {
+    abort_seq.is_some_and(super::launcher_query_aborted)
 }
 
 #[cfg(target_os = "windows")]
@@ -276,7 +297,11 @@ fn append_windows_uwp_entries(
     out: &mut Vec<CachedEntry>,
     seen_payload: &mut HashSet<String>,
     seen_title_lower: &HashSet<String>,
+    abort_seq: Option<u64>,
 ) {
+    if should_abort_installed_scan(abort_seq) {
+        return;
+    }
     for entry in super::uwp::enumerate_uwp_apps() {
         if out.len() >= MAX_INSTALLED {
             return;
@@ -309,7 +334,7 @@ fn append_windows_uwp_entries(
 }
 
 #[cfg(target_os = "macos")]
-fn scan_macos_apps() -> Vec<CachedEntry> {
+fn scan_macos_apps(abort_seq: Option<u64>) -> Vec<CachedEntry> {
     let mut seen_payload = HashSet::<String>::new();
     let mut out = Vec::new();
     let mut bases: Vec<std::path::PathBuf> = vec![std::path::PathBuf::from("/Applications")];
@@ -317,6 +342,9 @@ fn scan_macos_apps() -> Vec<CachedEntry> {
         bases.push(h.join("Applications"));
     }
     for base in bases {
+        if should_abort_installed_scan(abort_seq) {
+            return out;
+        }
         if !base.is_dir() {
             continue;
         }

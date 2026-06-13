@@ -46,9 +46,9 @@ jobs:
           corepack prepare pnpm@9 --activate
           pnpm install --no-frozen-lockfile
 
-          node scripts/release.mjs --tag "$TAG" --notes "Release $TAG" --skip-bump
+          node scripts/updater-skill.mjs release.mjs --tag "$TAG" --notes "Release $TAG" --skip-bump
 
-          node scripts/gitcode-upload-release.mjs \
+          node scripts/updater-skill.mjs gitcode-upload-release.mjs \
             --tag "$TAG" \
             --name "Kitty Tools $TAG" \
             --body "Release $TAG" \

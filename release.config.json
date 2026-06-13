@@ -1,9 +1,17 @@
 {
+  "appName": "Kitty Tools",
   "versionBump": "pre",
   "tauriBuildCommand": "pnpm tauri build",
+  "signing": {
+    "privateKeyPath": "~/.tauri/kitty-tools.key",
+    "privateKeyPassword": "",
+    "envKeyVar": "KITTY_TOOLS_SIGNING_PRIVATE_KEY",
+    "envPasswordVar": "KITTY_TOOLS_SIGNING_PRIVATE_KEY_PASSWORD"
+  },
   "gitcode": {
     "owner": "yyandbug",
     "repo": "kitty-tools",
-    "apiUrl": "https://api.gitcode.com/api/v5"
+    "apiUrl": "https://api.gitcode.com/api/v5",
+    "defaultBranch": "master"
   }
 }

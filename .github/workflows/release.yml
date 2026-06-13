@@ -76,10 +76,10 @@ jobs:
 
       - name: Generate latest.json
         env:
-          RELEASE_BASE_URL: https://gitcode.com/yyandbug/kitty-tools/-/releases/download/${{ github.ref_name }}
+          RELEASE_BASE_URL: https://api.gitcode.com/api/v5/repos/yyandbug/kitty-tools/releases/${{ github.ref_name }}/attach_files
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          node scripts/generate-latest-json.mjs --version "$VERSION" --notes "Release $GITHUB_REF_NAME" --bundle-root artifacts
+          node scripts/updater-skill.mjs generate-latest-json.mjs --version "$VERSION" --notes "Release $GITHUB_REF_NAME" --bundle-root artifacts
 
       - name: Upload latest.json to release assets
         run: cp releases/latest.json release-assets/latest.json

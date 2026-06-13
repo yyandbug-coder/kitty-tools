@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Update } from '@tauri-apps/plugin-updater'
 import {
   checkAppUpdate,
   downloadAndInstallAppUpdate,
   isUpdaterEnabled,
   normalizeUpdateError,
-  toUpdateInfo,
   type AppUpdateInfo,
   type AppUpdatePhase,
   type AppUpdateProgress,
@@ -36,19 +34,16 @@ export function useAppUpdater(): UseAppUpdaterResult {
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null)
   const [progress, setProgress] = useState<AppUpdateProgress>(INITIAL_PROGRESS)
   const [errorMessage, setErrorMessage] = useState('')
-  const pendingUpdateRef = useRef<Update | null>(null)
   const checkingRef = useRef(false)
 
   useEffect(() => {
     const pending = consumePendingStartupUpdate()
     if (!pending) return
-    pendingUpdateRef.current = pending.update
-    setUpdateInfo(pending.info)
+    setUpdateInfo(pending)
     setPhase('available')
   }, [])
 
   const reset = useCallback(() => {
-    pendingUpdateRef.current = null
     setPhase('idle')
     setUpdateInfo(null)
     setProgress(INITIAL_PROGRESS)
@@ -67,10 +62,9 @@ export function useAppUpdater(): UseAppUpdaterResult {
 
     const pending = peekPendingStartupUpdate()
     if (pending) {
-      pendingUpdateRef.current = pending.update
-      setUpdateInfo(pending.info)
+      setUpdateInfo(pending)
       setPhase('available')
-      return { status: 'available', info: pending.info }
+      return { status: 'available', info: pending }
     }
 
     if (checkingRef.current) {
@@ -83,22 +77,18 @@ export function useAppUpdater(): UseAppUpdaterResult {
     setProgress(INITIAL_PROGRESS)
 
     try {
-      const update = await checkAppUpdate()
-      if (!update) {
-        pendingUpdateRef.current = null
+      const info = await checkAppUpdate()
+      if (!info) {
         setUpdateInfo(null)
         setPhase('uptodate')
         return { status: 'uptodate' }
       }
 
-      const info = toUpdateInfo(update)
-      pendingUpdateRef.current = update
       setUpdateInfo(info)
       setPhase('available')
       return { status: 'available', info }
     } catch (error) {
       const message = normalizeUpdateError(error)
-      pendingUpdateRef.current = null
       setUpdateInfo(null)
       setPhase('error')
       setErrorMessage(message)
@@ -109,8 +99,7 @@ export function useAppUpdater(): UseAppUpdaterResult {
   }, [])
 
   const installUpdate = useCallback(async () => {
-    const update = pendingUpdateRef.current
-    if (!update) {
+    if (!updateInfo) {
       setPhase('error')
       setErrorMessage('没有可安装的更新，请先检查更新。')
       return
@@ -121,7 +110,7 @@ export function useAppUpdater(): UseAppUpdaterResult {
     setProgress(INITIAL_PROGRESS)
 
     try {
-      await downloadAndInstallAppUpdate(update, (nextProgress, event) => {
+      await downloadAndInstallAppUpdate((nextProgress, event) => {
         setProgress(nextProgress)
         if (
           event === 'Finished' ||
@@ -134,7 +123,7 @@ export function useAppUpdater(): UseAppUpdaterResult {
       setPhase('error')
       setErrorMessage(normalizeUpdateError(error))
     }
-  }, [])
+  }, [updateInfo])
 
   return {
     phase,

@@ -1,4 +1,5 @@
 mod app_state;
+mod app_updater;
 mod baidu_creds;
 mod clipboard;
 mod config;
@@ -748,6 +749,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(app_updater::PendingAppUpdate(Mutex::new(None)))
         .manage(Mutex::new(config))
         .manage(app_state::AppState {
             client: reqwest::Client::builder()
@@ -804,6 +806,8 @@ pub fn run() {
             start_launcher_drag,
             launcher::launcher_query,
             launcher::launcher_execute,
+            app_updater::check_app_update_cmd,
+            app_updater::download_install_app_update_cmd,
         ])
         .setup(move |app| {
             let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();

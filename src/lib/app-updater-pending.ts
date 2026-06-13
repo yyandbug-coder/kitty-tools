@@ -1,21 +1,19 @@
-import type { Update } from '@tauri-apps/plugin-updater'
-import { toUpdateInfo, type AppUpdateInfo } from '@/lib/app-updater'
+import type { AppUpdateInfo } from '@/lib/app-updater'
 
 /** 跨窗口共享启动时检测到的更新，避免 About 页需重复检查。 */
-let pendingStartupUpdate: Update | null = null
+let pendingStartupUpdate: AppUpdateInfo | null = null
 
-export function setPendingStartupUpdate(update: Update | null): void {
-  pendingStartupUpdate = update
+export function setPendingStartupUpdate(info: AppUpdateInfo | null): void {
+  pendingStartupUpdate = info
 }
 
-export function consumePendingStartupUpdate(): { update: Update; info: AppUpdateInfo } | null {
+export function consumePendingStartupUpdate(): AppUpdateInfo | null {
   if (!pendingStartupUpdate) return null
-  const update = pendingStartupUpdate
+  const info = pendingStartupUpdate
   pendingStartupUpdate = null
-  return { update, info: toUpdateInfo(update) }
+  return info
 }
 
-export function peekPendingStartupUpdate(): { update: Update; info: AppUpdateInfo } | null {
-  if (!pendingStartupUpdate) return null
-  return { update: pendingStartupUpdate, info: toUpdateInfo(pendingStartupUpdate) }
+export function peekPendingStartupUpdate(): AppUpdateInfo | null {
+  return pendingStartupUpdate
 }

@@ -12,6 +12,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 
 const projectRoot = resolve(import.meta.dirname, '..')
 const tauriConfig = JSON.parse(readFileSync(join(projectRoot, 'src-tauri/tauri.conf.json'), 'utf8'))
+const releaseConfigRaw = JSON.parse(readFileSync(join(projectRoot, 'release.config.json'), 'utf8'))
+const gitcodeCfg = releaseConfigRaw.gitcode ?? {}
 
 const args = process.argv.slice(2)
 function readArg(name) {
@@ -23,9 +25,12 @@ function readArg(name) {
 const version = readArg('--version') || tauriConfig.version
 const notes = readArg('--notes') || `Kitty Tools ${version}`
 const bundleRoot = readArg('--bundle-root') || join(projectRoot, 'src-tauri/target/release/bundle')
+const owner = gitcodeCfg.owner ?? 'yyandbug'
+const repo = gitcodeCfg.repo ?? 'kitty-tools'
+const tagName = version.startsWith('v') ? version : `v${version}`
 const releaseBaseUrl =
   process.env.RELEASE_BASE_URL ??
-  'https://gitcode.com/yyandbug/kitty-tools/-/releases/download/latest'
+  `https://api.gitcode.com/api/v5/repos/${owner}/${repo}/releases/${tagName}/attach_files`
 
 function readSig(path) {
   return readFileSync(path, 'utf8').trim()
@@ -56,7 +61,7 @@ function findAllBundlePairs(files, extension) {
 }
 
 function toReleaseUrl(fileName) {
-  return `${releaseBaseUrl}/${encodeURIComponent(fileName)}`
+  return `${releaseBaseUrl}/${encodeURIComponent(fileName)}/download`
 }
 
 function detectMacPlatform(fileName) {

@@ -66,7 +66,7 @@ export default function SettingsAboutTab({ appVersion, onRequestReset }: Setting
   const showUpdateCard = updaterEnabled && (phase === 'available' || phase === 'downloading' || phase === 'installing')
 
   return (
-    <>
+    <div className="space-y-5">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -180,6 +180,6 @@ export default function SettingsAboutTab({ appVersion, onRequestReset }: Setting
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   )
 }

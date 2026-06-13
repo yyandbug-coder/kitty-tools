@@ -1,5 +1,6 @@
+import { invoke } from '@tauri-apps/api/core'
+import { Channel } from '@tauri-apps/api/core'
 import { isTauri } from '@tauri-apps/api/core'
-import { check, type DownloadEvent, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 
 export type AppUpdatePhase =
@@ -22,6 +23,14 @@ export interface AppUpdateInfo {
   date: string | null
 }
 
+interface RustDownloadEvent {
+  event: 'Started' | 'Progress' | 'Finished'
+  data: {
+    contentLength?: number | null
+    chunkLength?: number
+  }
+}
+
 function isUpdaterEnabled(): boolean {
   return isTauri() && !import.meta.env.DEV
 }
@@ -36,34 +45,26 @@ function normalizeUpdateError(error: unknown): string {
   return '检查更新失败，请稍后重试'
 }
 
-function toUpdateInfo(update: Update): AppUpdateInfo {
-  return {
-    version: update.version,
-    notes: update.body?.trim() ?? '',
-    date: update.date ?? null,
-  }
-}
-
 function handleDownloadProgress(
-  event: DownloadEvent,
+  event: RustDownloadEvent,
   state: { downloaded: number; total: number | null },
-  onProgress?: (progress: AppUpdateProgress) => void,
+  onProgress?: (progress: AppUpdateProgress, event: RustDownloadEvent['event']) => void,
 ): void {
   switch (event.event) {
     case 'Started':
       state.downloaded = 0
       state.total = event.data.contentLength ?? null
-      onProgress?.({ downloaded: state.downloaded, total: state.total })
+      onProgress?.({ downloaded: state.downloaded, total: state.total }, event.event)
       break
     case 'Progress':
-      state.downloaded += event.data.chunkLength
-      onProgress?.({ downloaded: state.downloaded, total: state.total })
+      state.downloaded += event.data.chunkLength ?? 0
+      onProgress?.({ downloaded: state.downloaded, total: state.total }, event.event)
       break
     case 'Finished':
       if (state.total !== null) {
         state.downloaded = state.total
       }
-      onProgress?.({ downloaded: state.downloaded, total: state.total })
+      onProgress?.({ downloaded: state.downloaded, total: state.total }, event.event)
       break
     default:
       break
@@ -71,32 +72,27 @@ function handleDownloadProgress(
 }
 
 /** 检查是否有可用更新；开发模式或未打包环境下返回 null。 */
-export async function checkAppUpdate(): Promise<Update | null> {
+export async function checkAppUpdate(): Promise<AppUpdateInfo | null> {
   if (!isUpdaterEnabled()) {
     return null
   }
 
-  const update = await check()
-  if (!update) {
-    return null
-  }
-  return update
+  const result = await invoke<AppUpdateInfo | null>('check_app_update_cmd')
+  return result
 }
 
 /** 下载并安装更新，完成后重启应用。 */
 export async function downloadAndInstallAppUpdate(
-  update: Update,
-  onProgress?: (progress: AppUpdateProgress, event: DownloadEvent['event']) => void,
+  onProgress?: (progress: AppUpdateProgress, event: RustDownloadEvent['event']) => void,
 ): Promise<void> {
   const progressState = { downloaded: 0, total: null as number | null }
+  const channel = new Channel<RustDownloadEvent>()
+  channel.onmessage = (event) => {
+    handleDownloadProgress(event, progressState, onProgress)
+  }
 
-  await update.downloadAndInstall((event) => {
-    handleDownloadProgress(event, progressState, (progress) => {
-      onProgress?.(progress, event.event)
-    })
-  })
-
+  await invoke('download_install_app_update_cmd', { onEvent: channel })
   await relaunch()
 }
 
-export { isUpdaterEnabled, normalizeUpdateError, toUpdateInfo }
+export { isUpdaterEnabled, normalizeUpdateError }

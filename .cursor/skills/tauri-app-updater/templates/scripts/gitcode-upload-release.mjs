@@ -8,6 +8,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
 const releaseConfig = JSON.parse(readFileSync(join(projectRoot, 'release.config.json'), 'utf-8'))
@@ -30,6 +31,21 @@ const token = process.env.GITCODE_TOKEN
 const owner = process.env.GITCODE_OWNER || gitcodeCfg.owner
 const repo = process.env.GITCODE_REPO || gitcodeCfg.repo
 const apiUrl = process.env.GITCODE_API_URL || gitcodeCfg.apiUrl || 'https://api.gitcode.com/api/v5'
+
+function resolveDefaultBranch() {
+  if (process.env.GITCODE_DEFAULT_BRANCH || gitcodeCfg.defaultBranch) {
+    return process.env.GITCODE_DEFAULT_BRANCH || gitcodeCfg.defaultBranch
+  }
+  const result = spawnSync('git', ['branch', '--show-current'], {
+    cwd: projectRoot,
+    encoding: 'utf-8',
+  })
+  const branch = result.stdout?.trim()
+  return branch || 'master'
+}
+
+const defaultBranch = resolveDefaultBranch()
+const releaseVersion = tagName?.replace(/^v/, '') ?? ''
 
 if (!token) {
   console.error('[gitcode-upload] 缺少环境变量 GITCODE_TOKEN')
@@ -76,7 +92,7 @@ async function createRelease() {
     tag_name: tagName,
     name: releaseName,
     body: releaseBody,
-    target_commitish: 'main',
+    target_commitish: defaultBranch,
   }
 
   const created = await gitcodeRequest(
@@ -147,6 +163,12 @@ function listAssetFiles() {
   return readdirSync(assetsDir)
     .map((name) => join(assetsDir, name))
     .filter((path) => statSync(path).isFile())
+    .filter((path) => {
+      const name = basename(path)
+      if (name === 'latest.json') return true
+      if (!releaseVersion) return true
+      return name.includes(releaseVersion)
+    })
 }
 
 async function main() {

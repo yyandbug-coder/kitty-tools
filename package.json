@@ -1,7 +1,7 @@
 {
   "name": "kitty-tools",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "release": "node scripts/release.mjs",
+    "release:publish": "node scripts/release.mjs --publish",
     "release:dry-run": "node scripts/release.mjs --dry-run",
     "release:upload": "node scripts/gitcode-upload-release.mjs",
     "release:json": "node scripts/generate-latest-json.mjs"

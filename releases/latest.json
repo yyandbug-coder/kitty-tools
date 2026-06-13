@@ -1,0 +1,11 @@
+{
+  "version": "0.1.2",
+  "notes": "Kitty Tools release",
+  "pub_date": "2026-06-13T02:49:49.068Z",
+  "platforms": {
+    "windows-x86_64": {
+      "url": "https://api.gitcode.com/api/v5/repos/yyandbug/kitty-tools/releases/v0.1.2/attach_files/Kitty%20Tools_0.1.2_x64-setup.exe/download",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRM3Nlc1JoUHgzMmtGRTBZZ3RWaElsTkU1cWZOeHMyb0ZManNNZFNZM1NaMzdhMEloRmxPOUhJbEMyS2RjWTB0T2xZemZLaFlJczBnNFAzcmxydTVydkJhOVI2ZSt4OWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMzE4ODQzCWZpbGU6S2l0dHkgVG9vbHNfMC4xLjJfeDY0LXNldHVwLmV4ZQpMZXNMM1BuY3YyNkNHSGZPWjVQWGh6SFYvRVpzYUMzdGhwODgyWkl4dHJscG16OG9UY0NlaTVOcGtXT1VLSHlOSFdWRDVJWkRYU2pHSVZoajRtUG1CUT09Cg=="
+    }
+  }
+}

@@ -1,6 +1,6 @@
 [package]
 name = "kitty-tools"
-version = "0.1.1"
+version = "0.1.2"
 description = "Kitty Tools - Clipboard History & Translation"
 authors = ["you"]
 edition = "2021"

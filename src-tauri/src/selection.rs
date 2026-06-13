@@ -65,16 +65,21 @@ where
 
 #[cfg(target_os = "windows")]
 fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String, String> {
+    crate::clipboard::win_access::with_win_clipboard(|| get_selected_text_windows_locked(opts))
+}
+
+#[cfg(target_os = "windows")]
+fn get_selected_text_windows_locked(opts: SelectionOptions) -> Result<String, String> {
     use windows::Win32::Foundation::HGLOBAL;
     use windows::Win32::System::DataExchange::{
-        CloseClipboard, EmptyClipboard, GetClipboardData, OpenClipboard, SetClipboardData,
+        CloseClipboard, EmptyClipboard, GetClipboardData, SetClipboardData,
     };
     use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE};
 
     const CF_UNICODETEXT: u32 = 13;
 
     unsafe fn get_clipboard_text() -> Option<String> {
-        if OpenClipboard(None).is_err() {
+        if !crate::clipboard::win_access::open_clipboard_with_retry(5) {
             return None;
         }
 
@@ -110,12 +115,11 @@ fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String,
         result
     }
 
-    /// Save current clipboard text so we can restore it after reading the selection.
     /// Save current clipboard data for all known formats so we can restore them later.
     unsafe fn save_clipboard_all() -> Vec<(u32, Vec<u8>)> {
         use windows::Win32::System::DataExchange::EnumClipboardFormats;
 
-        if OpenClipboard(None).is_err() {
+        if !crate::clipboard::win_access::open_clipboard_with_retry(5) {
             return Vec::new();
         }
         let mut saved = Vec::new();
@@ -124,6 +128,9 @@ fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String,
             fmt = EnumClipboardFormats(fmt);
             if fmt == 0 {
                 break;
+            }
+            if !crate::clipboard::win_access::format_is_safe_global_memory(fmt) {
+                continue;
             }
             if let Ok(handle) = GetClipboardData(fmt) {
                 if handle.is_invalid() {
@@ -135,11 +142,11 @@ fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String,
                     continue;
                 }
                 let size = GlobalSize(hglobal);
-                if size == 0 {
+                if size == 0 || size as usize > crate::clipboard::win_access::MAX_FORMAT_BYTES {
                     let _ = GlobalUnlock(hglobal);
                     continue;
                 }
-                let data = std::slice::from_raw_parts(ptr as *const u8, size).to_vec();
+                let data = std::slice::from_raw_parts(ptr as *const u8, size as usize).to_vec();
                 let _ = GlobalUnlock(hglobal);
                 saved.push((fmt, data));
             }
@@ -155,7 +162,7 @@ fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String,
         if saved.is_empty() {
             return;
         }
-        if OpenClipboard(None).is_err() {
+        if !crate::clipboard::win_access::open_clipboard_with_retry(5) {
             return;
         }
         let _ = EmptyClipboard();
@@ -187,7 +194,7 @@ fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String,
 
     // Step 4: Clear the clipboard so we can reliably detect new content.
     unsafe {
-        if OpenClipboard(None).is_ok() {
+        if crate::clipboard::win_access::open_clipboard_with_retry(5) {
             let _ = EmptyClipboard();
             let _ = CloseClipboard();
         }
@@ -210,6 +217,11 @@ fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String,
 
 #[cfg(target_os = "macos")]
 fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String, String> {
+    crate::clipboard::mac_access::with_mac_pasteboard(|| get_selected_text_macos_locked(opts))
+}
+
+#[cfg(target_os = "macos")]
+fn get_selected_text_macos_locked(opts: SelectionOptions) -> Result<String, String> {
     use std::process::Command;
     use std::thread;
     use std::time::Duration;
@@ -275,6 +287,9 @@ fn get_selected_text_with_options_impl(opts: SelectionOptions) -> Result<String,
                 let bytes_ptr: *const u8 = (*data_ns).bytes().as_ptr() as *const u8;
                 if bytes_ptr.is_null() || len == 0 {
                     bag.push((type_str, Vec::new()));
+                    continue;
+                }
+                if len > crate::clipboard::limits::MAX_FORMAT_BYTES {
                     continue;
                 }
                 let slice = std::slice::from_raw_parts(bytes_ptr, len);

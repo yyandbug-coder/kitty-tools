@@ -158,7 +158,14 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
                 continue;
             }
 
-            if let Ok(text) = clipboard.get_text() {
+            #[cfg(target_os = "windows")]
+            let text_result = crate::clipboard::win_access::arboard_get_text(&mut clipboard);
+            #[cfg(target_os = "macos")]
+            let text_result = crate::clipboard::mac_access::arboard_get_text(&mut clipboard);
+            #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+            let text_result = clipboard.get_text();
+
+            if let Ok(text) = text_result {
                 if text.trim().is_empty() {
                     continue;
                 }
@@ -191,7 +198,14 @@ pub async fn start_clipboard_watcher(app: tauri::AppHandle) {
                 continue;
             }
 
-            if let Ok(image) = clipboard.get_image() {
+            #[cfg(target_os = "windows")]
+            let image_result = crate::clipboard::win_access::arboard_get_image(&mut clipboard);
+            #[cfg(target_os = "macos")]
+            let image_result = crate::clipboard::mac_access::arboard_get_image(&mut clipboard);
+            #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+            let image_result = clipboard.get_image();
+
+            if let Ok(image) = image_result {
                 let w = image.width as u64;
                 let h = image.height as u64;
                 let pixels = w.saturating_mul(h);

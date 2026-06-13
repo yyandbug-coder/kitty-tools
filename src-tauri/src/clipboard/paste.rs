@@ -19,8 +19,23 @@ use objc2_app_kit::NSPasteboard;
 #[tauri::command]
 pub async fn write_text_to_clipboard(text: String) -> Result<(), String> {
     // arboard 句柄申请/写入均很快（毫秒级），直接在 tokio worker 上同步执行可接受。
-    let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
-    clipboard.set_text(&text).map_err(|e| e.to_string())
+    #[cfg(target_os = "windows")]
+    {
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        crate::clipboard::win_access::arboard_set_text(&mut clipboard, &text)
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        crate::clipboard::mac_access::arboard_set_text(&mut clipboard, &text)
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        clipboard.set_text(&text).map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -51,16 +66,45 @@ fn queue_paste_item<R: Runtime>(app: tauri::AppHandle<R>, item: ClipboardEvent) 
             }
         } else if let Ok(mut clipboard) = arboard::Clipboard::new() {
             if item.r#type == "text" {
-                clipboard_ready = clipboard.set_text(&item.content).is_ok();
+                #[cfg(target_os = "windows")]
+                {
+                    clipboard_ready =
+                        crate::clipboard::win_access::arboard_set_text(&mut clipboard, &item.content)
+                            .is_ok();
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    clipboard_ready =
+                        crate::clipboard::mac_access::arboard_set_text(&mut clipboard, &item.content)
+                            .is_ok();
+                }
+                #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+                {
+                    clipboard_ready = clipboard.set_text(&item.content).is_ok();
+                }
             } else if item.r#type == "image" {
                 if let Some((width, height, bytes)) = image_cache::load_image_for_paste(&app, &item) {
-                    clipboard_ready = clipboard
-                        .set_image(arboard::ImageData {
-                            width,
-                            height,
-                            bytes: std::borrow::Cow::Owned(bytes),
-                        })
-                        .is_ok();
+                    let image = arboard::ImageData {
+                        width,
+                        height,
+                        bytes: std::borrow::Cow::Owned(bytes),
+                    };
+                    #[cfg(target_os = "windows")]
+                    {
+                        clipboard_ready =
+                            crate::clipboard::win_access::arboard_set_image(&mut clipboard, image)
+                                .is_ok();
+                    }
+                    #[cfg(target_os = "macos")]
+                    {
+                        clipboard_ready =
+                            crate::clipboard::mac_access::arboard_set_image(&mut clipboard, image)
+                                .is_ok();
+                    }
+                    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+                    {
+                        clipboard_ready = clipboard.set_image(image).is_ok();
+                    }
                 }
             }
         }
@@ -91,12 +135,17 @@ fn trigger_paste_shortcut() {
 
 #[cfg(target_os = "macos")]
 pub(crate) fn read_macos_clipboard_files() -> Option<Vec<String>> {
+    crate::clipboard::mac_access::with_mac_pasteboard(read_macos_clipboard_files_locked)
+}
+
+#[cfg(target_os = "macos")]
+fn read_macos_clipboard_files_locked() -> Option<Vec<String>> {
     unsafe {
         let pasteboard = NSPasteboard::generalPasteboard();
         let url_class = {
             let cls: *const objc2::runtime::AnyClass = NSURL::class();
             let cls = cls as *mut objc2::runtime::AnyObject;
-            objc2::rc::Retained::retain(cls).unwrap()
+            objc2::rc::Retained::retain(cls)?
         };
         let class_array = NSArray::from_vec(vec![url_class]);
         let objects = pasteboard.readObjectsForClasses_options(&class_array, None)?;
@@ -125,6 +174,11 @@ pub(crate) fn read_macos_clipboard_files() -> Option<Vec<String>> {
 
 #[cfg(target_os = "macos")]
 fn write_macos_clipboard_files(paths: &[String]) -> bool {
+    crate::clipboard::mac_access::with_mac_pasteboard(|| write_macos_clipboard_files_locked(paths))
+}
+
+#[cfg(target_os = "macos")]
+fn write_macos_clipboard_files_locked(paths: &[String]) -> bool {
     if paths.is_empty() {
         return false;
     }
@@ -143,8 +197,13 @@ fn write_macos_clipboard_files(paths: &[String]) -> bool {
 
 #[cfg(target_os = "windows")]
 pub(crate) fn read_windows_clipboard_files() -> Option<Vec<String>> {
+    crate::clipboard::win_access::with_win_clipboard(read_windows_clipboard_files_locked)
+}
+
+#[cfg(target_os = "windows")]
+fn read_windows_clipboard_files_locked() -> Option<Vec<String>> {
     use windows::Win32::System::DataExchange::{
-        CloseClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
+        CloseClipboard, GetClipboardData, IsClipboardFormatAvailable,
     };
     const CF_HDROP: u32 = 15;
 
@@ -152,7 +211,7 @@ pub(crate) fn read_windows_clipboard_files() -> Option<Vec<String>> {
         if IsClipboardFormatAvailable(CF_HDROP).is_err() {
             return None;
         }
-        if OpenClipboard(None).is_err() {
+        if !crate::clipboard::win_access::open_clipboard_with_retry(3) {
             return None;
         }
         let result = (|| -> Option<Vec<String>> {
@@ -181,9 +240,14 @@ pub(crate) fn read_windows_clipboard_files() -> Option<Vec<String>> {
 
 #[cfg(target_os = "windows")]
 fn write_windows_clipboard_files(paths: &[String]) -> bool {
+    crate::clipboard::win_access::with_win_clipboard(|| write_windows_clipboard_files_locked(paths))
+}
+
+#[cfg(target_os = "windows")]
+fn write_windows_clipboard_files_locked(paths: &[String]) -> bool {
     use windows::Win32::Foundation::{HANDLE, POINT};
     use windows::Win32::System::DataExchange::{
-        CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+        CloseClipboard, EmptyClipboard, SetClipboardData,
     };
     use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
     const CF_HDROP: u32 = 15;
@@ -193,7 +257,7 @@ fn write_windows_clipboard_files(paths: &[String]) -> bool {
     }
 
     unsafe {
-        if OpenClipboard(None).is_err() {
+        if !crate::clipboard::win_access::open_clipboard_with_retry(3) {
             return false;
         }
         let result = (|| -> bool {

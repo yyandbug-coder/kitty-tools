@@ -1,6 +1,6 @@
 [package]
 name = "kitty-tools"
-version = "0.1.0"
+version = "0.1.1"
 description = "Kitty Tools - Clipboard History & Translation"
 authors = ["you"]
 edition = "2021"
@@ -95,3 +95,7 @@ dispatch = "0.2"
 objc2 = "0.5.2"
 objc2-app-kit = { version = "0.2.2", features = ["NSPasteboard", "NSRunningApplication", "NSWorkspace", "NSImage", "libc"] }
 objc2-foundation = { version = "0.2.2", features = ["NSArray", "NSObject", "NSString", "NSURL", "NSData"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"

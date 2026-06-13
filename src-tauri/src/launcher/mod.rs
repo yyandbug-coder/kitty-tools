@@ -497,12 +497,13 @@ fn is_probable_url(s: &str) -> bool {
         || t.ends_with(".org")
 }
 
+/// 补全协议前缀，避免 Windows 将 `baidu.com` 等裸域名当作本地文件名打开。
 fn normalize_url(s: &str) -> Option<String> {
     let t = s.trim();
     if t.starts_with("http://") || t.starts_with("https://") || t.starts_with("mailto:") {
         return Some(t.to_string());
     }
-    if t.starts_with("www.") {
+    if is_probable_url(t) {
         return Some(format!("https://{t}"));
     }
     None
@@ -530,8 +531,10 @@ pub async fn launcher_execute<R: Runtime>(
             _ => return Err("未知动作".into()),
         },
         "open_url" => {
+            let url = normalize_url(&payload)
+                .unwrap_or_else(|| payload.clone());
             app.opener()
-                .open_url(&payload, None::<&str>)
+                .open_url(&url, None::<&str>)
                 .map_err(|e| e.to_string())?;
         }
         "open_path" => {
@@ -588,4 +591,35 @@ pub async fn launcher_execute<R: Runtime>(
     // 成功执行后统一记录 frecency；下次相似查询排在更前。
     recency::record(&kind, &payload);
     Ok(())
+}
+
+#[cfg(test)]
+mod url_tests {
+    use super::{is_probable_url, normalize_url};
+
+    #[test]
+    fn normalize_bare_domain_gets_https() {
+        assert_eq!(normalize_url("baidu.com").as_deref(), Some("https://baidu.com"));
+    }
+
+    #[test]
+    fn normalize_www_domain_gets_https() {
+        assert_eq!(
+            normalize_url("www.example.com").as_deref(),
+            Some("https://www.example.com")
+        );
+    }
+
+    #[test]
+    fn normalize_keeps_existing_scheme() {
+        assert_eq!(
+            normalize_url("https://github.com").as_deref(),
+            Some("https://github.com")
+        );
+    }
+
+    #[test]
+    fn probable_url_excludes_windows_paths() {
+        assert!(!is_probable_url(r"C:\foo.com"));
+    }
 }

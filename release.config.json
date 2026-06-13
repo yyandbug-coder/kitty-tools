@@ -1,0 +1,9 @@
+{
+  "versionBump": "pre",
+  "tauriBuildCommand": "pnpm tauri build",
+  "gitcode": {
+    "owner": "yyandbug",
+    "repo": "kitty-tools",
+    "apiUrl": "https://api.gitcode.com/api/v5"
+  }
+}

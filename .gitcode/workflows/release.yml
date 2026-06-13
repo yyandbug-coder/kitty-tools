@@ -1,0 +1,55 @@
+# GitCode 自动发版：推送 v* tag 时构建并上传到 GitCode Release
+#
+# 前置条件（GitCode 项目 → 设置 → CI/CD → 密钥/变量）：
+#   GITCODE_TOKEN                      Personal Access Token（密钥）
+#   TAURI_SIGNING_PRIVATE_KEY          更新包签名私钥（密钥）
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD 私钥密码（可选）
+#
+# 注意：
+# 1. Tauri 需在 Windows Runner 上构建（需配置 windows-latest 或自托管 Windows Runner）
+# 2. 若 GitCode 无 Windows Runner，请本地执行：pnpm release --upload
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: checkout-action@0.0.1
+
+      - name: Setup Node.js
+        uses: setup-node@0.0.1
+        with:
+          node-version: '22.10.0'
+
+      - name: Build and upload release
+        shell: bash
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          cd repo_workspace
+
+          TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "无法解析 tag，请确认由 tag 推送触发"
+            exit 1
+          fi
+          echo "Release tag: $TAG"
+
+          corepack enable
+          corepack prepare pnpm@9 --activate
+          pnpm install --no-frozen-lockfile
+
+          node scripts/release.mjs --tag "$TAG" --notes "Release $TAG" --skip-bump
+
+          node scripts/gitcode-upload-release.mjs \
+            --tag "$TAG" \
+            --name "Kitty Tools $TAG" \
+            --body "Release $TAG" \
+            --dir releases/artifacts

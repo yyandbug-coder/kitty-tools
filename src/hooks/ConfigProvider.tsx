@@ -7,6 +7,7 @@ import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
 import { AppConfigContext } from './config-context'
 import { useTheme } from '@/hooks/useTheme'
 import { useTauriEvent } from '@/hooks/useTauriEvent'
+import { useStartupUpdateCheck } from '@/hooks/useStartupUpdateCheck'
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG)
@@ -18,6 +19,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   /** 在 document.documentElement 上同步 light/dark（含「跟随系统」），使 Radix Portal 与系统/应用外观一致；独立窗口不能只依赖内层 div 的 .dark。 */
   useTheme(config.theme)
+  useStartupUpdateCheck()
 
   useEffect(() => {
     invoke<AppConfig>('get_config')

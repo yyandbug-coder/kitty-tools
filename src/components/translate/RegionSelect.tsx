@@ -2,6 +2,8 @@
 // 窗口级事件监听，选区过小自动取消
 import { useRef, useEffect, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import toast from 'react-hot-toast'
 import { Kbd } from '@/components/ui/kbd'
 
 const MIN_SIZE = 8
@@ -18,13 +20,19 @@ function normalizeRect(start: Point, cur: Point): Rect {
   return { left, top, w, h }
 }
 
+function clampRect(rect: Rect, vw: number, vh: number): Rect {
+  const left = Math.max(0, Math.min(rect.left, vw - 1))
+  const top = Math.max(0, Math.min(rect.top, vh - 1))
+  const w = Math.max(1, Math.min(rect.w, vw - left))
+  const h = Math.max(1, Math.min(rect.h, vh - top))
+  return { left, top, w, h }
+}
+
 /** 单块遮罩 + evenodd 挖洞；外框与内洞必须各自闭合，否则 (0,vh)→(left,top) 会画出左侧三角 */
 function buildDimClipPath(vw: number, vh: number, rect: Rect): string {
-  const holeW = Math.max(rect.w, 1)
-  const holeH = Math.max(rect.h, 1)
-  const { left, top } = rect
-  const right = left + holeW
-  const bottom = top + holeH
+  const { left, top, w, h } = clampRect(rect, vw, vh)
+  const right = left + w
+  const bottom = top + h
   return [
     'polygon(evenodd,',
     // 外框顺时针，末尾回到起点以闭合
@@ -39,9 +47,11 @@ function buildDimClipPath(vw: number, vh: number, rect: Rect): string {
 }
 
 export default function RegionSelect() {
+  const rootRef = useRef<HTMLDivElement>(null)
   const startRef = useRef<Point | null>(null)
   const currentRef = useRef<Point>({ x: 0, y: 0 })
   const draggingRef = useRef(false)
+  const activePointerRef = useRef<number | null>(null)
   const rafPendingRef = useRef(false)
   const rafRef = useRef<number>(0)
 
@@ -61,10 +71,30 @@ export default function RegionSelect() {
     if (label) label.style.visibility = 'hidden'
   }, [])
 
+  const resetInteraction = useCallback(() => {
+    draggingRef.current = false
+    startRef.current = null
+    activePointerRef.current = null
+    cancelAnimationFrame(rafRef.current)
+    rafPendingRef.current = false
+    hideVisuals()
+  }, [hideVisuals])
+
+  const releasePointerCapture = useCallback(() => {
+    const pointerId = activePointerRef.current
+    const root = rootRef.current
+    if (pointerId == null || !root) return
+    if (root.hasPointerCapture(pointerId)) {
+      root.releasePointerCapture(pointerId)
+    }
+    activePointerRef.current = null
+  }, [])
+
   const updateVisuals = useCallback((start: Point, cur: Point) => {
     const rect = normalizeRect(start, cur)
     const vw = Math.round(window.innerWidth)
     const vh = Math.round(window.innerHeight)
+    const clamped = clampRect(rect, vw, vh)
     const showDetails = rect.w > 0 || rect.h > 0
 
     const dim = dimRef.current
@@ -77,9 +107,9 @@ export default function RegionSelect() {
     if (sel) {
       sel.style.visibility = showDetails ? 'visible' : 'hidden'
       if (showDetails) {
-        sel.style.transform = `translate(${rect.left}px, ${rect.top}px)`
-        sel.style.width = `${Math.max(rect.w, 1)}px`
-        sel.style.height = `${Math.max(rect.h, 1)}px`
+        sel.style.transform = `translate(${clamped.left}px, ${clamped.top}px)`
+        sel.style.width = `${clamped.w}px`
+        sel.style.height = `${clamped.h}px`
       }
     }
 
@@ -87,7 +117,7 @@ export default function RegionSelect() {
     if (label) {
       label.style.visibility = showDetails ? 'visible' : 'hidden'
       if (showDetails) {
-        label.style.transform = `translate(${rect.left}px, ${Math.max(rect.top - 24, 4)}px)`
+        label.style.transform = `translate(${clamped.left}px, ${Math.max(clamped.top - 24, 4)}px)`
         label.textContent = `${rect.w} × ${rect.h}`
       }
     }
@@ -104,71 +134,108 @@ export default function RegionSelect() {
     })
   }, [updateVisuals])
 
+  const cancelSelection = useCallback(() => {
+    resetInteraction()
+    releasePointerCapture()
+    void invoke('region_overlay_cancel').catch(() => window.close())
+  }, [releasePointerCapture, resetInteraction])
+
   const finish = useCallback(
     (end: Point) => {
       draggingRef.current = false
       cancelAnimationFrame(rafRef.current)
       rafPendingRef.current = false
       hideVisuals()
+      releasePointerCapture()
 
       const start = startRef.current
       if (!start) return
       startRef.current = null
 
-      const x = Math.min(start.x, end.x)
-      const y = Math.min(start.y, end.y)
-      const width = Math.abs(end.x - start.x)
-      const height = Math.abs(end.y - start.y)
+      const rect = normalizeRect(start, end)
 
-      if (width < MIN_SIZE || height < MIN_SIZE) {
+      if (rect.w < MIN_SIZE || rect.h < MIN_SIZE) {
         void invoke('region_overlay_cancel').catch(() => window.close())
         return
       }
 
       void invoke('region_overlay_complete', {
-        x,
-        y,
-        width,
-        height,
+        x: rect.left,
+        y: rect.top,
+        width: rect.w,
+        height: rect.h,
         viewportW: window.innerWidth,
         viewportH: window.innerHeight,
       }).catch(() => window.close())
     },
-    [hideVisuals],
+    [hideVisuals, releasePointerCapture],
   )
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        void invoke('region_overlay_cancel').catch(() => window.close())
+        cancelSelection()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [cancelSelection])
 
   useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        resetInteraction()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [resetInteraction])
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void listen<{ error?: string }>('region-capture-failed', (event) => {
+      resetInteraction()
+      toast.error(event.payload?.error ?? '截屏失败，请重试', { duration: 4000 })
+    }).then((fn) => {
+      unlisten = fn
+    })
+    return () => {
+      unlisten?.()
+    }
+  }, [resetInteraction])
+
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent) => {
       if (!draggingRef.current) return
       currentRef.current = { x: e.clientX, y: e.clientY }
       scheduleVisualUpdate()
     }
 
-    const onMouseUp = (e: MouseEvent) => {
-      if (!draggingRef.current) return
+    const onPointerUp = (e: PointerEvent) => {
+      if (!draggingRef.current || e.button !== 0) return
       finish({ x: e.clientX, y: e.clientY })
     }
 
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
+    const onPointerCancel = () => {
+      if (!draggingRef.current) return
+      cancelSelection()
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerCancel)
     return () => {
       cancelAnimationFrame(rafRef.current)
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerCancel)
     }
-  }, [finish, scheduleVisualUpdate])
+  }, [cancelSelection, finish, scheduleVisualUpdate])
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    activePointerRef.current = e.pointerId
     startRef.current = { x: e.clientX, y: e.clientY }
     currentRef.current = { x: e.clientX, y: e.clientY }
     draggingRef.current = true
@@ -177,9 +244,10 @@ export default function RegionSelect() {
 
   return (
     <div
-      className="fixed inset-0 select-none cursor-crosshair"
+      ref={rootRef}
+      className="fixed inset-0 select-none cursor-crosshair touch-none"
       style={{ background: 'transparent' }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
     >
       <div
         ref={dimRef}

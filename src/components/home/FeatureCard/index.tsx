@@ -39,22 +39,11 @@ export default function FeatureCard({
       size="sm"
       className={cn(
         'transition-colors',
-        isAvailable && 'cursor-pointer hover:bg-muted/40',
+        isAvailable && 'hover:bg-muted/40',
         isComingSoon && 'opacity-70'
       )}
-      onClick={isAvailable ? handleActivate : undefined}
-      onKeyDown={(e) => {
-        if (!isAvailable) return
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          handleActivate()
-        }
-      }}
-      role={isAvailable ? 'button' : undefined}
-      tabIndex={isAvailable ? 0 : undefined}
-      aria-disabled={isComingSoon}
     >
-      <CardHeader className="grid-cols-[auto_1fr] gap-3">
+      <CardHeader className="grid grid-cols-[auto_1fr] items-start gap-3">
         <div
           className={cn(
             'flex size-10 shrink-0 items-center justify-center rounded-lg',
@@ -93,10 +82,7 @@ export default function FeatureCard({
             variant="ghost"
             size="sm"
             className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleActivate()
-            }}
+            onClick={handleActivate}
           >
             打开
             <ArrowRight className="size-3.5" aria-hidden />

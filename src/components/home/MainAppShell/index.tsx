@@ -1,9 +1,8 @@
 // 主应用壳层 - 主页与设置页切换，统一窗口标题栏与关闭逻辑
-import { useCallback, useState } from 'react'
+import { lazy, Suspense, useCallback, useState, useMemo, type CSSProperties } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ArrowLeft, Settings, X } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useMemo, type CSSProperties } from 'react'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useKittyIsDarkMode } from '@/hooks/useKittyIsDarkMode'
 import { getThemeRuntimeStyle } from '@/lib/theme'
@@ -13,9 +12,21 @@ import type { AppTheme } from '@/types'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import GlobalToaster from '@/components/shared/GlobalToaster'
 import HomePage from '@/components/home/HomePage'
-import SettingsPanel from '@/components/settings/SettingsPanel'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+
+const SettingsPanel = lazy(() => import('@/components/settings/SettingsPanel'))
+
+function SettingsPanelFallback() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 py-10">
+      <div className="relative size-6">
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
+      </div>
+      <span className="text-xs text-muted-foreground">加载设置中…</span>
+    </div>
+  )
+}
 
 export type MainAppView = 'home' | 'settings'
 
@@ -40,17 +51,15 @@ export default function MainAppShell() {
 
   if (!loaded) {
     return (
-      <>
-        <div className="flex h-full min-h-screen w-full items-center justify-center bg-background">
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative size-8">
-              <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
-            </div>
-            <span className="text-xs text-muted-foreground">加载配置中…</span>
+      <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative size-8">
+            <div className="absolute inset-0 animate-spin rounded-full border-2 border-border/50 border-t-primary" />
           </div>
+          <span className="text-xs text-muted-foreground">加载配置中…</span>
         </div>
         <GlobalToaster />
-      </>
+      </div>
     )
   }
 
@@ -113,16 +122,18 @@ export default function MainAppShell() {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {view === 'home' ? (
           <HomePage
             onNavigateSettings={() => setView('settings')}
             onOpenExternalFeature={handleOpenExternalFeature}
           />
         ) : (
-          <SettingsPanel embedded />
+          <Suspense fallback={<SettingsPanelFallback />}>
+            <SettingsPanel embedded />
+          </Suspense>
         )}
-      </div>
+      </main>
 
       <GlobalToaster />
     </div>

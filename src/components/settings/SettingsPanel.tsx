@@ -182,7 +182,7 @@ export default function SettingsPanel({ embedded = false }: SettingsPanelProps) 
   }
 
   return (
-    <div className={cn('flex flex-col bg-background text-foreground', embedded ? 'h-full min-h-0' : 'h-screen')}>
+    <div className={cn('flex flex-col bg-background text-foreground', embedded ? 'min-h-0 flex-1' : 'h-screen')}>
       {!embedded ? (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-4 py-3">
           <div className="flex min-w-0 flex-1 items-center gap-3" data-tauri-drag-region>

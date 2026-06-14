@@ -5,7 +5,9 @@ import SettingsApp from '@/components/settings/SettingsApp'
 export default function App() {
   return (
     <TooltipProvider>
-      <SettingsApp />
+      <div className="h-screen w-screen overflow-hidden">
+        <SettingsApp />
+      </div>
     </TooltipProvider>
   )
 }

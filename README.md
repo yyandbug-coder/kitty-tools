@@ -20,7 +20,7 @@ pnpm release
 ```
 
 - 发版指南：[docs/RELEASE.md](./docs/RELEASE.md)
-- 全局 Skill：`~/.cursor/skills/tauri-app-updater/`
+- Skill 安装：`npx skills add yyandbug-coder/kitty-tools --skill tauri-app-updater -g -y`
 - 本项目索引：`.cursor/skills/tauri-app-updater/`
 
 CI / 脚本使用：`pnpm release:cli`

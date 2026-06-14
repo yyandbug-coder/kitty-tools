@@ -12,12 +12,15 @@ description: >-
 
 ```bash
 # 1. 安装 Skill（每台电脑一次，和别的 skill 一样）
-npx skills add https://gitcode.com/yyandbug/kitty-tools.git --skill tauri-app-updater -g -y
+npx skills add yyandbug-coder/kitty-tools --skill tauri-app-updater -g -y
+# 或：pnpm dlx skills add yyandbug-coder/kitty-tools --skill tauri-app-updater -g -y
 
 # 2. 接入当前 Tauri 项目（每个项目一次）
 node ~/.agents/skills/tauri-app-updater/scripts/init-project.mjs
 pnpm install
 ```
+
+仓库：[github.com/yyandbug-coder/kitty-tools](https://github.com/yyandbug-coder/kitty-tools)
 
 Windows 第 2 步：
 

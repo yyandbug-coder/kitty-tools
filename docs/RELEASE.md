@@ -2,13 +2,14 @@
 
 本文档说明如何打包桌面安装包、生成自动更新清单，以及上传到 GitCode Release。
 
-> 全局规范与踩坑清单：`~/.cursor/skills/tauri-app-updater/`  
+> Skill 安装：`npx skills add yyandbug-coder/kitty-tools --skill tauri-app-updater -g -y`  
+> 全局规范与踩坑：`~/.agents/skills/tauri-app-updater/`  
 > 本项目 Skill 索引：`.cursor/skills/tauri-app-updater/`
 
 其他 Tauri 项目安装（两条命令，和别的 skill 一样）：
 
 ```bash
-npx skills add https://gitcode.com/yyandbug/kitty-tools.git --skill tauri-app-updater -g -y
+npx skills add yyandbug-coder/kitty-tools --skill tauri-app-updater -g -y
 node ~/.agents/skills/tauri-app-updater/scripts/init-project.mjs
 pnpm install
 ```
@@ -192,7 +193,7 @@ https://api.gitcode.com/api/v5/repos/yyandbug/kitty-tools/releases/latest/attach
 
 ## 踩坑速查
 
-完整矩阵见 `~/.cursor/skills/tauri-app-updater/pitfalls.md`。
+完整矩阵见 `~/.agents/skills/tauri-app-updater/pitfalls.md`。
 
 ### 上传失败
 

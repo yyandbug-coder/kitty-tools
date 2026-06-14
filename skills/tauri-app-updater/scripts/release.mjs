@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Tauri 应用自动更新 Skill — 非交互发版底层。
- * 从任意 Tauri 项目根目录调用，脚本位于 ~/.cursor/skills/tauri-app-updater/scripts/
+ * 从任意 Tauri 项目根目录调用；脚本由 tauri-app-updater Skill 提供。
  */
 import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'

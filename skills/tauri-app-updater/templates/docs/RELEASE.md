@@ -1,3 +1,17 @@
+# 发版指南（模板）
+
+> 复制到项目的 `docs/RELEASE.md`，按实际应用名与 GitCode 仓库修改占位符。
+
+## 安装 Skill（其他 Tauri 项目）
+
+```bash
+npx skills add yyandbug-coder/kitty-tools --skill tauri-app-updater -g -y
+node ~/.agents/skills/tauri-app-updater/scripts/init-project.mjs
+pnpm install
+```
+
+---
+
 # Kitty Tools 发版指南
 
 本文档说明如何打包桌面安装包、生成自动更新清单，以及上传到 GitCode Release。

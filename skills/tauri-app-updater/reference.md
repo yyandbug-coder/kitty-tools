@@ -5,7 +5,7 @@
 ### Skill（全局，所有项目共用）
 
 ```
-~/.cursor/skills/tauri-app-updater/
+~/.agents/skills/tauri-app-updater/   # npx skills add 安装位置（Cursor）
 ├── SKILL.md
 ├── pitfalls.md
 ├── reference.md
@@ -47,10 +47,15 @@ project/
 ## 接入命令
 
 ```bash
-# 在项目根目录执行一次
-node ~/.cursor/skills/tauri-app-updater/scripts/init-project.mjs
+# 1. 安装 Skill（每台电脑一次）
+npx skills add yyandbug-coder/kitty-tools --skill tauri-app-updater -g -y
+
+# 2. 接入项目（每个项目一次）
+node ~/.agents/skills/tauri-app-updater/scripts/init-project.mjs
 pnpm install
 ```
+
+仓库：[github.com/yyandbug-coder/kitty-tools](https://github.com/yyandbug-coder/kitty-tools)（`owner/repo` 简写默认解析为 GitHub）
 
 ## release.config.json 字段
 

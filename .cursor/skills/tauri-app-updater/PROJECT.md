@@ -10,7 +10,12 @@
 
 换电脑：`git clone` → `pnpm install` → `pnpm create:release`，无需单独装 Skill。
 
-其他项目复用：`npx skills add <owner/repo@tauri-app-updater> -g`
+其他项目复用：
+
+```bash
+npx skills add yyandbug-coder/kitty-tools --skill tauri-app-updater -g -y
+node ~/.agents/skills/tauri-app-updater/scripts/init-project.mjs
+```
 
 ## 本项目配置
 

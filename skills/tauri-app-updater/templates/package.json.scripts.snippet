@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "release": "node scripts/release-interactive.mjs",
+    "release:interactive": "node scripts/release-interactive.mjs",
+    "create:release": "node scripts/release-interactive.mjs",
+    "release:cli": "node scripts/release.mjs",
+    "release:publish": "node scripts/release.mjs --publish",
+    "release:dry-run": "node scripts/release.mjs --dry-run",
+    "release:upload": "node scripts/gitcode-upload-release.mjs",
+    "release:json": "node scripts/generate-latest-json.mjs"
+  },
+  "devDependencies": {
+    "@clack/prompts": "^1.5.1",
+    "tauri-release-utils": "^0.1.1"
+  }
+}

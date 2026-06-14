@@ -5,9 +5,13 @@
 > 全局规范与踩坑清单：`~/.cursor/skills/tauri-app-updater/`  
 > 本项目 Skill 索引：`.cursor/skills/tauri-app-updater/`
 
-发版脚本在 **项目 Skill**（`.cursor/skills/tauri-app-updater/scripts/`，随 git 分发），换电脑 clone 即可用。
+其他 Tauri 项目安装（两条命令，和别的 skill 一样）：
 
-其他 Tauri 项目可全局安装：`npx skills add <owner/repo@tauri-app-updater> -g`
+```bash
+npx skills add https://gitcode.com/yyandbug/kitty-tools.git --skill tauri-app-updater -g -y
+node ~/.agents/skills/tauri-app-updater/scripts/init-project.mjs
+pnpm install
+```
 
 **日常发版必须使用交互式向导**，不要直接 `pnpm tauri build` 作为发版手段。
 

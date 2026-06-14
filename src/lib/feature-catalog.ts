@@ -1,4 +1,5 @@
 import {
+  Braces,
   ClipboardList,
   Keyboard,
   Languages,
@@ -37,6 +38,14 @@ export const FEATURE_CATALOG: FeatureCategoryDefinition[] = [
         action: { type: 'invoke', command: 'show_launcher_window' },
         status: 'available',
         shortcutConfigKey: 'launcherShortcut',
+      },
+      {
+        id: 'json-editor',
+        title: 'JSON 编辑器',
+        description: '打开、编辑、格式化与校验 JSON 文件，支持树形、文本与分屏预览',
+        icon: Braces,
+        action: { type: 'invoke', command: 'show_json_editor_window' },
+        status: 'available',
       },
     ],
   },

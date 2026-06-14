@@ -60,6 +60,77 @@ fn show_launcher_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), Stri
 }
 
 #[tauri::command]
+fn show_json_editor_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    window::show_json_editor(&app);
+    Ok(())
+}
+
+/// 从功能主页打开独立浮层/工作台：先隐藏主窗口再展示目标，并抑制失焦自动隐藏，避免浮层一闪即关。
+#[tauri::command]
+async fn open_hub_feature(app: tauri::AppHandle, command: String) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+
+    let suppress = app
+        .state::<app_state::AppState>()
+        .suppress_overlay_autohide
+        .clone();
+    suppress.store(true, Ordering::Release);
+
+    let clear_suppress = || {
+        let s = suppress.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            s.store(false, Ordering::Release);
+        });
+    };
+
+    if let Err(e) = window::hide_settings_window(&app) {
+        clear_suppress();
+        return Err(e.to_string());
+    }
+
+    let result: Result<(), String> = match command.as_str() {
+        "show_window" => {
+            window::show_clipboard_popup(&app);
+            Ok(())
+        }
+        "show_launcher_window" => {
+            window::show_launcher(&app);
+            Ok(())
+        }
+        "show_json_editor_window" => {
+            window::show_json_editor(&app);
+            Ok(())
+        }
+        "translate_selection" => {
+            handle_selection_translate_hotkey(&app);
+            Ok(())
+        }
+        "start_screenshot_translate" => {
+            let cfg = app_state::lock_poisoned(&*app.state::<Mutex<config::AppConfig>>()).clone();
+            let app_state = app.state::<app_state::AppState>();
+            {
+                let mut rp = app_state::lock_poisoned(&app_state.region_pending);
+                *rp = Some(app_state::RegionPending::Translate {
+                    source_lang: cfg.source_lang.clone(),
+                    target_lang: cfg.target_lang.clone(),
+                });
+            }
+            prepare_and_show_region_overlay(app.clone())
+        }
+        other => Err(format!("未知功能: {other}")),
+    };
+
+    if result.is_err() {
+        suppress.store(false, Ordering::Release);
+    } else {
+        clear_suppress();
+    }
+    result
+}
+
+#[tauri::command]
 fn open_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
     window::present_settings_page_window(&app).map_err(|e| e.to_string())
 }
@@ -770,6 +841,7 @@ pub fn run() {
             floating_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             clipboard_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             launcher_interacting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            suppress_overlay_autohide: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             #[cfg(target_os = "macos")]
             suppress_macos_overlay_restore: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
@@ -779,6 +851,8 @@ pub fn run() {
             show_window,
             hide_window,
             show_launcher_window,
+            show_json_editor_window,
+            open_hub_feature,
             open_settings_window,
             hide_settings_window,
             show_welcome_onboarding_cmd,

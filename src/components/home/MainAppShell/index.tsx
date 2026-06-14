@@ -71,10 +71,6 @@ export default function MainAppShell() {
     })
   }, [])
 
-  const handleOpenExternalFeature = useCallback(() => {
-    void invoke('hide_settings_window').catch(() => {})
-  }, [])
-
   if (!loaded) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">
@@ -186,7 +182,6 @@ export default function MainAppShell() {
         {view === 'home' ? (
           <HomePage
             onNavigateSettings={() => setView('settings')}
-            onOpenExternalFeature={handleOpenExternalFeature}
             onOpenWelcomeDebug={handleOpenWelcomeDebug}
           />
         ) : (

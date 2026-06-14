@@ -64,7 +64,8 @@ export default defineConfig(({ command, mode }) => ({
         'clipboard-popup': path.resolve(rootDir, 'html/clipboard-popup.html'),
         floating: path.resolve(rootDir, 'html/floating.html'),
         'region-select': path.resolve(rootDir, 'html/region-select.html'),
-        launcher: path.resolve(rootDir, 'html/launcher.html')
+        launcher: path.resolve(rootDir, 'html/launcher.html'),
+        'json-editor': path.resolve(rootDir, 'html/json-editor.html')
       },
       output: {
         manualChunks(id) {
@@ -73,6 +74,7 @@ export default defineConfig(({ command, mode }) => ({
           if (norm.includes('lucide-react')) return 'icons'
           if (norm.includes('radix-ui')) return 'radix'
           if (norm.includes('@tanstack/react-virtual')) return 'virtual'
+          if (norm.includes('vanilla-jsoneditor')) return 'json-editor'
           // react / react-dom / scheduler 抽到独立 chunk，便于多入口共享缓存且不误匹配 react-router 等包名
           if (/node_modules\/react-dom(\/|$)/.test(norm)) return 'react-runtime'
           if (/node_modules\/scheduler(\/|$)/.test(norm)) return 'react-runtime'

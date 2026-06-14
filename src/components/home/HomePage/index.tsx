@@ -12,20 +12,20 @@ import { APP_DISPLAY_NAME } from '@/lib/app-meta'
 
 export interface HomePageProps {
   onNavigateSettings: () => void
-  onOpenExternalFeature?: () => void
   /** 开发模式：预览欢迎引导 */
   onOpenWelcomeDebug?: () => void
 }
 
-/** 打开独立浮层/工作台后隐藏主窗口，避免遮挡 */
-const HIDE_MAIN_AFTER_INVOKE = new Set([
+/** 从功能主页打开：走 Rust 统一入口，先藏主窗再开目标，避免失焦自动隐藏 */
+const HUB_FEATURE_COMMANDS = new Set([
   'show_window',
   'show_launcher_window',
+  'show_json_editor_window',
   'translate_selection',
   'start_screenshot_translate',
 ])
 
-export default function HomePage({ onNavigateSettings, onOpenExternalFeature, onOpenWelcomeDebug }: HomePageProps) {
+export default function HomePage({ onNavigateSettings, onOpenWelcomeDebug }: HomePageProps) {
   const { config } = useAppConfig()
   const categories = useMemo(() => buildFeatureCatalog(config), [config])
 
@@ -39,15 +39,16 @@ export default function HomePage({ onNavigateSettings, onOpenExternalFeature, on
       }
 
       try {
-        await invoke(action.command)
-        if (HIDE_MAIN_AFTER_INVOKE.has(action.command)) {
-          onOpenExternalFeature?.()
+        if (HUB_FEATURE_COMMANDS.has(action.command)) {
+          await invoke('open_hub_feature', { command: action.command })
+        } else {
+          await invoke(action.command)
         }
       } catch (err) {
         toast.error(getInvokeErrorMessage(err) || '无法打开该功能')
       }
     },
-    [onNavigateSettings, onOpenExternalFeature]
+    [onNavigateSettings]
   )
 
   return (

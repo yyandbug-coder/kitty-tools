@@ -19,6 +19,7 @@ pub const WINDOW_LAUNCHER: &str = "launcher";
 pub const WINDOW_FLOATING: &str = "floating";
 pub const WINDOW_REGION_SELECT: &str = "region-select";
 pub const WINDOW_SETTINGS: &str = "settings";
+pub const WINDOW_JSON_EDITOR: &str = "json-editor";
 
 /// 窗口语义枚举：供外部模块（lib.rs / tray.rs）做集中分发，避免重复 if/else。
 /// 与 `pub fn show_*/hide_*/toggle_*` 一一对应；新窗口扩展只须在此与匹配处各加一项。
@@ -30,6 +31,7 @@ pub enum WindowKind {
     Floating,
     RegionSelect,
     Settings,
+    JsonEditor,
 }
 
 impl WindowKind {
@@ -42,6 +44,7 @@ impl WindowKind {
             WindowKind::Floating => WINDOW_FLOATING,
             WindowKind::RegionSelect => WINDOW_REGION_SELECT,
             WindowKind::Settings => WINDOW_SETTINGS,
+            WindowKind::JsonEditor => WINDOW_JSON_EDITOR,
         }
     }
 }
@@ -285,6 +288,12 @@ fn register_auto_hide_on_blur<R, FInteract, FHide, FFlag>(
         WindowEvent::Focused(false) => {
             let app_state = app_handle.state::<crate::app_state::AppState>();
             if pick_interacting(&app_state).swap(false, Ordering::SeqCst) {
+                return;
+            }
+            if app_state
+                .suppress_overlay_autohide
+                .load(Ordering::Acquire)
+            {
                 return;
             }
             let do_hide = {
@@ -686,6 +695,78 @@ pub fn hide_region_overlay<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(w) = app.get_webview_window(WINDOW_REGION_SELECT) {
         let _ = w.hide();
     }
+}
+
+// ── JSON editor window ────────────────────────────────────────────────────
+
+/// Get or create the JSON editor window.
+///
+/// 960×720，系统标题栏、可调整大小、居中、初始不可见；关闭时隐藏而非销毁。
+pub fn get_or_create_json_editor_window<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> tauri::Result<WebviewWindow<R>> {
+    if let Some(w) = app.get_webview_window(WINDOW_JSON_EDITOR) {
+        return Ok(w);
+    }
+
+    let window = WebviewWindow::builder(
+        app,
+        WINDOW_JSON_EDITOR,
+        webview_url("html/json-editor.html"),
+    )
+    .title("Kitty Tools · JSON 编辑器")
+    .inner_size(960.0, 720.0)
+    .min_inner_size(640.0, 480.0)
+    .decorations(true)
+    .resizable(true)
+    .center()
+    .visible(false)
+    .build()?;
+    apply_windows_webview_post_create(&window);
+
+    let app_on_close = app.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = app_on_close.emit("json-editor-close-requested", ());
+        }
+    });
+
+    Ok(window)
+}
+
+/// Show the JSON editor window and focus it.
+pub fn show_json_editor<R: Runtime>(app: &tauri::AppHandle<R>) {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app.show();
+        activate_current_application();
+    }
+
+    let _ = get_or_create_json_editor_window(app);
+
+    if let Some(window) = app.get_webview_window(WINDOW_JSON_EDITOR) {
+        let _ = window.show();
+
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(hwnd) = window.hwnd() {
+                unsafe {
+                    use windows::Win32::Foundation::HWND;
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE,
+                    };
+                    let hwnd = HWND(hwnd.0 as *mut _);
+                    if IsIconic(hwnd).as_bool() {
+                        let _ = ShowWindow(hwnd, SW_RESTORE);
+                    }
+                    let _ = SetForegroundWindow(hwnd);
+                }
+            }
+        }
+        let _ = window.set_focus();
+    }
+    let _ = app.emit("focus-json-editor-panel", ());
 }
 
 // ── Settings window ─────────────────────────────────────────────────────

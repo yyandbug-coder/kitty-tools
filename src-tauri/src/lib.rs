@@ -347,11 +347,6 @@ fn show_settings_window_cmd<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), 
     window::present_settings_page_window(&app).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-fn show_translate_workspace_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    window::show_translate_workspace(&app).map_err(|e| e.to_string())
-}
-
 // ── Translate pipeline helpers ──────────────────────────────────────────────
 
 /// 防止用户连按划词快捷键导致多个线程同时读写剪贴板（可能触发 Win32 异常或 UI 卡死）。
@@ -809,7 +804,6 @@ pub fn run() {
             hide_floating_window,
             floating_ready,
             show_settings_window_cmd,
-            show_translate_workspace_window,
             start_floating_drag,
             start_clipboard_drag,
             start_launcher_drag,

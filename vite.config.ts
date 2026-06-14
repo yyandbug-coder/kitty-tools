@@ -64,7 +64,6 @@ export default defineConfig(({ command, mode }) => ({
         'clipboard-popup': path.resolve(rootDir, 'html/clipboard-popup.html'),
         floating: path.resolve(rootDir, 'html/floating.html'),
         'region-select': path.resolve(rootDir, 'html/region-select.html'),
-        'translate-workspace': path.resolve(rootDir, 'html/translate-workspace.html'),
         launcher: path.resolve(rootDir, 'html/launcher.html')
       },
       output: {

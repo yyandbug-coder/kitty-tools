@@ -1,6 +1,5 @@
 import {
   ClipboardList,
-  Globe,
   Keyboard,
   Languages,
   ScanText,
@@ -44,7 +43,7 @@ export const FEATURE_CATALOG: FeatureCategoryDefinition[] = [
   {
     id: 'translate',
     title: '翻译',
-    description: '划词、截图与独立工作台，覆盖多种翻译场景',
+    description: '划词与截图翻译，覆盖多种翻译场景',
     features: [
       {
         id: 'selection-translate',
@@ -63,14 +62,6 @@ export const FEATURE_CATALOG: FeatureCategoryDefinition[] = [
         action: { type: 'invoke', command: 'start_screenshot_translate' },
         status: 'available',
         shortcutConfigKey: 'hotkeyScreenshot',
-      },
-      {
-        id: 'translate-workspace',
-        title: '翻译工作台',
-        description: '独立窗口中进行手动输入翻译，适合长文本与反复校对',
-        icon: Globe,
-        action: { type: 'invoke', command: 'show_translate_workspace_window' },
-        status: 'available',
       },
     ],
   },

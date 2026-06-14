@@ -7,7 +7,6 @@
     "launcher",
     "floating",
     "region-select",
-    "translate-workspace",
     "settings"
   ],
   "permissions": [

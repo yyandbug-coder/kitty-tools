@@ -21,7 +21,6 @@ export interface HomePageProps {
 const HIDE_MAIN_AFTER_INVOKE = new Set([
   'show_window',
   'show_launcher_window',
-  'show_translate_workspace_window',
   'translate_selection',
   'start_screenshot_translate',
 ])

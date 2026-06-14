@@ -418,14 +418,6 @@ fn builtins_table() -> &'static [BuiltinRow] {
                 icon_path: None,
             }),
             make_builtin(LauncherItem {
-                id: "action-workspace".into(),
-                title: "翻译工作台".into(),
-                subtitle: "文本与 OCR 翻译".into(),
-                kind: "action".into(),
-                payload: "translate_workspace".into(),
-                icon_path: None,
-            }),
-            make_builtin(LauncherItem {
                 id: "action-clipboard".into(),
                 title: "剪贴板历史".into(),
                 subtitle: "打开剪贴板记录面板".into(),
@@ -509,7 +501,7 @@ fn normalize_url(s: &str) -> Option<String> {
     None
 }
 
-/// 执行启动器项：先隐藏启动器窗口，再打开设置/工作区/剪贴板或系统打开器。
+/// 执行启动器项：先隐藏启动器窗口，再打开设置/剪贴板或系统打开器。
 #[tauri::command]
 pub async fn launcher_execute<R: Runtime>(
     app: AppHandle<R>,
@@ -521,9 +513,6 @@ pub async fn launcher_execute<R: Runtime>(
         "action" => match payload.as_str() {
             "settings" => {
                 window::present_settings_page_window(&app).map_err(|e| e.to_string())?;
-            }
-            "translate_workspace" => {
-                window::show_translate_workspace(&app).map_err(|e| e.to_string())?;
             }
             "clipboard" => {
                 window::show_clipboard_popup(&app);

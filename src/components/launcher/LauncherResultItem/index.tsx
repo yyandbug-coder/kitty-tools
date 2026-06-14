@@ -5,7 +5,7 @@
  * 配合末尾 `React.memo`，使选中切换时仅“上一选 / 现选”两行重渲。
  */
 import { memo, useCallback } from 'react'
-import { AppWindow, ClipboardList, FolderOpen, Globe, Languages, Settings } from 'lucide-react'
+import { AppWindow, ClipboardList, FolderOpen, Globe, Settings } from 'lucide-react'
 import type { LauncherItem } from '@/types'
 import { cn } from '@/lib/utils'
 import { formatListQuickSlotShortcut } from '@/lib/platform'
@@ -28,7 +28,6 @@ function launcherKindPlaceholder(item: LauncherItem) {
   const { kind, payload } = item
   if (kind === 'action') {
     if (payload === 'settings') return <Settings className={PLACEHOLDER_CLS} aria-hidden />
-    if (payload === 'translate_workspace') return <Languages className={PLACEHOLDER_CLS} aria-hidden />
     if (payload === 'clipboard') return <ClipboardList className={PLACEHOLDER_CLS} aria-hidden />
     return <AppWindow className={PLACEHOLDER_CLS} aria-hidden />
   }

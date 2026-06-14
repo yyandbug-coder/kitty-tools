@@ -2,7 +2,7 @@
 //!
 //! Combines tray items from both clipboard-history and translate apps:
 //! clipboard toggle, selection translate, screenshot translate,
-//! translate workspace, settings, and quit.
+//! settings, and quit.
 //!
 //! Right-click: show context menu. Left-click: open main hub (feature home page).
 
@@ -22,7 +22,6 @@ const TRAY_CLIPBOARD_ID: &str = "tray-clipboard";
 const TRAY_LAUNCHER_ID: &str = "tray-launcher";
 const TRAY_SELECTION_ID: &str = "tray-selection";
 const TRAY_SCREENSHOT_ID: &str = "tray-screenshot";
-const TRAY_WORKSPACE_ID: &str = "tray-workspace";
 const TRAY_SETTINGS_ID: &str = "tray-settings";
 const TRAY_QUIT_ID: &str = "tray-quit";
 
@@ -67,7 +66,6 @@ fn hotkey_display_for_tray(h: &str) -> String {
 /// ├── 划词翻译 {shortcut}
 /// ├── 截图翻译 {shortcut}
 /// ├── ────────────
-/// ├── 翻译工作台
 /// ├── 打开主界面...
 /// ├── ────────────
 /// └── 退出
@@ -130,14 +128,6 @@ pub fn build_tray<R: Runtime>(
             }
             TRAY_SCREENSHOT_ID => {
                 let _ = app.emit("hotkey-screenshot-translate", ());
-            }
-            TRAY_WORKSPACE_ID => {
-                let app_main = app.clone();
-                let _ = app.run_on_main_thread(move || {
-                    if let Err(e) = window::show_translate_workspace(&app_main) {
-                        eprintln!("[kitty-tools] 翻译工作台（托盘菜单）: {}", e);
-                    }
-                });
             }
             TRAY_SETTINGS_ID => {
                 let app_main = app.clone();
@@ -247,13 +237,6 @@ fn build_tray_menu<R: Runtime>(
         None::<&str>,
     )?;
     let sep1 = PredefinedMenuItem::separator(app)?;
-    let tray_workspace = MenuItem::with_id(
-        app,
-        TRAY_WORKSPACE_ID,
-        "翻译工作台",
-        true,
-        None::<&str>,
-    )?;
     let tray_settings = MenuItem::with_id(
         app,
         TRAY_SETTINGS_ID,
@@ -272,7 +255,6 @@ fn build_tray_menu<R: Runtime>(
             &tray_selection,
             &tray_screenshot,
             &sep1,
-            &tray_workspace,
             &tray_settings,
             &sep2,
             &tray_quit,

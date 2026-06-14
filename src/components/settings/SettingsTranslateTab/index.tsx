@@ -297,7 +297,7 @@ export default function SettingsTranslateTab({
           <div className="mt-4 flex flex-col gap-2 border-t border-border/60 pt-4">
             <div className="flex min-w-0 items-start gap-1">
               <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-muted-foreground">
-                设置工作区、划词与截图的<strong className="font-medium text-foreground">默认源/目标语言</strong>，详情见帮助。
+                设置划词与截图的<strong className="font-medium text-foreground">默认源/目标语言</strong>，详情见帮助。
               </p>
               <Tooltip>
                 <TooltipTrigger asChild>

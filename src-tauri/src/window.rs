@@ -1,7 +1,7 @@
 //! Window management for the consolidated kitty-tools app.
 //!
-//! Manages 6 windows: clipboard-popup, launcher, floating, region-select,
-//! translate-workspace, and settings. Provides platform-specific
+//! Manages 5 windows: clipboard-popup, launcher, floating, region-select,
+//! and settings. Provides platform-specific
 //! show/hide/toggle logic for macOS (activation policy, frontmost app tracking)
 //! and Windows (SetForegroundWindow).
 
@@ -18,7 +18,6 @@ pub const WINDOW_CLIPBOARD_POPUP: &str = "clipboard-popup";
 pub const WINDOW_LAUNCHER: &str = "launcher";
 pub const WINDOW_FLOATING: &str = "floating";
 pub const WINDOW_REGION_SELECT: &str = "region-select";
-pub const WINDOW_TRANSLATE_WORKSPACE: &str = "translate-workspace";
 pub const WINDOW_SETTINGS: &str = "settings";
 
 /// 窗口语义枚举：供外部模块（lib.rs / tray.rs）做集中分发，避免重复 if/else。
@@ -30,7 +29,6 @@ pub enum WindowKind {
     Launcher,
     Floating,
     RegionSelect,
-    TranslateWorkspace,
     Settings,
 }
 
@@ -43,7 +41,6 @@ impl WindowKind {
             WindowKind::Launcher => WINDOW_LAUNCHER,
             WindowKind::Floating => WINDOW_FLOATING,
             WindowKind::RegionSelect => WINDOW_REGION_SELECT,
-            WindowKind::TranslateWorkspace => WINDOW_TRANSLATE_WORKSPACE,
             WindowKind::Settings => WINDOW_SETTINGS,
         }
     }
@@ -806,53 +803,6 @@ pub fn hide_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
     Ok(())
 }
 
-// ── Translate workspace window ──────────────────────────────────────────
-
-/// Get or create the translate workspace window.
-///
-/// 800x600，**无系统标题栏**（与启动器/剪贴板浮层一致）、可调整、居中、初始不可见；前端须设 `data-tauri-drag-region`。
-/// Registers close-to-hide handler.
-pub fn get_or_create_translate_workspace_window<R: Runtime>(
-    app: &tauri::AppHandle<R>,
-) -> tauri::Result<WebviewWindow<R>> {
-    if let Some(w) = app.get_webview_window(WINDOW_TRANSLATE_WORKSPACE) {
-        return Ok(w);
-    }
-
-    let window = WebviewWindow::builder(
-        app,
-        WINDOW_TRANSLATE_WORKSPACE,
-        webview_url("html/translate-workspace.html"),
-    )
-    .title("Kitty 翻译 · 工作台")
-    .inner_size(800.0, 600.0)
-    .min_inner_size(560.0, 400.0)
-    .decorations(false)
-    .resizable(true)
-    .center()
-    .visible(false)
-    .build()?;
-    apply_windows_webview_post_create(&window);
-
-    let w_clone = window.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
-            api.prevent_close();
-            let _ = w_clone.hide();
-        }
-    });
-
-    Ok(window)
-}
-
-/// Show the translate workspace window.
-pub fn show_translate_workspace<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let window = get_or_create_translate_workspace_window(app)?;
-    window.show()?;
-    window.set_focus()?;
-    Ok(())
-}
-
 // ── Tray-only app helpers ───────────────────────────────────────────────
 
 /// macOS：托盘/浮层模式——Accessory，不占用程序坞（与「仅打开设置时显示 Dock」配合）。
@@ -881,7 +831,6 @@ pub fn ensure_tray_only_app<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
             WINDOW_LAUNCHER,
             WINDOW_FLOATING,
             WINDOW_REGION_SELECT,
-            WINDOW_TRANSLATE_WORKSPACE,
         ] {
             if let Some(window) = app.get_webview_window(label) {
                 let _ = window.set_skip_taskbar(true);

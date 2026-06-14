@@ -34,7 +34,6 @@ interface StepMeta {
 
 const MOCK_LAUNCHER_ROWS: { title: string; sub: string }[] = [
   { title: '设置', sub: '打开应用设置' },
-  { title: '翻译工作区', sub: '打开浮窗与翻译' },
   { title: '剪贴板历史', sub: '呼出历史面板' },
   { title: '在浏览器中打开官网', sub: '示例：输入 https://' }
 ]
@@ -254,7 +253,7 @@ export default function WelcomeOnboarding({ onComplete }: WelcomeOnboardingProps
         icon: CheckCircle2,
         panel: (
           <div className="space-y-3 text-sm text-muted-foreground">
-            <p>托盘菜单中通常包含：剪贴板、启动器、划词、截图、翻译工作区、设置、退出 等，与本次引导内容一致。</p>
+            <p>托盘菜单中通常包含：剪贴板、启动器、划词、截图、打开主界面、退出 等，与本次引导内容一致。</p>
             <p>
               若你希望开机自动启动，可在 <strong className="text-foreground/90">设置</strong>{' '}
               中开启自启动；完成下方按钮后，本页不会再自动弹出（除非你重置「首次运行」相关配置）。

@@ -9,7 +9,38 @@ import {
   type JsonEditor,
 } from 'vanilla-jsoneditor'
 import 'vanilla-jsoneditor/themes/jse-theme-dark.css'
+import '@/assets/styles/json-editor-overrides.css'
 import { JSON_EDITOR_ZH_PROPS } from '@/lib/json-editor-i18n'
+import {
+  injectJsonEditorCriticalOverrides,
+  startJsonEditorOverrideWatcher,
+  stopJsonEditorOverrideWatcher,
+} from '@/lib/json-editor-inject-overrides'
+import { cn } from '@/lib/utils'
+
+const OVERRIDE_STYLE_ID = 'kitty-json-editor-overrides-priority'
+
+/** 将 Vite 注入的 link 样式（若有）移到 head 末尾 */
+function bumpBundledOverrideStyles(): void {
+  const existing = document.getElementById(OVERRIDE_STYLE_ID)
+  if (existing) {
+    document.head.appendChild(existing)
+    return
+  }
+
+  const sheets = Array.from(document.styleSheets)
+  for (const sheet of sheets) {
+    const owner = sheet.ownerNode
+    if (
+      owner instanceof HTMLLinkElement &&
+      owner.href.includes('json-editor-overrides')
+    ) {
+      owner.id = OVERRIDE_STYLE_ID
+      document.head.appendChild(owner)
+      return
+    }
+  }
+}
 
 function filterUnchangedProps(
   props: JSONEditorPropsOptional,
@@ -35,14 +66,15 @@ export default function VanillaJsonEditor({
   className,
   ...props
 }: VanillaJsonEditorProps) {
-  const refContainer = useRef<HTMLDivElement>(null)
+  const hostRef = useRef<HTMLDivElement>(null)
+  const mountRef = useRef<HTMLDivElement>(null)
   const refEditor = useRef<JsonEditor | null>(null)
   const refPrevProps = useRef<JSONEditorPropsOptional>({})
   const propsRef = useRef({ ...JSON_EDITOR_ZH_PROPS, ...props })
   propsRef.current = { ...JSON_EDITOR_ZH_PROPS, ...props }
 
   useEffect(() => {
-    const target = refContainer.current
+    const target = mountRef.current
     if (!target) return
 
     const editor = createJSONEditor({
@@ -52,11 +84,15 @@ export default function VanillaJsonEditor({
     refEditor.current = editor
     refPrevProps.current = {}
 
-    // 挂载后再推一次 props，避免首屏 content 未渲染（尤其 lazy + StrictMode 场景）
     editor.updateProps(propsRef.current)
-    void editor.refresh()
+    startJsonEditorOverrideWatcher()
+    void editor.refresh().then(() => {
+      bumpBundledOverrideStyles()
+      injectJsonEditorCriticalOverrides()
+    })
 
     return () => {
+      stopJsonEditorOverrideWatcher()
       void editor.destroy()
       refEditor.current = null
       refPrevProps.current = {}
@@ -75,18 +111,21 @@ export default function VanillaJsonEditor({
   }, [props])
 
   useEffect(() => {
-    const el = refContainer.current
+    const el = hostRef.current
     if (!el) return
     el.classList.toggle('jse-theme-dark', isDarkMode)
     void refEditor.current?.refresh()
+    injectJsonEditorCriticalOverrides()
   }, [isDarkMode])
 
   return (
     <div
-      ref={refContainer}
-      className={className}
-      style={{ height: '100%', width: '100%', minHeight: 0 }}
-    />
+      ref={hostRef}
+      data-kitty-json-editor
+      className={cn('kitty-json-editor-host h-full w-full min-h-0', className)}
+    >
+      <div ref={mountRef} className="h-full w-full min-h-0" />
+    </div>
   )
 }
 

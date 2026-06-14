@@ -1,0 +1,138 @@
+/**
+ * JSON 编辑器样式覆写：主题变量对齐 + 插入线轻量美化（保留库 height:0 机制，避免空行）。
+ */
+.kitty-json-editor-host {
+  --jse-font-family: var(--font-sans);
+  --jse-font-family-mono: var(--font-mono);
+  --jse-font-size: 0.875rem;
+  --jse-font-size-mono: 0.8125rem;
+  --jse-line-height: 1.5;
+  --jse-padding: 8px;
+  --jse-indent-size: 1.125rem;
+  --jse-context-menu-pointer-size: 1.25rem;
+  --kitty-jse-insert-line: color-mix(in oklch, var(--border) 70%, var(--muted-foreground));
+  --kitty-jse-insert-line-active: color-mix(in oklch, var(--primary) 55%, var(--border));
+
+  --jse-background-color: var(--background);
+  --jse-text-color: var(--foreground);
+  --jse-theme-color: var(--primary);
+  --jse-theme-color-highlight: color-mix(in oklch, var(--primary) 85%, white);
+  --jse-main-border: 1px solid var(--border);
+  --jse-panel-background: var(--muted);
+  --jse-panel-border: 1px solid var(--border);
+  --jse-navigation-bar-background: var(--muted);
+  --jse-navigation-bar-background-highlight: var(--accent);
+  --jse-navigation-bar-dropdown-color: var(--foreground);
+  --jse-hover-background-color: color-mix(in oklch, var(--accent) 55%, transparent);
+  --jse-selection-background-color: color-mix(in oklch, var(--primary) 18%, transparent);
+  --jse-selection-background-inactive-color: color-mix(in oklch, var(--muted) 80%, transparent);
+  --jse-key-color: color-mix(in oklch, var(--primary) 70%, var(--foreground));
+  --jse-delimiter-color: var(--muted-foreground);
+  --jse-edit-outline: 2px solid var(--ring);
+  --jse-context-menu-background: var(--popover);
+  --jse-context-menu-background-highlight: var(--accent);
+  --jse-context-menu-color: var(--popover-foreground);
+  --jse-context-menu-pointer-background: var(--secondary);
+  --jse-context-menu-pointer-background-highlight: var(--primary);
+  --jse-context-menu-pointer-color: var(--primary-foreground);
+  --jse-context-menu-pointer-hover-background: var(--primary);
+  --jse-collapsed-items-background-color: var(--muted);
+  --jse-collapsed-items-link-color: var(--muted-foreground);
+  --jse-collapsed-items-link-color-highlight: var(--primary);
+}
+
+.kitty-json-editor-host.jse-theme-dark {
+  --jse-value-color-string: oklch(0.78 0.12 55);
+  --jse-value-color-number: oklch(0.82 0.1 135);
+  --jse-value-color-boolean: oklch(0.72 0.14 250);
+  --jse-value-color-null: oklch(0.68 0.1 250);
+}
+
+/* 导航栏 */
+.kitty-json-editor-host .jse-navigation-bar {
+  min-height: 2rem !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-left: none !important;
+  border-right: none !important;
+  background: color-mix(in oklch, var(--muted) 65%, transparent) !important;
+}
+
+.kitty-json-editor-host .jse-navigation-bar button.jse-navigation-bar-button {
+  border-radius: calc(var(--radius) - 4px) !important;
+  font-size: 0.75rem !important;
+  padding: 0.125rem 0.375rem !important;
+}
+
+.kitty-json-editor-host .jse-navigation-bar button.jse-navigation-bar-button:hover,
+.kitty-json-editor-host .jse-navigation-bar button.jse-navigation-bar-button:focus {
+  background: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+}
+
+/*
+ * 插入线：沿用库 height:0 + outline 画线（不占垂直空间），仅改为细虚线并适配主题色。
+ * 勿改 height / flex / display，否则会撑出空行。
+ */
+.kitty-json-editor-host .jse-json-node .jse-insert-area {
+  height: 0 !important;
+  min-width: 4rem !important;
+  max-width: 11rem !important;
+  outline: 1px dashed var(--kitty-jse-insert-line) !important;
+}
+
+.kitty-json-editor-host .jse-json-node .jse-insert-area.jse-hovered {
+  outline-style: solid !important;
+  outline-color: var(--kitty-jse-insert-line-active) !important;
+}
+
+.kitty-json-editor-host .jse-json-node:hover .jse-insert-area {
+  outline-color: color-mix(in oklch, var(--kitty-jse-insert-line-active) 75%, var(--kitty-jse-insert-line)) !important;
+}
+
+.kitty-json-editor-host .jse-json-node .jse-context-menu-pointer {
+  border-radius: calc(var(--radius) - 6px) !important;
+  box-shadow: none !important;
+}
+
+.kitty-json-editor-host .jse-json-node .jse-context-menu-pointer:hover,
+.kitty-json-editor-host .jse-json-node .jse-context-menu-pointer:focus {
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+/* 行悬停圆角 */
+.kitty-json-editor-host .jse-json-node .jse-key-outer,
+.kitty-json-editor-host .jse-json-node .jse-value-outer,
+.kitty-json-editor-host .jse-json-node .jse-header,
+.kitty-json-editor-host .jse-json-node .jse-footer {
+  border-radius: calc(var(--radius) - 6px);
+}
+
+/* 右键菜单 */
+.kitty-json-editor-host .jse-context-menu {
+  border-radius: var(--radius) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-md) !important;
+  overflow: hidden;
+}
+
+.kitty-json-editor-host .jse-context-menu-tip {
+  font-size: 0.6875rem !important;
+  color: var(--muted-foreground) !important;
+  background: color-mix(in oklch, var(--muted) 80%, transparent) !important;
+}
+
+.kitty-json-editor-host .jse-context-menu button {
+  border-radius: calc(var(--radius) - 6px);
+  font-size: 0.8125rem !important;
+}
+
+/* 文本模式 */
+.kitty-json-editor-host .cm-editor {
+  font-family: var(--font-mono) !important;
+  font-size: 0.8125rem !important;
+}
+
+.kitty-json-editor-host .cm-scroller {
+  font-family: inherit !important;
+}

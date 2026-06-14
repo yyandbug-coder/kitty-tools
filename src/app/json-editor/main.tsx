@@ -12,6 +12,7 @@ import JsonEditorPanel from '@/components/json-editor/JsonEditorPanel'
 import GlobalToaster from '@/components/shared/GlobalToaster'
 import { cn } from '@/lib/utils'
 import '@/assets/styles/tailwind/index.css'
+import '@/assets/styles/json-editor-overrides.css'
 
 function JsonEditorApp() {
   const { config, loaded } = useAppConfig()

@@ -1,7 +1,7 @@
 /**
  * vanilla-jsoneditor 的 React 包装器：生命周期管理、主题切换、仅传递变更 props。
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import {
   createJSONEditor,
   type Content,
@@ -20,11 +20,13 @@ import { cn } from '@/lib/utils'
 
 const OVERRIDE_STYLE_ID = 'kitty-json-editor-overrides-priority'
 
-/** 将 Vite 注入的 link 样式（若有）移到 head 末尾 */
+/** 将 Vite 注入的 link 样式（若有）移到 head 末尾（已是末尾则跳过，避免触发样式监听器死循环） */
 function bumpBundledOverrideStyles(): void {
   const existing = document.getElementById(OVERRIDE_STYLE_ID)
   if (existing) {
-    document.head.appendChild(existing)
+    if (document.head.lastElementChild !== existing) {
+      document.head.appendChild(existing)
+    }
     return
   }
 
@@ -36,7 +38,9 @@ function bumpBundledOverrideStyles(): void {
       owner.href.includes('json-editor-overrides')
     ) {
       owner.id = OVERRIDE_STYLE_ID
-      document.head.appendChild(owner)
+      if (document.head.lastElementChild !== owner) {
+        document.head.appendChild(owner)
+      }
       return
     }
   }
@@ -99,16 +103,16 @@ export default function VanillaJsonEditor({
     }
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const editor = refEditor.current
     if (!editor) return
-    const merged = { ...JSON_EDITOR_ZH_PROPS, ...props }
+    const merged = propsRef.current
     const changed = filterUnchangedProps(merged, refPrevProps.current)
     if (Object.keys(changed).length > 0) {
       editor.updateProps(changed)
     }
     refPrevProps.current = merged
-  }, [props])
+  })
 
   useEffect(() => {
     const el = hostRef.current

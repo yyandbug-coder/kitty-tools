@@ -1,7 +1,7 @@
 /**
  * JSON 编辑器分屏视图：左侧树形可编辑，右侧文本只读预览；支持拖拽调整比例，窄屏自动上下堆叠。
  */
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { Mode, type Content, type OnChangeStatus } from 'vanilla-jsoneditor'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,7 @@ import {
   JSON_EDITOR_SPLIT_MIN_RATIO,
 } from '@/types/json-editor'
 
-const LazyVanillaJsonEditor = lazy(() => import('@/components/json-editor/VanillaJsonEditor'))
+import LazyVanillaJsonEditor from '@/components/json-editor/lazyVanillaJsonEditor'
 
 interface JsonEditorSplitViewProps {
   content: Content

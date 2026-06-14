@@ -110,6 +110,29 @@ export function isJsonContentValid(errors: ContentErrors | undefined): boolean {
   return true
 }
 
+/** 是否为空白/默认占位 JSON（新建后未编辑） */
+export function isBlankJsonContent(content: Content): boolean {
+  const serialized = contentToFileText(content, 2) ?? ''
+  const trimmed = serialized.trim()
+  return trimmed === '' || trimmed === '{\n  \n}' || trimmed === '{}'
+}
+
+/** 提取首条校验/解析错误文案，供状态栏展示 */
+export function getJsonContentErrorMessage(errors: ContentErrors | undefined): string | null {
+  if (!errors) return null
+  if (isContentParseError(errors)) {
+    const { message, line, column } = errors.parseError
+    if (line != null && column != null) {
+      return `${message}（第 ${line} 行，第 ${column} 列）`
+    }
+    return message
+  }
+  if (isContentValidationErrors(errors) && errors.validationErrors.length > 0) {
+    return errors.validationErrors[0].message
+  }
+  return null
+}
+
 /** 从完整路径提取文件名 */
 export function basenameFromPath(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/')

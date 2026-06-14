@@ -1,7 +1,7 @@
 /**
  * JSON 编辑器面板：工具栏（新建/打开/保存/格式化/压缩/模式切换）、编辑区（单栏或分屏预览）、状态栏。
  */
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -39,13 +39,17 @@ import {
   compactContent,
   contentToFileText,
   createDefaultJsonContent,
+  getJsonContentErrorMessage,
+  isBlankJsonContent,
   isJsonContentValid,
   textToEditorContent,
 } from '@/lib/json-editor'
+import { isMacOs } from '@/lib/platform'
 import type { JsonEditorViewMode } from '@/types/json-editor'
 import JsonEditorSplitView from '@/components/json-editor/JsonEditorSplitView'
+import LazyVanillaJsonEditor from '@/components/json-editor/lazyVanillaJsonEditor'
 
-const LazyVanillaJsonEditor = lazy(() => import('@/components/json-editor/VanillaJsonEditor'))
+const DIRTY_CHECK_DELAY_MS = 200
 
 function viewModeToEditorMode(mode: JsonEditorViewMode): Mode {
   return mode === 'text' ? Mode.text : Mode.tree
@@ -56,7 +60,8 @@ function editorModeToViewMode(mode: Mode): JsonEditorViewMode {
 }
 
 export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean }) {
-  const [content, setContent] = useState<Content>(() => createDefaultJsonContent())
+  const defaultContent = useMemo(() => createDefaultJsonContent(), [])
+  const [content, setContent] = useState<Content>(() => defaultContent)
   const [editorSession, setEditorSession] = useState(0)
   const [viewMode, setViewMode] = useState<JsonEditorViewMode>('tree')
   const [filePath, setFilePath] = useState<string | null>(null)
@@ -64,24 +69,39 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
   const [contentErrors, setContentErrors] = useState<ContentErrors | undefined>(undefined)
   const [closeDialogOpen, setCloseDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const baselineRef = useRef<string>('')
+  const baselineRef = useRef<string>(contentToFileText(defaultContent, 2) ?? '')
+  const dirtyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isValid = isJsonContentValid(contentErrors)
+  const errorMessage = getJsonContentErrorMessage(contentErrors)
   const displayName = filePath ? basenameFromPath(filePath) : '未命名.json'
+  const modKeyLabel = isMacOs() ? '⌘' : 'Ctrl'
 
   const markBaseline = useCallback((nextContent: Content) => {
     baselineRef.current = contentToFileText(nextContent, 2) ?? ''
     setDirty(false)
   }, [])
 
+  const scheduleDirtyCheck = useCallback((next: Content) => {
+    if (dirtyTimerRef.current) {
+      clearTimeout(dirtyTimerRef.current)
+    }
+    dirtyTimerRef.current = setTimeout(() => {
+      const serialized = contentToFileText(next, 2) ?? ''
+      if (serialized === baselineRef.current) {
+        setDirty(false)
+      }
+    }, DIRTY_CHECK_DELAY_MS)
+  }, [])
+
   const handleChange = useCallback(
     (next: Content, _prev: Content, status: { contentErrors: ContentErrors | undefined }) => {
       setContent(next)
       setContentErrors(status.contentErrors)
-      const serialized = contentToFileText(next, 2) ?? ''
-      setDirty(serialized !== baselineRef.current)
+      setDirty(true)
+      scheduleDirtyCheck(next)
     },
-    []
+    [scheduleDirtyCheck]
   )
 
   const handleNew = useCallback(() => {
@@ -192,6 +212,10 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
     toast.error(err instanceof Error ? err.message : String(err))
   }, [])
 
+  const handleEditorModeChange = useCallback((mode: Mode) => {
+    setViewMode(editorModeToViewMode(mode))
+  }, [])
+
   const hideWindow = useCallback(async () => {
     await getCurrentWindow().hide()
   }, [])
@@ -210,22 +234,13 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
   }, [handleSave, hideWindow])
 
   useEffect(() => {
-    markBaseline(createDefaultJsonContent())
-  }, [markBaseline])
-
-  useEffect(() => {
     let unlistenFocus: (() => void) | undefined
     let unlistenClose: (() => void) | undefined
 
     void listen('focus-json-editor-panel', () => {
       if (filePath) return
       setContent((prev) => {
-        const serialized = contentToFileText(prev, 2) ?? ''
-        const isBlank =
-          serialized.trim() === '' ||
-          serialized.trim() === '{\n  \n}' ||
-          serialized.trim() === '{}'
-        if (!isBlank) return prev
+        if (!isBlankJsonContent(prev)) return prev
         setEditorSession((n) => n + 1)
         return createDefaultJsonContent()
       })
@@ -249,15 +264,44 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
     }
   }, [dirty, filePath, hideWindow])
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return
+
+      const key = e.key.toLowerCase()
+      if (key === 's') {
+        e.preventDefault()
+        void handleSave()
+      } else if (key === 'o') {
+        e.preventDefault()
+        void handleOpen()
+      } else if (key === 'n') {
+        e.preventDefault()
+        handleNew()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [handleNew, handleOpen, handleSave])
+
+  useEffect(() => {
+    return () => {
+      if (dirtyTimerRef.current) {
+        clearTimeout(dirtyTimerRef.current)
+      }
+    }
+  }, [])
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground">
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/60 px-3 py-2">
         <div className="flex flex-wrap items-center gap-1">
-          <Button variant="outline" size="sm" onClick={handleNew} title="新建">
+          <Button variant="outline" size="sm" onClick={handleNew} title={`新建 (${modKeyLabel}+N)`}>
             <FilePlus2 className="size-4" />
             <span className="hidden sm:inline">新建</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => void handleOpen()} title="打开">
+          <Button variant="outline" size="sm" onClick={() => void handleOpen()} title={`打开 (${modKeyLabel}+O)`}>
             <FolderOpen className="size-4" />
             <span className="hidden sm:inline">打开</span>
           </Button>
@@ -266,7 +310,7 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
             size="sm"
             onClick={() => void handleSave()}
             disabled={saving}
-            title="保存"
+            title={`保存 (${modKeyLabel}+S)`}
           >
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
             <span className="hidden sm:inline">保存</span>
@@ -337,7 +381,7 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
               content={content}
               mode={viewModeToEditorMode(viewMode)}
               onChange={handleChange}
-              onChangeMode={(mode) => setViewMode(editorModeToViewMode(mode))}
+              onChangeMode={handleEditorModeChange}
               onError={handleEditorError}
               mainMenuBar={false}
               navigationBar
@@ -365,6 +409,11 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
         >
           {isValid ? '✓ 有效' : '✗ 无效'}
         </span>
+        {!isValid && errorMessage && (
+          <span className="min-w-0 flex-1 truncate" title={errorMessage}>
+            {errorMessage}
+          </span>
+        )}
       </footer>
 
       <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>

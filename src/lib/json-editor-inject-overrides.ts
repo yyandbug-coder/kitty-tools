@@ -22,15 +22,30 @@ const CRITICAL_CSS = `
 
 let headObserver: MutationObserver | null = null
 let watcherRefCount = 0
+let injectingOverrides = false
+
+/** 仅在元素不是 head 最后一个子节点时移动，避免 appendChild 触发 MutationObserver 死循环 */
+function moveToHeadEnd(node: HTMLElement): void {
+  if (document.head.lastElementChild === node) return
+  document.head.appendChild(node)
+}
 
 export function injectJsonEditorCriticalOverrides(): void {
-  let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null
-  if (!el) {
-    el = document.createElement('style')
-    el.id = STYLE_ID
-    el.textContent = CRITICAL_CSS
+  if (injectingOverrides) return
+  injectingOverrides = true
+  try {
+    let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null
+    if (!el) {
+      el = document.createElement('style')
+      el.id = STYLE_ID
+      el.textContent = CRITICAL_CSS
+      document.head.appendChild(el)
+      return
+    }
+    moveToHeadEnd(el)
+  } finally {
+    injectingOverrides = false
   }
-  document.head.appendChild(el)
 }
 
 /** 监听 head 新增样式（vanilla-jsoneditor 运行时注入），始终把覆写样式移到末尾 */
@@ -40,7 +55,15 @@ export function startJsonEditorOverrideWatcher(): void {
 
   if (headObserver) return
 
-  headObserver = new MutationObserver(() => {
+  headObserver = new MutationObserver((mutations) => {
+    const styleAdded = mutations.some((m) =>
+      Array.from(m.addedNodes).some(
+        (node) =>
+          node instanceof HTMLStyleElement ||
+          (node instanceof HTMLLinkElement && node.rel === 'stylesheet')
+      )
+    )
+    if (!styleAdded) return
     injectJsonEditorCriticalOverrides()
   })
   headObserver.observe(document.head, { childList: true })

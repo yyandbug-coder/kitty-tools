@@ -1,10 +1,11 @@
-// 主应用壳层 - 主页与设置页切换，统一窗口标题栏与关闭逻辑
-import { lazy, Suspense, useCallback, useState, useMemo, type CSSProperties } from 'react'
+// 主应用壳层 - 欢迎引导、功能主页与设置页切换，统一窗口标题栏与关闭逻辑
+import { lazy, Suspense, useCallback, useEffect, useState, useMemo, type CSSProperties } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { ArrowLeft, Settings, X } from 'lucide-react'
+import { ArrowLeft, Settings, Sparkles, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useKittyIsDarkMode } from '@/hooks/useKittyIsDarkMode'
+import { useTauriEvent } from '@/hooks/useTauriEvent'
 import { getThemeRuntimeStyle } from '@/lib/theme'
 import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
 import { APP_DISPLAY_NAME } from '@/lib/app-meta'
@@ -12,6 +13,7 @@ import type { AppTheme } from '@/types'
 import AppLogoIcon from '@/components/shared/AppLogoIcon'
 import GlobalToaster from '@/components/shared/GlobalToaster'
 import HomePage from '@/components/home/HomePage'
+import WelcomeOnboarding from '@/components/onboarding/WelcomeOnboarding'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -28,16 +30,32 @@ function SettingsPanelFallback() {
   )
 }
 
-export type MainAppView = 'home' | 'settings'
+export type MainAppView = 'welcome' | 'home' | 'settings'
 
 export default function MainAppShell() {
   const { config, loaded } = useAppConfig()
   const [view, setView] = useState<MainAppView>('home')
+  const [viewInitialized, setViewInitialized] = useState(false)
   const isDarkMode = useKittyIsDarkMode(config.theme)
   const appStyle = useMemo(
     () => getThemeRuntimeStyle(config.appThemePreset as AppTheme, config.customHue, isDarkMode) as CSSProperties,
     [config.appThemePreset, config.customHue, isDarkMode]
   )
+
+  useEffect(() => {
+    if (!loaded || viewInitialized) return
+    setView(config.firstRun ? 'welcome' : 'home')
+    setViewInitialized(true)
+  }, [loaded, config.firstRun, viewInitialized])
+
+  useTauriEvent('show-welcome-onboarding', () => {
+    setView('welcome')
+  })
+
+  const handleOpenWelcomeDebug = useCallback(() => {
+    setView('welcome')
+    toast.success('已打开欢迎引导（开发调试）', { duration: 2500 })
+  }, [])
 
   const handleCloseWindow = useCallback(() => {
     void invoke('hide_settings_window').catch((err) => {
@@ -63,14 +81,35 @@ export default function MainAppShell() {
     )
   }
 
-  const headerTitle = view === 'home' ? APP_DISPLAY_NAME : `${APP_DISPLAY_NAME} 设置`
+  const headerTitle =
+    view === 'welcome'
+      ? `${APP_DISPLAY_NAME} · 新手指引`
+      : view === 'home'
+        ? APP_DISPLAY_NAME
+        : `${APP_DISPLAY_NAME} 设置`
+
+  const themeShellClass = cn(
+    'flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
+    isDarkMode && 'dark'
+  )
+
+  if (view === 'welcome') {
+    return (
+      <div
+        className={themeShellClass}
+        data-kitty-theme-scope
+        data-theme={config.appThemePreset}
+        style={appStyle}
+      >
+        <WelcomeOnboarding onComplete={() => setView('home')} />
+        <GlobalToaster />
+      </div>
+    )
+  }
 
   return (
     <div
-      className={cn(
-        'flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground',
-        isDarkMode && 'dark'
-      )}
+      className={themeShellClass}
       data-kitty-theme-scope
       data-theme={config.appThemePreset}
       style={appStyle}
@@ -97,6 +136,19 @@ export default function MainAppShell() {
           </h1>
         </div>
         <div className="flex shrink-0 items-center gap-0.5" data-no-drag="true">
+          {import.meta.env.DEV ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-8 text-muted-foreground hover:text-primary"
+              onClick={handleOpenWelcomeDebug}
+              aria-label="调试欢迎引导"
+              title="开发调试：预览欢迎引导"
+            >
+              <Sparkles className="size-4" aria-hidden />
+            </Button>
+          ) : null}
           {view === 'home' ? (
             <Button
               type="button"
@@ -127,6 +179,7 @@ export default function MainAppShell() {
           <HomePage
             onNavigateSettings={() => setView('settings')}
             onOpenExternalFeature={handleOpenExternalFeature}
+            onOpenWelcomeDebug={handleOpenWelcomeDebug}
           />
         ) : (
           <Suspense fallback={<SettingsPanelFallback />}>

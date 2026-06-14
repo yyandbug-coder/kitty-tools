@@ -66,15 +66,17 @@ export default function SettingsShortcutsTab({ config, updateConfig }: SettingsS
               size="sm"
               className="gap-1.5"
               onClick={() => {
-                void invoke('show_onboarding_window_cmd')
-                  .then(() => toast.success('已打开引导页'))
+                void invoke('show_welcome_onboarding_cmd')
+                  .then(() => toast.success('已在主窗口打开引导'))
                   .catch((e: unknown) => toast.error(getInvokeErrorMessage(e)))
               }}
             >
               <Sparkles className="size-3.5" />
               打开引导页
             </Button>
-            <p className="mt-2 text-xs text-muted-foreground">仅开发环境显示，用于预览首次引导界面。</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              仅开发环境显示。也可点击主窗口标题栏右侧 ✨ 图标预览欢迎引导。
+            </p>
           </div>
         ) : null}
         <div className="divide-y divide-border">

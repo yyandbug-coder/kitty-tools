@@ -7,11 +7,14 @@ import { buildFeatureCatalog } from '@/lib/feature-catalog'
 import { getInvokeErrorMessage } from '@/lib/invoke-helpers'
 import type { FeatureAction } from '@/types/features'
 import FeatureCard from '@/components/home/FeatureCard'
+import DevDebugBar from '@/components/home/DevDebugBar'
 import { APP_DISPLAY_NAME } from '@/lib/app-meta'
 
 export interface HomePageProps {
   onNavigateSettings: () => void
   onOpenExternalFeature?: () => void
+  /** 开发模式：预览欢迎引导 */
+  onOpenWelcomeDebug?: () => void
 }
 
 /** 打开独立浮层/工作台后隐藏主窗口，避免遮挡 */
@@ -23,7 +26,7 @@ const HIDE_MAIN_AFTER_INVOKE = new Set([
   'start_screenshot_translate',
 ])
 
-export default function HomePage({ onNavigateSettings, onOpenExternalFeature }: HomePageProps) {
+export default function HomePage({ onNavigateSettings, onOpenExternalFeature, onOpenWelcomeDebug }: HomePageProps) {
   const { config } = useAppConfig()
   const categories = useMemo(() => buildFeatureCatalog(config), [config])
 
@@ -57,6 +60,8 @@ export default function HomePage({ onNavigateSettings, onOpenExternalFeature }: 
             一站式桌面效率工具集。选择下方功能即可打开，也可通过全局快捷键随时唤起。
           </p>
         </section>
+
+        {onOpenWelcomeDebug ? <DevDebugBar onOpenWelcome={onOpenWelcomeDebug} /> : null}
 
         {categories.map((category) => (
           <section key={category.id} className="space-y-3" aria-labelledby={`category-${category.id}`}>

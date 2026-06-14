@@ -1,7 +1,6 @@
 // 欢迎引导页 - 首次使用时分步介绍启动器、剪贴板、翻译等，并含本地可交互的启动器「模拟搜索」
 import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -94,7 +93,12 @@ function MockLauncherSearchDemo() {
 
 const SKIP_COOLDOWN_SEC = 15
 
-export default function WelcomeOnboarding() {
+export interface WelcomeOnboardingProps {
+  /** 完成或跳过引导后进入功能主页 */
+  onComplete: () => void
+}
+
+export default function WelcomeOnboarding({ onComplete }: WelcomeOnboardingProps) {
   const { config, updateConfig } = useAppConfig()
   const [step, setStep] = useState(0)
   const [completing, setCompleting] = useState(false)
@@ -155,7 +159,8 @@ export default function WelcomeOnboarding() {
         panel: (
           <div className="space-y-3 text-sm text-muted-foreground">
             <p>
-              关闭本页后，应用会继续在<strong className="text-foreground/90">托盘区</strong>
+              完成引导后将进入<strong className="text-foreground/90">功能主页</strong>
+              ，应用会继续在<strong className="text-foreground/90">托盘区</strong>
               运行（无任务栏/程序坞图标时，请留意托盘图标）。
             </p>
             <p>
@@ -291,10 +296,10 @@ export default function WelcomeOnboarding() {
     return () => window.removeEventListener('keydown', onKey)
   }, [goNext, goPrev])
 
-  // 与 translate-workspace 等窗口一致：再次 show 时不销毁 webview；后端 emit 时回到第 1 步并重置跳过倒计时
+  // 再次打开引导时回到第 1 步并重置跳过倒计时
   useEffect(() => {
     let unlisten: UnlistenFn | undefined
-    void listen('onboarding-did-open', () => {
+    void listen('show-welcome-onboarding', () => {
       setStep(0)
       setCompleting(false)
       startSkipCountdown()
@@ -311,7 +316,7 @@ export default function WelcomeOnboarding() {
     setCompleting(true)
     try {
       await updateConfig({ firstRun: false })
-      await getCurrentWindow().hide()
+      onComplete()
     } catch {
       toast.error('初始化失败，请重试')
       setCompleting(false)
@@ -333,7 +338,7 @@ export default function WelcomeOnboarding() {
   const Icon = current.icon
 
   return (
-    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
       <header className="shrink-0 border-b border-border/60 bg-card/30 px-4 py-3 sm:px-6" data-tauri-drag-region>
         <div className="mx-auto flex w-full max-w-2xl min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -420,7 +425,7 @@ export default function WelcomeOnboarding() {
             </Button>
           ) : (
             <Button type="button" onClick={handleEnterApp} disabled={completing} className="h-9 min-w-0 flex-1">
-              {completing ? '正在保存…' : '进入应用'}
+              {completing ? '正在保存…' : '进入主页'}
             </Button>
           )}
         </div>

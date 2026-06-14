@@ -10,7 +10,7 @@ const host = process.env.TAURI_DEV_HOST
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(({ command, mode }) => ({
-  // 多 HTML 入口：必须用 mpa，否则 dev 时 SPA 回退会错判子页请求，onboarding 等子页易 404
+  // 多 HTML 入口：必须用 mpa，否则 dev 时 SPA 回退会错判子页请求，子页易 404
   appType: 'mpa',
   plugins: [
     react(),
@@ -65,7 +65,6 @@ export default defineConfig(({ command, mode }) => ({
         floating: path.resolve(rootDir, 'html/floating.html'),
         'region-select': path.resolve(rootDir, 'html/region-select.html'),
         'translate-workspace': path.resolve(rootDir, 'html/translate-workspace.html'),
-        onboarding: path.resolve(rootDir, 'html/onboarding.html'),
         launcher: path.resolve(rootDir, 'html/launcher.html')
       },
       output: {

@@ -1,7 +1,7 @@
 //! Window management for the consolidated kitty-tools app.
 //!
-//! Manages 7 windows: clipboard-popup, launcher, floating, region-select,
-//! translate-workspace, settings, and onboarding. Provides platform-specific
+//! Manages 6 windows: clipboard-popup, launcher, floating, region-select,
+//! translate-workspace, and settings. Provides platform-specific
 //! show/hide/toggle logic for macOS (activation policy, frontmost app tracking)
 //! and Windows (SetForegroundWindow).
 
@@ -20,7 +20,6 @@ pub const WINDOW_FLOATING: &str = "floating";
 pub const WINDOW_REGION_SELECT: &str = "region-select";
 pub const WINDOW_TRANSLATE_WORKSPACE: &str = "translate-workspace";
 pub const WINDOW_SETTINGS: &str = "settings";
-pub const WINDOW_ONBOARDING: &str = "onboarding";
 
 /// 窗口语义枚举：供外部模块（lib.rs / tray.rs）做集中分发，避免重复 if/else。
 /// 与 `pub fn show_*/hide_*/toggle_*` 一一对应；新窗口扩展只须在此与匹配处各加一项。
@@ -33,7 +32,6 @@ pub enum WindowKind {
     RegionSelect,
     TranslateWorkspace,
     Settings,
-    Onboarding,
 }
 
 impl WindowKind {
@@ -47,7 +45,6 @@ impl WindowKind {
             WindowKind::RegionSelect => WINDOW_REGION_SELECT,
             WindowKind::TranslateWorkspace => WINDOW_TRANSLATE_WORKSPACE,
             WindowKind::Settings => WINDOW_SETTINGS,
-            WindowKind::Onboarding => WINDOW_ONBOARDING,
         }
     }
 }
@@ -58,7 +55,7 @@ pub fn toggle<R: Runtime>(app: &tauri::AppHandle<R>, kind: WindowKind) {
     match kind {
         WindowKind::ClipboardPopup => toggle_clipboard_popup(app),
         WindowKind::Launcher => toggle_launcher(app),
-        // 其他窗口暂不支持 toggle 语义（floating 由翻译动作驱动；settings/onboarding/region-select 单向打开）。
+        // 其他窗口暂不支持 toggle 语义（floating 由翻译动作驱动；settings/region-select 单向打开）。
         _ => {}
     }
 }
@@ -131,30 +128,6 @@ fn webview_url(path: &str) -> WebviewUrl {
 #[cfg(not(debug_assertions))]
 fn webview_url(path: &str) -> WebviewUrl {
     WebviewUrl::App(path.into())
-}
-
-// ── Windows 11：无边框透明窗口的系统圆角（与标准标题栏窗口一致，避免直角外框与 CSS 圆角错位）
-#[cfg(target_os = "windows")]
-fn apply_windows_borderless_round_corners<R: Runtime>(window: &WebviewWindow<R>) {
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUNDSMALL,
-    };
-
-    let Ok(raw) = window.hwnd() else {
-        return;
-    };
-    let hwnd = HWND(raw.0 as *mut _);
-    // 与前端 `rounded-xl`（--radius-xl）尺度接近；`DWMWCP_ROUND` 偏大易与玻璃壳圆角错位
-    let preference = DWMWCP_ROUNDSMALL;
-    unsafe {
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_WINDOW_CORNER_PREFERENCE,
-            std::ptr::from_ref(&preference).cast(),
-            std::mem::size_of_val(&preference) as u32,
-        );
-    }
 }
 
 /// WebView2 默认会拦截 `Ctrl+T` 等「浏览器快捷键」，导致前端录制全局热键时只能录到三键组合（如 Ctrl+Shift+T）。
@@ -866,59 +839,6 @@ pub fn show_translate_workspace<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri:
     Ok(())
 }
 
-// ── Onboarding window ───────────────────────────────────────────────────
-
-/// Get or create the onboarding window（实例常驻、仅 hide；预载避免 dev 子页 404）
-///
-/// 560x480，**无系统标题栏**（`decorations(false)`）、不可调整大小、**始终置顶**。须在前端设 `data-tauri-drag-region` 以便拖动。
-/// 关闭请求一律忽略（须用前端完成/跳过调用 `hide()`）。
-pub fn get_or_create_onboarding_window<R: Runtime>(
-    app: &tauri::AppHandle<R>,
-) -> tauri::Result<WebviewWindow<R>> {
-    if let Some(w) = app.get_webview_window(WINDOW_ONBOARDING) {
-        return Ok(w);
-    }
-
-    let window = WebviewWindow::builder(
-        app,
-        WINDOW_ONBOARDING,
-        webview_url("html/onboarding.html"),
-    )
-    .title("Kitty Tools · 欢迎使用")
-    .inner_size(560.0, 480.0)
-    .decorations(false)
-    .resizable(false)
-    .always_on_top(true)
-    .center()
-    .visible(false)
-    .build()?;
-
-    #[cfg(target_os = "windows")]
-    {
-        apply_windows_borderless_round_corners(&window);
-        let _ = window.set_skip_taskbar(true);
-    }
-    apply_windows_webview_post_create(&window);
-
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
-            api.prevent_close();
-        }
-    });
-
-    Ok(window)
-}
-
-/// Show the onboarding window (first-run or「打开引导页」)
-pub fn show_onboarding_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let window = get_or_create_onboarding_window(app)?;
-    let _ = app.emit("onboarding-did-open", serde_json::json!({}));
-    let _ = window.set_always_on_top(true);
-    window.show()?;
-    window.set_focus()?;
-    Ok(())
-}
-
 // ── Tray-only app helpers ───────────────────────────────────────────────
 
 /// macOS：托盘/浮层模式——Accessory，不占用程序坞（与「仅打开设置时显示 Dock」配合）。
@@ -948,7 +868,6 @@ pub fn ensure_tray_only_app<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
             WINDOW_FLOATING,
             WINDOW_REGION_SELECT,
             WINDOW_TRANSLATE_WORKSPACE,
-            WINDOW_ONBOARDING,
         ] {
             if let Some(window) = app.get_webview_window(label) {
                 let _ = window.set_skip_taskbar(true);

@@ -69,10 +69,12 @@ fn hide_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), Stri
     window::hide_settings_window(&app).map_err(|e| e.to_string())
 }
 
-/// 开发调试用：打开首次运行引导窗口（生产包无入口，由前端仅在 dev 调用）。
+/// 开发调试用：打开主窗口并展示欢迎引导。
 #[tauri::command]
-fn show_onboarding_window_cmd<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    window::show_onboarding_window(&app).map_err(|e| e.to_string())
+fn show_welcome_onboarding_cmd<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    window::present_settings_window(&app).map_err(|e| e.to_string())?;
+    let _ = app.emit("show-welcome-onboarding", ());
+    Ok(())
 }
 
 /// 前端拖拽前调用：设置交互标记并启动原生拖拽，避免 startDragging 导致的短暂失焦触发自动隐藏。
@@ -784,7 +786,7 @@ pub fn run() {
             show_launcher_window,
             open_settings_window,
             hide_settings_window,
-            show_onboarding_window_cmd,
+            show_welcome_onboarding_cmd,
             exit_after_flush,
             clipboard::paste::paste_item,
             clipboard::paste::write_text_to_clipboard,
@@ -852,13 +854,12 @@ pub fn run() {
                 lang_detect::warmup_detector_blocking();
             });
 
-            // Pre-create clipboard, floating, region-select, launcher, settings and onboarding windows
+            // Pre-create clipboard, floating, region-select, launcher, settings windows
             let _ = window::get_or_create_clipboard_popup_window(app.handle());
             let _ = window::get_or_create_floating_window(app.handle());
             let _ = window::get_or_create_region_select_window(app.handle());
             let _ = window::get_or_create_launcher_window(app.handle());
             let _ = window::get_or_create_settings_window(app.handle());
-            let _ = window::get_or_create_onboarding_window(app.handle());
 
             // Handle hotkey events for translate pipelines
             let app_handle = app.handle().clone();
@@ -883,9 +884,11 @@ pub fn run() {
                 }
             });
 
-            // Show onboarding on first run
+            // 首次运行：在主窗口展示欢迎引导
             if first_run {
-                let _ = window::show_onboarding_window(app.handle());
+                let app_handle = app.handle().clone();
+                let _ = window::present_settings_window(&app_handle);
+                let _ = app_handle.emit("show-welcome-onboarding", ());
             }
 
             Ok(())

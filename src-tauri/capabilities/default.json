@@ -8,8 +8,7 @@
     "floating",
     "region-select",
     "translate-workspace",
-    "settings",
-    "onboarding"
+    "settings"
   ],
   "permissions": [
     "core:default",

@@ -52,6 +52,14 @@ export default function MainAppShell() {
     setView('welcome')
   })
 
+  useTauriEvent('show-main-home', () => {
+    setView('home')
+  })
+
+  useTauriEvent('show-main-settings', () => {
+    setView('settings')
+  })
+
   const handleOpenWelcomeDebug = useCallback(() => {
     setView('welcome')
     toast.success('已打开欢迎引导（开发调试）', { duration: 2500 })

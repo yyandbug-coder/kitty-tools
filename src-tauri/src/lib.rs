@@ -61,7 +61,7 @@ fn show_launcher_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), Stri
 
 #[tauri::command]
 fn open_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    window::present_settings_window(&app).map_err(|e| e.to_string())
+    window::present_settings_page_window(&app).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -344,7 +344,7 @@ fn floating_ready(app: tauri::AppHandle) {
 
 #[tauri::command]
 fn show_settings_window_cmd<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    window::present_settings_window(&app).map_err(|e| e.to_string())
+    window::present_settings_page_window(&app).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

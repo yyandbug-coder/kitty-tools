@@ -4,13 +4,13 @@
 //! clipboard toggle, selection translate, screenshot translate,
 //! translate workspace, settings, and quit.
 //!
-//! Right-click: show context menu. Left-click is not handled (same as `show_menu_on_left_click(false)`).
+//! Right-click: show context menu. Left-click: open main hub (feature home page).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, Runtime};
 
 use crate::window;
@@ -108,7 +108,7 @@ pub fn build_tray<R: Runtime>(
     // `mut` is required on macOS so we can swap in `build_macos_tray_icon`; unused on other targets.
     #[allow(unused_mut)]
     let mut tray_builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("Kitty Tools · 右键打开菜单")
+        .tooltip("Kitty Tools · 左键打开主界面，右键菜单")
         .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -142,8 +142,8 @@ pub fn build_tray<R: Runtime>(
             TRAY_SETTINGS_ID => {
                 let app_main = app.clone();
                 let _ = app.run_on_main_thread(move || {
-                    if let Err(e) = window::present_settings_window(&app_main) {
-                        eprintln!("[kitty-tools] 打开设置窗口失败: {}", e);
+                    if let Err(e) = window::present_main_hub_window(&app_main) {
+                        eprintln!("[kitty-tools] 打开主界面失败: {}", e);
                     }
                 });
             }
@@ -152,8 +152,21 @@ pub fn build_tray<R: Runtime>(
             }
             _ => {}
         })
-        .on_tray_icon_event(|_tray, event| {
-            let _ = event;
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                let app_main = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    if let Err(e) = window::present_main_hub_window(&app_main) {
+                        eprintln!("[kitty-tools] 托盘左键打开主界面失败: {}", e);
+                    }
+                });
+            }
         });
 
     #[cfg(target_os = "macos")]

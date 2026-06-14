@@ -39,9 +39,10 @@ export default function FeatureCard({
       size="sm"
       className={cn(
         'transition-colors',
-        isAvailable && 'hover:bg-muted/40',
+        isAvailable && 'cursor-pointer hover:bg-muted/40',
         isComingSoon && 'opacity-70'
       )}
+      onClick={isAvailable ? handleActivate : undefined}
     >
       <CardHeader className="grid grid-cols-[auto_1fr] items-start gap-3">
         <div
@@ -82,7 +83,10 @@ export default function FeatureCard({
             variant="ghost"
             size="sm"
             className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground"
-            onClick={handleActivate}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleActivate()
+            }}
           >
             打开
             <ArrowRight className="size-3.5" aria-hidden />

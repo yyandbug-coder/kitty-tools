@@ -520,7 +520,7 @@ pub async fn launcher_execute<R: Runtime>(
     match kind.as_str() {
         "action" => match payload.as_str() {
             "settings" => {
-                window::present_settings_window(&app).map_err(|e| e.to_string())?;
+                window::present_settings_page_window(&app).map_err(|e| e.to_string())?;
             }
             "translate_workspace" => {
                 window::show_translate_workspace(&app).map_err(|e| e.to_string())?;

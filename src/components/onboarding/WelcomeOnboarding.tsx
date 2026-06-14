@@ -5,7 +5,6 @@ import { useAppConfig } from '@/hooks/useAppConfig'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Kbd } from '@/components/ui/kbd'
 import ShortcutKbd from '@/components/shared/ShortcutKbd'
 import { formatShortcutForDisplay } from '@/lib/platform'
@@ -382,7 +381,7 @@ export default function WelcomeOnboarding({ onComplete }: WelcomeOnboardingProps
         </nav>
       </header>
 
-      <ScrollArea className="min-h-0 min-w-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
         <div className="mx-auto w-full max-w-2xl px-4 py-4 sm:px-6 sm:py-6">
           <Card className="border-border/80 shadow-sm">
             <CardHeader>
@@ -399,7 +398,7 @@ export default function WelcomeOnboarding({ onComplete }: WelcomeOnboardingProps
             <CardContent className="text-sm pb-2">{current.panel}</CardContent>
           </Card>
         </div>
-      </ScrollArea>
+      </div>
 
       <footer
         className="shrink-0 border-t border-border/60 bg-card/30 px-2 py-2.5 sm:px-3 sm:py-3"

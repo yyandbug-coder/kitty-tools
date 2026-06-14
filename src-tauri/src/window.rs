@@ -759,6 +759,20 @@ pub fn present_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::
     result
 }
 
+/// 打开主窗口并切到功能主页（托盘左键、托盘菜单「打开主界面」等统一入口）。
+pub fn present_main_hub_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    present_settings_window(app)?;
+    let _ = app.emit("show-main-home", ());
+    Ok(())
+}
+
+/// 打开主窗口并切到设置页（剪贴板/启动器/浮窗内「设置」入口）。
+pub fn present_settings_page_window<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    present_settings_window(app)?;
+    let _ = app.emit("show-main-settings", ());
+    Ok(())
+}
+
 /// Show the settings window.
 ///
 /// macOS：必须**先**切 `Regular` 激活策略 + 显示 Dock 图标，再 `window.show()`，

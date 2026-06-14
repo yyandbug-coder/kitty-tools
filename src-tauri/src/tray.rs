@@ -68,7 +68,7 @@ fn hotkey_display_for_tray(h: &str) -> String {
 /// ├── 截图翻译 {shortcut}
 /// ├── ────────────
 /// ├── 翻译工作台
-/// ├── 打开设置...
+/// ├── 打开主界面...
 /// ├── ────────────
 /// └── 退出
 /// ```
@@ -244,7 +244,7 @@ fn build_tray_menu<R: Runtime>(
     let tray_settings = MenuItem::with_id(
         app,
         TRAY_SETTINGS_ID,
-        "打开设置...",
+        "打开主界面...",
         true,
         None::<&str>,
     )?;

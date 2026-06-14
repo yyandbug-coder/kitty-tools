@@ -733,8 +733,8 @@ pub fn get_or_create_settings_window<R: Runtime>(
 
     let window =
         WebviewWindow::builder(app, WINDOW_SETTINGS, webview_url("html/index.html"))
-            .title("Kitty Tools · 设置")
-            .inner_size(680.0, 720.0)
+            .title("Kitty Tools")
+            .inner_size(720.0, 760.0)
             .min_inner_size(560.0, 600.0)
             .decorations(false)
             .resizable(true)

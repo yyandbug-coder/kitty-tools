@@ -54,6 +54,12 @@ fn hide_window(window: tauri::Window) {
 }
 
 #[tauri::command]
+fn show_launcher_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    window::show_launcher(&app);
+    Ok(())
+}
+
+#[tauri::command]
 fn open_settings_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
     window::present_settings_window(&app).map_err(|e| e.to_string())
 }
@@ -775,6 +781,7 @@ pub fn run() {
             clipboard::watcher::start_clipboard_watcher,
             show_window,
             hide_window,
+            show_launcher_window,
             open_settings_window,
             hide_settings_window,
             show_onboarding_window_cmd,

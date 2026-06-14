@@ -1,4 +1,4 @@
-// 根应用组件 - Vite 默认入口与设置页窗口共用；仅挂载设置主界面（非剪贴板弹窗，剪贴板见 ClipboardHistoryPanel）
+// 根应用组件 - Vite 默认入口与主窗口共用；挂载功能主页（剪贴板弹窗见 ClipboardHistoryPanel）
 import { TooltipProvider } from '@/components/ui/tooltip'
 import SettingsApp from '@/components/settings/SettingsApp'
 

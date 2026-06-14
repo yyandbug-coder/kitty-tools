@@ -5,6 +5,12 @@
       "source": "shadcn/ui",
       "sourceType": "github",
       "computedHash": "03365c7543539f6e6689a754e65b3d8ea023ba9d6ea12a9b5550462bf060af8c"
+    },
+    "tauri-app-updater": {
+      "source": "yyandbug-coder/kitty-tools",
+      "sourceType": "github",
+      "skillPath": "skills/tauri-app-updater/SKILL.md",
+      "computedHash": "61e0e5d02a5824beb2cb5c3ea15b3d885c4e612b5b69c34de3cfaa97b4d6b82b"
     }
   }
 }

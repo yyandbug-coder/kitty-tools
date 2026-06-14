@@ -71,7 +71,12 @@ function prefetchSettingsTabChunk(tab: SettingsTabId) {
   }
 }
 
-export default function SettingsPanel() {
+export interface SettingsPanelProps {
+  /** 嵌入主应用壳层时隐藏自带标题栏，由 MainAppShell 统一提供 */
+  embedded?: boolean
+}
+
+export default function SettingsPanel({ embedded = false }: SettingsPanelProps) {
   const { config, updateConfig, loaded } = useAppConfig()
   const configRef = useRef(config)
   configRef.current = config
@@ -177,27 +182,29 @@ export default function SettingsPanel() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-4 py-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3" data-tauri-drag-region>
-          <AppLogoIcon className="size-5 shrink-0" alt="" aria-hidden />
-          <h1 className="min-w-0 truncate text-sm font-semibold tracking-tight" data-tauri-drag-region>
-            Kitty Tools 设置
-          </h1>
+    <div className={cn('flex flex-col bg-background text-foreground', embedded ? 'h-full min-h-0' : 'h-screen')}>
+      {!embedded ? (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-4 py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3" data-tauri-drag-region>
+            <AppLogoIcon className="size-5 shrink-0" alt="" aria-hidden />
+            <h1 className="min-w-0 truncate text-sm font-semibold tracking-tight" data-tauri-drag-region>
+              Kitty Tools 设置
+            </h1>
+          </div>
+          <div className="shrink-0" data-no-drag="true">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-8 text-muted-foreground hover:text-foreground"
+              onClick={handleCloseWindow}
+              aria-label="关闭窗口"
+            >
+              <X className="size-4" aria-hidden />
+            </Button>
+          </div>
         </div>
-        <div className="shrink-0" data-no-drag="true">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-8 text-muted-foreground hover:text-foreground"
-            onClick={handleCloseWindow}
-            aria-label="关闭窗口"
-          >
-            <X className="size-4" aria-hidden />
-          </Button>
-        </div>
-      </div>
+      ) : null}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
         <div

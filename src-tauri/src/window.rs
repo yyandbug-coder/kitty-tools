@@ -701,7 +701,7 @@ pub fn hide_region_overlay<R: Runtime>(app: &tauri::AppHandle<R>) {
 
 /// Get or create the JSON editor window.
 ///
-/// 960×720，系统标题栏、可调整大小、居中、初始不可见；关闭时隐藏而非销毁。
+/// 1200×840，系统标题栏、可调整大小、居中、初始不可见；关闭时隐藏而非销毁。
 pub fn get_or_create_json_editor_window<R: Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> tauri::Result<WebviewWindow<R>> {
@@ -715,8 +715,8 @@ pub fn get_or_create_json_editor_window<R: Runtime>(
         webview_url("html/json-editor.html"),
     )
     .title("Kitty Tools · JSON 编辑器")
-    .inner_size(960.0, 720.0)
-    .min_inner_size(640.0, 480.0)
+    .inner_size(1200.0, 840.0)
+    .min_inner_size(720.0, 540.0)
     .decorations(true)
     .resizable(true)
     .center()

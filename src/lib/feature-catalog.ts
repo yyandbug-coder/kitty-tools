@@ -46,6 +46,7 @@ export const FEATURE_CATALOG: FeatureCategoryDefinition[] = [
         icon: Braces,
         action: { type: 'invoke', command: 'show_json_editor_window' },
         status: 'available',
+        shortcutConfigKey: 'jsonEditorShortcut',
       },
     ],
   },

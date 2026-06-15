@@ -859,6 +859,7 @@ pub fn run() {
             exit_after_flush,
             clipboard::paste::paste_item,
             clipboard::paste::write_text_to_clipboard,
+            clipboard::paste::read_text_from_clipboard,
             update_global_shortcut,
             clipboard::image_cache::get_image_preview_asset_path,
             clipboard::image_cache::prune_clipboard_image_store,

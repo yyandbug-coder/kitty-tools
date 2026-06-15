@@ -38,6 +38,26 @@ pub async fn write_text_to_clipboard(text: String) -> Result<(), String> {
     }
 }
 
+/// 读取系统剪贴板纯文本；前端 `navigator.clipboard.readText` 在无权限时回落到此命令。
+#[tauri::command]
+pub async fn read_text_from_clipboard() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        crate::clipboard::win_access::arboard_get_text(&mut clipboard).map_err(|e| e.to_string())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        crate::clipboard::mac_access::arboard_get_text(&mut clipboard).map_err(|e| e.to_string())
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        clipboard.get_text().map_err(|e| e.to_string())
+    }
+}
+
 #[tauri::command]
 pub async fn paste_item(item: ClipboardEvent, app: tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("clipboard-popup") {

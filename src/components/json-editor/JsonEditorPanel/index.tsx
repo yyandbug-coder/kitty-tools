@@ -10,7 +10,10 @@ import toast from 'react-hot-toast'
 import {
   AlignLeft,
   Braces,
+  ClipboardPaste,
+  Clock,
   Columns2,
+  Copy,
   FileDown,
   FilePlus2,
   FolderOpen,
@@ -23,6 +26,12 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -33,19 +42,29 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import { copyTextWithFallback } from '@/lib/copy-text'
 import {
   basenameFromPath,
   beautifyContent,
   compactContent,
+  compactJsonText,
   contentToFileText,
   createDefaultJsonContent,
   getJsonContentErrorMessage,
   isBlankJsonContent,
   isJsonContentValid,
+  isLikelyJsonFilePath,
   textToEditorContent,
 } from '@/lib/json-editor'
+import { loadJsonEditorPrefs, pushJsonEditorRecentFile, saveJsonEditorPrefs } from '@/lib/json-editor-prefs'
 import { isMacOs } from '@/lib/platform'
-import type { JsonEditorViewMode } from '@/types/json-editor'
+import { readTextFromClipboard } from '@/lib/read-text'
+import {
+  JSON_EDITOR_SPLIT_DEFAULT_RATIO,
+  JSON_EDITOR_DEFAULT_VIEW_MODE,
+  type JsonEditorUnsavedAction,
+  type JsonEditorViewMode,
+} from '@/types/json-editor'
 import JsonEditorSplitView from '@/components/json-editor/JsonEditorSplitView'
 import LazyVanillaJsonEditor from '@/components/json-editor/lazyVanillaJsonEditor'
 
@@ -59,23 +78,76 @@ function editorModeToViewMode(mode: Mode): JsonEditorViewMode {
   return mode === Mode.text ? 'text' : 'tree'
 }
 
+function getUnsavedDialogCopy(action: JsonEditorUnsavedAction | null): {
+  title: string
+  description: string
+  saveLabel: string
+} {
+  if (!action) {
+    return { title: '未保存的更改', description: '', saveLabel: '保存并继续' }
+  }
+  switch (action.type) {
+    case 'close':
+      return {
+        title: '未保存的更改',
+        description: '当前文档有未保存的修改，关闭前是否保存？',
+        saveLabel: '保存并关闭',
+      }
+    case 'new':
+      return {
+        title: '未保存的更改',
+        description: '新建将丢弃当前未保存的修改，是否先保存？',
+        saveLabel: '保存并新建',
+      }
+    case 'open':
+      return {
+        title: '未保存的更改',
+        description: '打开其他文件将丢弃当前未保存的修改，是否先保存？',
+        saveLabel: '保存并打开',
+      }
+    case 'openPath':
+      return {
+        title: '未保存的更改',
+        description: `打开「${basenameFromPath(action.path)}」将丢弃当前未保存的修改，是否先保存？`,
+        saveLabel: '保存并打开',
+      }
+    case 'importText':
+      return {
+        title: '未保存的更改',
+        description: '导入剪贴板内容将丢弃当前未保存的修改，是否先保存？',
+        saveLabel: '保存并导入',
+      }
+    default:
+      return {
+        title: '未保存的更改',
+        description: '当前文档有未保存的修改，是否先保存？',
+        saveLabel: '保存并继续',
+      }
+  }
+}
+
 export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean }) {
   const defaultContent = useMemo(() => createDefaultJsonContent(), [])
   const [content, setContent] = useState<Content>(() => defaultContent)
   const [editorSession, setEditorSession] = useState(0)
-  const [viewMode, setViewMode] = useState<JsonEditorViewMode>('tree')
+  const [viewMode, setViewMode] = useState<JsonEditorViewMode>(JSON_EDITOR_DEFAULT_VIEW_MODE)
+  const [splitRatio, setSplitRatio] = useState(JSON_EDITOR_SPLIT_DEFAULT_RATIO)
+  const [recentFiles, setRecentFiles] = useState<string[]>([])
   const [filePath, setFilePath] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [contentErrors, setContentErrors] = useState<ContentErrors | undefined>(undefined)
-  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
+  const [unsavedPrompt, setUnsavedPrompt] = useState<JsonEditorUnsavedAction | null>(null)
   const [saving, setSaving] = useState(false)
+  const [fileDragActive, setFileDragActive] = useState(false)
   const baselineRef = useRef<string>(contentToFileText(defaultContent, 2) ?? '')
   const dirtyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prefsLoadedRef = useRef(false)
 
   const isValid = isJsonContentValid(contentErrors)
   const errorMessage = getJsonContentErrorMessage(contentErrors)
   const displayName = filePath ? basenameFromPath(filePath) : '未命名.json'
   const modKeyLabel = isMacOs() ? '⌘' : 'Ctrl'
+  const unsavedDialog = getUnsavedDialogCopy(unsavedPrompt)
 
   const markBaseline = useCallback((nextContent: Content) => {
     baselineRef.current = contentToFileText(nextContent, 2) ?? ''
@@ -104,7 +176,7 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
     [scheduleDirtyCheck]
   )
 
-  const handleNew = useCallback(() => {
+  const applyNewDocument = useCallback(() => {
     const next = createDefaultJsonContent()
     setContent(next)
     setContentErrors(undefined)
@@ -114,25 +186,88 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
     setEditorSession((n) => n + 1)
   }, [markBaseline])
 
-  const handleOpen = useCallback(async () => {
+  const loadFileFromPath = useCallback(
+    async (targetPath: string) => {
+      if (!isLikelyJsonFilePath(targetPath)) {
+        toast.error('请拖入 JSON 文件（.json / .jsonc / .json5）')
+        return
+      }
+      try {
+        const text = await readTextFile(targetPath)
+        const next = textToEditorContent(text)
+        setContent(next)
+        setContentErrors(undefined)
+        setFilePath(targetPath)
+        markBaseline(next)
+        setRecentFiles((prev) => pushJsonEditorRecentFile(prev, targetPath))
+        setEditorSession((n) => n + 1)
+        toast.success(`已打开 ${basenameFromPath(targetPath)}`)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '打开文件失败')
+      }
+    },
+    [markBaseline]
+  )
+
+  const openFileDialog = useCallback(async () => {
     try {
       const selected = await open({
         multiple: false,
-        filters: [{ name: 'JSON', extensions: ['json'] }],
+        filters: [{ name: 'JSON', extensions: ['json', 'jsonc', 'json5'] }],
       })
       if (!selected || typeof selected !== 'string') return
-
-      const text = await readTextFile(selected)
-      const next = textToEditorContent(text)
-      setContent(next)
-      setContentErrors(undefined)
-      setFilePath(selected)
-      markBaseline(next)
-      toast.success(`已打开 ${basenameFromPath(selected)}`)
+      await loadFileFromPath(selected)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '打开文件失败')
     }
-  }, [markBaseline])
+  }, [loadFileFromPath])
+
+  const applyImportedText = useCallback(
+    (text: string) => {
+      const next = textToEditorContent(text)
+      setContent(next)
+      setContentErrors(undefined)
+      setFilePath(null)
+      markBaseline(next)
+      setEditorSession((n) => n + 1)
+      toast.success('已从剪贴板导入')
+    },
+    [markBaseline]
+  )
+
+  const executeAction = useCallback(
+    async (action: JsonEditorUnsavedAction) => {
+      switch (action.type) {
+        case 'close':
+          await getCurrentWindow().hide()
+          break
+        case 'new':
+          applyNewDocument()
+          break
+        case 'open':
+          await openFileDialog()
+          break
+        case 'openPath':
+          await loadFileFromPath(action.path)
+          break
+        case 'importText':
+          applyImportedText(action.text)
+          break
+      }
+    },
+    [applyImportedText, applyNewDocument, loadFileFromPath, openFileDialog]
+  )
+
+  const requestAction = useCallback(
+    (action: JsonEditorUnsavedAction) => {
+      if (dirty) {
+        setUnsavedPrompt(action)
+        return
+      }
+      void executeAction(action)
+    },
+    [dirty, executeAction]
+  )
 
   const persistToPath = useCallback(
     async (targetPath: string) => {
@@ -151,6 +286,7 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
         await writeTextFile(targetPath, text)
         setFilePath(targetPath)
         markBaseline(content)
+        setRecentFiles((prev) => pushJsonEditorRecentFile(prev, targetPath))
         toast.success('保存成功')
         return true
       } catch (err) {
@@ -208,6 +344,48 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
     toast.success('已压缩')
   }, [content])
 
+  const handleCopyFormatted = useCallback(async () => {
+    const text = contentToFileText(content, 2)
+    if (text === null || !isValid) {
+      toast.error('JSON 无效，无法复制')
+      return
+    }
+    try {
+      await copyTextWithFallback(text)
+      toast.success('已复制格式化 JSON')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '复制失败')
+    }
+  }, [content, isValid])
+
+  const handleCopyCompact = useCallback(async () => {
+    const raw = contentToFileText(content, 0)
+    if (raw === null || !isValid) {
+      toast.error('JSON 无效，无法复制')
+      return
+    }
+    try {
+      const compact = compactJsonText(raw)
+      await copyTextWithFallback(compact)
+      toast.success('已复制压缩 JSON')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '复制失败')
+    }
+  }, [content, isValid])
+
+  const handlePasteFromClipboard = useCallback(async () => {
+    try {
+      const text = await readTextFromClipboard()
+      if (!text.trim()) {
+        toast.error('剪贴板为空或非文本内容')
+        return
+      }
+      requestAction({ type: 'importText', text })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '读取剪贴板失败')
+    }
+  }, [requestAction])
+
   const handleEditorError = useCallback((err: unknown) => {
     toast.error(err instanceof Error ? err.message : String(err))
   }, [])
@@ -216,22 +394,39 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
     setViewMode(editorModeToViewMode(mode))
   }, [])
 
-  const hideWindow = useCallback(async () => {
-    await getCurrentWindow().hide()
+  const handleUnsavedDiscard = useCallback(() => {
+    const action = unsavedPrompt
+    setUnsavedPrompt(null)
+    if (action) {
+      void executeAction(action)
+    }
+  }, [executeAction, unsavedPrompt])
+
+  const handleUnsavedSaveAndContinue = useCallback(async () => {
+    const action = unsavedPrompt
+    if (!action) return
+    const ok = await handleSave()
+    if (!ok) return
+    setUnsavedPrompt(null)
+    await executeAction(action)
+  }, [executeAction, handleSave, unsavedPrompt])
+
+  useEffect(() => {
+    void loadJsonEditorPrefs()
+      .then((prefs) => {
+        setViewMode(prefs.viewMode)
+        setSplitRatio(prefs.splitRatio)
+        setRecentFiles(prefs.recentFiles)
+      })
+      .finally(() => {
+        prefsLoadedRef.current = true
+      })
   }, [])
 
-  const handleConfirmCloseWithoutSave = useCallback(async () => {
-    setCloseDialogOpen(false)
-    await hideWindow()
-  }, [hideWindow])
-
-  const handleConfirmSaveAndClose = useCallback(async () => {
-    const ok = await handleSave()
-    if (ok) {
-      setCloseDialogOpen(false)
-      await hideWindow()
-    }
-  }, [handleSave, hideWindow])
+  useEffect(() => {
+    if (!prefsLoadedRef.current) return
+    void saveJsonEditorPrefs({ viewMode, splitRatio, recentFiles })
+  }, [viewMode, splitRatio, recentFiles])
 
   useEffect(() => {
     let unlistenFocus: (() => void) | undefined
@@ -249,11 +444,7 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
     })
 
     void listen('json-editor-close-requested', () => {
-      if (dirty) {
-        setCloseDialogOpen(true)
-        return
-      }
-      void hideWindow()
+      requestAction({ type: 'close' })
     }).then((fn) => {
       unlistenClose = fn
     })
@@ -262,7 +453,36 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
       unlistenFocus?.()
       unlistenClose?.()
     }
-  }, [dirty, filePath, hideWindow])
+  }, [filePath, requestAction])
+
+  useEffect(() => {
+    let unlistenDrag: (() => void) | undefined
+
+    void getCurrentWindow()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === 'enter' || event.payload.type === 'over') {
+          setFileDragActive(true)
+          return
+        }
+        if (event.payload.type === 'drop') {
+          setFileDragActive(false)
+          const path =
+            event.payload.paths.find((item) => isLikelyJsonFilePath(item)) ?? event.payload.paths[0]
+          if (path) {
+            requestAction({ type: 'openPath', path })
+          }
+          return
+        }
+        setFileDragActive(false)
+      })
+      .then((fn) => {
+        unlistenDrag = fn
+      })
+
+    return () => {
+      unlistenDrag?.()
+    }
+  }, [requestAction])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -274,16 +494,16 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
         void handleSave()
       } else if (key === 'o') {
         e.preventDefault()
-        void handleOpen()
+        requestAction({ type: 'open' })
       } else if (key === 'n') {
         e.preventDefault()
-        handleNew()
+        requestAction({ type: 'new' })
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handleNew, handleOpen, handleSave])
+  }, [handleSave, requestAction])
 
   useEffect(() => {
     return () => {
@@ -297,14 +517,49 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground">
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/60 px-3 py-2">
         <div className="flex flex-wrap items-center gap-1">
-          <Button variant="outline" size="sm" onClick={handleNew} title={`新建 (${modKeyLabel}+N)`}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => requestAction({ type: 'new' })}
+            title={`新建 (${modKeyLabel}+N)`}
+          >
             <FilePlus2 className="size-4" />
             <span className="hidden sm:inline">新建</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => void handleOpen()} title={`打开 (${modKeyLabel}+O)`}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => requestAction({ type: 'open' })}
+            title={`打开 (${modKeyLabel}+O)`}
+          >
             <FolderOpen className="size-4" />
             <span className="hidden sm:inline">打开</span>
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={recentFiles.length === 0}
+                title="最近打开"
+              >
+                <Clock className="size-4" />
+                <span className="hidden sm:inline">最近</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-w-xs">
+              {recentFiles.map((path) => (
+                <DropdownMenuItem
+                  key={path}
+                  className="truncate"
+                  title={path}
+                  onClick={() => requestAction({ type: 'openPath', path })}
+                >
+                  {basenameFromPath(path)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             size="sm"
@@ -332,13 +587,33 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
             <Minimize2 className="size-4" />
             <span className="hidden sm:inline">压缩</span>
           </Button>
+          <Button variant="outline" size="sm" onClick={() => void handleCopyFormatted()} title="复制格式化 JSON">
+            <Copy className="size-4" />
+            <span className="hidden md:inline">复制</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleCopyCompact()}
+            title="复制压缩 JSON"
+            className="hidden md:inline-flex"
+          >
+            <Copy className="size-4" />
+            压缩复制
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handlePasteFromClipboard()}
+            title="从剪贴板导入 JSON"
+          >
+            <ClipboardPaste className="size-4" />
+            <span className="hidden lg:inline">粘贴导入</span>
+          </Button>
         </div>
 
         <div className="ml-auto">
-          <Tabs
-            value={viewMode}
-            onValueChange={(v) => setViewMode(v as JsonEditorViewMode)}
-          >
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as JsonEditorViewMode)}>
             <TabsList variant="line" className="h-8">
               <TabsTrigger value="tree" className="gap-1 px-2 text-xs sm:px-3 sm:text-sm">
                 <Braces className="size-3.5" />
@@ -357,11 +632,20 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
       </header>
 
       <main className="relative isolate min-h-0 flex-1 overflow-hidden">
+        {fileDragActive && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-primary/10 backdrop-blur-[1px]">
+            <div className="rounded-lg border border-dashed border-primary/50 bg-background/90 px-6 py-4 text-sm text-foreground shadow-sm">
+              松开以打开 JSON 文件
+            </div>
+          </div>
+        )}
         {viewMode === 'split' ? (
           <JsonEditorSplitView
             key={editorSession}
             content={content}
             isDarkMode={isDarkMode}
+            initialSplitRatio={splitRatio}
+            onSplitRatioChange={setSplitRatio}
             onChange={handleChange}
             onError={handleEditorError}
           />
@@ -416,20 +700,19 @@ export default function JsonEditorPanel({ isDarkMode }: { isDarkMode: boolean })
         )}
       </footer>
 
-      <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+      <AlertDialog open={unsavedPrompt !== null} onOpenChange={(open) => !open && setUnsavedPrompt(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>未保存的更改</AlertDialogTitle>
-            <AlertDialogDescription>
-              当前文档有未保存的修改，关闭前是否保存？
-            </AlertDialogDescription>
+            <AlertDialogTitle>{unsavedDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>{unsavedDialog.description}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => void handleConfirmCloseWithoutSave()}>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <Button variant="outline" onClick={handleUnsavedDiscard}>
               不保存
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleConfirmSaveAndClose()}>
-              保存并关闭
+            </Button>
+            <AlertDialogAction onClick={() => void handleUnsavedSaveAndContinue()}>
+              {unsavedDialog.saveLabel}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

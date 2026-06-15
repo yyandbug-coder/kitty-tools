@@ -143,6 +143,8 @@ export interface AppConfig {
   launcherWindowWidth: number | null;
   /** 启动器窗口上次内高（px） */
   launcherWindowHeight: number | null;
+  /** JSON 编辑器全局快捷键；空字符串表示不注册 */
+  jsonEditorShortcut: string;
 }
 
 /** `save_config_cmd` 成功写入后的响应；`syncWarnings` 为快捷键/自启/托盘等非致命同步失败说明 */
@@ -206,6 +208,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   launcherFileSearchExcludedDirNames: [...DEFAULT_LAUNCHER_FILE_SEARCH_EXCLUDED_DIR_NAMES],
   launcherWindowWidth: null,
   launcherWindowHeight: null,
+  jsonEditorShortcut: 'CommandOrControl+Shift+J',
 };
 
 export function getLanguageDisplayName(code: string): string {

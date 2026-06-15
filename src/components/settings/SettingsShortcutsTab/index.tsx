@@ -20,32 +20,45 @@ export default function SettingsShortcutsTab({ config, updateConfig }: SettingsS
       { label: '截图翻译', value: config.hotkeyScreenshot },
       { label: '剪贴板历史', value: config.clipboardShortcut },
       { label: '启动器', value: config.launcherShortcut },
+      { label: 'JSON 编辑器', value: config.jsonEditorShortcut },
     ],
-    [config.clipboardShortcut, config.hotkeyScreenshot, config.launcherShortcut],
+    [config.clipboardShortcut, config.hotkeyScreenshot, config.jsonEditorShortcut, config.launcherShortcut],
   )
   const otherForScreenshot = useMemo(
     () => [
       { label: '划词翻译', value: config.hotkeySelection },
       { label: '剪贴板历史', value: config.clipboardShortcut },
       { label: '启动器', value: config.launcherShortcut },
+      { label: 'JSON 编辑器', value: config.jsonEditorShortcut },
     ],
-    [config.clipboardShortcut, config.hotkeySelection, config.launcherShortcut],
+    [config.clipboardShortcut, config.hotkeySelection, config.jsonEditorShortcut, config.launcherShortcut],
   )
   const otherForClipboard = useMemo(
     () => [
       { label: '划词翻译', value: config.hotkeySelection },
       { label: '截图翻译', value: config.hotkeyScreenshot },
       { label: '启动器', value: config.launcherShortcut },
+      { label: 'JSON 编辑器', value: config.jsonEditorShortcut },
     ],
-    [config.hotkeySelection, config.hotkeyScreenshot, config.launcherShortcut],
+    [config.hotkeyScreenshot, config.hotkeySelection, config.jsonEditorShortcut, config.launcherShortcut],
   )
   const otherForLauncher = useMemo(
     () => [
       { label: '划词翻译', value: config.hotkeySelection },
       { label: '截图翻译', value: config.hotkeyScreenshot },
       { label: '剪贴板历史', value: config.clipboardShortcut },
+      { label: 'JSON 编辑器', value: config.jsonEditorShortcut },
     ],
-    [config.clipboardShortcut, config.hotkeySelection, config.hotkeyScreenshot],
+    [config.clipboardShortcut, config.hotkeyScreenshot, config.hotkeySelection, config.jsonEditorShortcut],
+  )
+  const otherForJsonEditor = useMemo(
+    () => [
+      { label: '划词翻译', value: config.hotkeySelection },
+      { label: '截图翻译', value: config.hotkeyScreenshot },
+      { label: '剪贴板历史', value: config.clipboardShortcut },
+      { label: '启动器', value: config.launcherShortcut },
+    ],
+    [config.clipboardShortcut, config.hotkeyScreenshot, config.hotkeySelection, config.launcherShortcut],
   )
 
   return (
@@ -111,6 +124,14 @@ export default function SettingsShortcutsTab({ config, updateConfig }: SettingsS
             defaultValue={DEFAULT_CONFIG.launcherShortcut}
             onChange={async (v) => updateConfig({ launcherShortcut: v })}
             otherHotkeys={otherForLauncher}
+          />
+          <HotkeyInput
+            id="hotkey-json-editor"
+            label="JSON 编辑器"
+            value={config.jsonEditorShortcut}
+            defaultValue={DEFAULT_CONFIG.jsonEditorShortcut}
+            onChange={async (v) => updateConfig({ jsonEditorShortcut: v })}
+            otherHotkeys={otherForJsonEditor}
           />
         </div>
       </CardContent>

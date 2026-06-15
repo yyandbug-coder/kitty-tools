@@ -6,7 +6,6 @@ import { Mode, type Content, type OnChangeStatus } from 'vanilla-jsoneditor'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import {
-  JSON_EDITOR_SPLIT_DEFAULT_RATIO,
   JSON_EDITOR_SPLIT_MAX_RATIO,
   JSON_EDITOR_SPLIT_MIN_RATIO,
 } from '@/types/json-editor'
@@ -16,6 +15,8 @@ import LazyVanillaJsonEditor from '@/components/json-editor/lazyVanillaJsonEdito
 interface JsonEditorSplitViewProps {
   content: Content
   isDarkMode: boolean
+  initialSplitRatio: number
+  onSplitRatioChange: (ratio: number) => void
   onChange: (content: Content, previous: Content, status: OnChangeStatus) => void
   onError: (error: unknown) => void
 }
@@ -29,71 +30,126 @@ function EditorPaneFallback() {
   )
 }
 
+function clampSplitRatio(value: number): number {
+  return Math.min(JSON_EDITOR_SPLIT_MAX_RATIO, Math.max(JSON_EDITOR_SPLIT_MIN_RATIO, value))
+}
+
 export default function JsonEditorSplitView({
   content,
   isDarkMode,
+  initialSplitRatio,
+  onSplitRatioChange,
   onChange,
   onError,
 }: JsonEditorSplitViewProps) {
-  const [splitRatio, setSplitRatio] = useState(JSON_EDITOR_SPLIT_DEFAULT_RATIO)
+  const [splitRatio, setSplitRatio] = useState(initialSplitRatio)
   const containerRef = useRef<HTMLDivElement>(null)
+  const dividerRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
+  const splitRatioRef = useRef(initialSplitRatio)
+  const rafRef = useRef<number | null>(null)
+  const onSplitRatioChangeRef = useRef(onSplitRatioChange)
+  onSplitRatioChangeRef.current = onSplitRatioChange
 
-  const clampRatio = useCallback((value: number) => {
-    return Math.min(JSON_EDITOR_SPLIT_MAX_RATIO, Math.max(JSON_EDITOR_SPLIT_MIN_RATIO, value))
+  const setDraggingUi = useCallback((dragging: boolean) => {
+    draggingRef.current = dragging
+    containerRef.current?.classList.toggle('is-split-dragging', dragging)
+    dividerRef.current?.classList.toggle('bg-primary/60', dragging)
   }, [])
 
-  const updateRatioFromPointer = useCallback(
+  const applyRatioToDom = useCallback((ratio: number) => {
+    containerRef.current?.style.setProperty('--split-ratio', `${ratio}%`)
+    const divider = dividerRef.current
+    if (divider) {
+      divider.setAttribute('aria-valuenow', String(Math.round(ratio)))
+    }
+  }, [])
+
+  const commitRatio = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    const next = splitRatioRef.current
+    setSplitRatio(next)
+    onSplitRatioChangeRef.current(next)
+  }, [])
+
+  useEffect(() => {
+    splitRatioRef.current = initialSplitRatio
+    setSplitRatio(initialSplitRatio)
+    applyRatioToDom(initialSplitRatio)
+  }, [applyRatioToDom, initialSplitRatio])
+
+  const scheduleRatioFromPointer = useCallback(
     (clientX: number) => {
       const container = containerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
       if (rect.width <= 0) return
-      const next = ((clientX - rect.left) / rect.width) * 100
-      setSplitRatio(clampRatio(next))
+      splitRatioRef.current = clampSplitRatio(((clientX - rect.left) / rect.width) * 100)
+
+      if (rafRef.current !== null) return
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null
+        applyRatioToDom(splitRatioRef.current)
+      })
     },
-    [clampRatio]
+    [applyRatioToDom]
   )
 
   const handleDividerPointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
       event.preventDefault()
-      draggingRef.current = true
+      setDraggingUi(true)
       event.currentTarget.setPointerCapture(event.pointerId)
-      updateRatioFromPointer(event.clientX)
+      scheduleRatioFromPointer(event.clientX)
     },
-    [updateRatioFromPointer]
+    [scheduleRatioFromPointer, setDraggingUi]
   )
 
   const handleDividerPointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
       if (!draggingRef.current) return
-      updateRatioFromPointer(event.clientX)
+      scheduleRatioFromPointer(event.clientX)
     },
-    [updateRatioFromPointer]
+    [scheduleRatioFromPointer]
   )
 
-  const handleDividerPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    draggingRef.current = false
-    event.currentTarget.releasePointerCapture(event.pointerId)
-  }, [])
+  const stopDragging = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!draggingRef.current) return
+      setDraggingUi(false)
+      event.currentTarget.releasePointerCapture(event.pointerId)
+      commitRatio()
+    },
+    [commitRatio, setDraggingUi]
+  )
 
   useEffect(() => {
-    const stopDragging = () => {
-      draggingRef.current = false
+    const handleWindowPointerUp = () => {
+      if (!draggingRef.current) return
+      setDraggingUi(false)
+      commitRatio()
     }
-    window.addEventListener('pointerup', stopDragging)
-    return () => window.removeEventListener('pointerup', stopDragging)
-  }, [])
+    window.addEventListener('pointerup', handleWindowPointerUp)
+    return () => {
+      window.removeEventListener('pointerup', handleWindowPointerUp)
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+      }
+    }
+  }, [commitRatio, setDraggingUi])
 
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden md:flex-row"
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden md:flex-row [&.is-split-dragging]:select-none [&.is-split-dragging_.kitty-json-editor-host]:pointer-events-none"
+      style={{ ['--split-ratio' as string]: `${splitRatio}%` }}
     >
       <section
         className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border/60 md:border-r md:border-b-0"
-        style={{ flex: `0 0 ${splitRatio}%` }}
+        style={{ flex: '0 0 var(--split-ratio)' }}
       >
         <div className="shrink-0 border-b border-border/40 bg-muted/30 px-3 py-1.5 text-xs font-medium text-muted-foreground">
           树形 · 编辑
@@ -117,6 +173,7 @@ export default function JsonEditorSplitView({
       </section>
 
       <div
+        ref={dividerRef}
         role="separator"
         aria-orientation="vertical"
         aria-valuenow={Math.round(splitRatio)}
@@ -129,8 +186,8 @@ export default function JsonEditorSplitView({
         )}
         onPointerDown={handleDividerPointerDown}
         onPointerMove={handleDividerPointerMove}
-        onPointerUp={handleDividerPointerUp}
-        onPointerCancel={handleDividerPointerUp}
+        onPointerUp={stopDragging}
+        onPointerCancel={stopDragging}
       />
 
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

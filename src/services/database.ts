@@ -102,3 +102,20 @@ async function saveKeyValueToDb(key: string, value: string): Promise<void> {
     [key, value, now]
   )
 }
+
+/** 从 settings 表读取 JSON 值；解析失败或不存在时返回 null */
+export async function loadJsonSettingsByKey<T>(key: string): Promise<T | null> {
+  const db = await getDb()
+  const rows = await db.select<SettingsRow[]>('SELECT value FROM settings WHERE key = $1', [key])
+  if (rows.length === 0) return null
+  try {
+    return JSON.parse(rows[0].value) as T
+  } catch {
+    return null
+  }
+}
+
+/** 将 JSON 值写入 settings 表 */
+export async function saveJsonSettingsByKey(key: string, value: unknown): Promise<void> {
+  await saveKeyValueToDb(key, JSON.stringify(value))
+}

@@ -20,6 +20,7 @@ static CURRENT_CLIPBOARD_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_SELECTION_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_SCREENSHOT_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_LAUNCHER_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
+static CURRENT_JSON_EDITOR_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 
 /// 保存前校验：任意项可为空以关闭该全局快捷键；非空项之间不得重复。
 ///
@@ -33,6 +34,7 @@ pub fn validate_hotkey_config(config: &crate::config::AppConfig) -> Result<(), S
         config.hotkey_selection.trim(),
         config.hotkey_screenshot.trim(),
         config.launcher_shortcut.trim(),
+        config.json_editor_shortcut.trim(),
     ] {
         if s.is_empty() {
             continue;
@@ -216,6 +218,23 @@ pub fn register_launcher_shortcut<R: Runtime>(
     )
 }
 
+// ── JSON editor shortcut ────────────────────────────────────────────────
+
+/// Register the JSON editor show shortcut, or unregister if `shortcut` is empty.
+pub fn register_json_editor_shortcut<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    shortcut: &str,
+) -> Result<(), String> {
+    register_global_shortcut_slot(
+        app,
+        &CURRENT_JSON_EDITOR_SHORTCUT,
+        shortcut,
+        "JSON 编辑器快捷键格式无效",
+        "JSON 编辑器快捷键注册失败",
+        |app| window::show_json_editor(app),
+    )
+}
+
 // ── Sync all ────────────────────────────────────────────────────────────
 
 /// Register all global shortcuts based on the current config.
@@ -236,6 +255,7 @@ pub fn sync_all_hotkeys<R: Runtime>(
         config.hotkey_screenshot.trim(),
     )?;
     register_launcher_shortcut(app, config.launcher_shortcut.trim())?;
+    register_json_editor_shortcut(app, config.json_editor_shortcut.trim())?;
     Ok(())
 }
 

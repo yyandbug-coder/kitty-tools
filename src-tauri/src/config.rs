@@ -12,6 +12,10 @@ fn default_clipboard_shortcut() -> String {
     "CommandOrControl+Shift+V".to_string()
 }
 
+fn default_json_editor_shortcut() -> String {
+    "CommandOrControl+Shift+J".to_string()
+}
+
 fn default_launcher_shortcut() -> String {
     // Windows 上 `Alt+Space` 是激活窗口的系统菜单热键（最小化/还原/移动/关闭），
     // 全局劫持后用户在其他应用中无法再用其呼出系统菜单；改用 `Ctrl+Space`，与多数主流启动器接近且鲜被占用。
@@ -163,6 +167,11 @@ pub struct AppConfig {
     /// 启动器窗口上次内高（px）；未设置时用默认 480。
     #[serde(default)]
     pub launcher_window_height: Option<u32>,
+
+    // ── JSON editor ────────────────────────────────────────────────
+    /// JSON 编辑器全局快捷键；空字符串表示不注册。
+    #[serde(default = "default_json_editor_shortcut")]
+    pub json_editor_shortcut: String,
 }
 
 fn default_true() -> bool {
@@ -243,6 +252,7 @@ impl Default for AppConfig {
             launcher_file_search_excluded_dir_names: default_launcher_file_search_excluded_dir_names(),
             launcher_window_width: None,
             launcher_window_height: None,
+            json_editor_shortcut: default_json_editor_shortcut(),
         }
     }
 }

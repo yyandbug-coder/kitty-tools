@@ -139,3 +139,10 @@ export function basenameFromPath(filePath: string): string {
   const parts = normalized.split('/')
   return parts[parts.length - 1] || filePath
 }
+
+/** 路径是否像 JSON 文件（无扩展名时也允许，便于拖入 .jsonc 等） */
+export function isLikelyJsonFilePath(filePath: string): boolean {
+  const name = basenameFromPath(filePath).toLowerCase()
+  if (!name.includes('.')) return true
+  return name.endsWith('.json') || name.endsWith('.jsonc') || name.endsWith('.json5')
+}

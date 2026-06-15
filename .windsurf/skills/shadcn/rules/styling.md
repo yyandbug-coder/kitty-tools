@@ -38,7 +38,7 @@ See [customization.md](../customization.md) for theming, CSS variables, and addi
 
 ## No raw color values for status/state indicators
 
-For positive, negative, or status indicators, use Badge variants, semantic tokens like `text-destructive`, or define custom CSS variables â€” don't reach for raw Tailwind colors.
+For positive, negative, or status indicators, use Badge variants, semantic tokens like `text-destructive`, or define custom CSS variables â€?don't reach for raw Tailwind colors.
 
 **Incorrect:**
 
@@ -99,15 +99,15 @@ Use `className` for layout (e.g. `max-w-md`, `mx-auto`, `mt-4`), **not** for ove
 ```
 
 To customize a component's appearance, prefer these approaches in order:
-1. **Built-in variants** â€” `variant="outline"`, `variant="destructive"`, etc.
-2. **Semantic color tokens** â€” `bg-primary`, `text-muted-foreground`.
-3. **CSS variables** â€” define custom colors in the global CSS file (see [customization.md](../customization.md)).
+1. **Built-in variants** â€?`variant="outline"`, `variant="destructive"`, etc.
+2. **Semantic color tokens** â€?`bg-primary`, `text-muted-foreground`.
+3. **CSS variables** â€?define custom colors in the global CSS file (see [customization.md](../customization.md)).
 
 ---
 
 ## No space-x-* / space-y-*
 
-Use `gap-*` instead. `space-y-4` â†’ `flex flex-col gap-4`. `space-x-2` â†’ `flex gap-2`.
+Use `gap-*` instead. `space-y-4` â†?`flex flex-col gap-4`. `space-x-2` â†?`flex gap-2`.
 
 ```tsx
 <div className="flex flex-col gap-4">
@@ -133,7 +133,7 @@ Use `gap-*` instead. `space-y-4` â†’ `flex flex-col gap-4`. `space-x-2` â†’ `fle
 
 ## No manual dark: color overrides
 
-Use semantic tokens â€” they handle light/dark via CSS variables. `bg-background text-foreground` not `bg-white dark:bg-gray-950`.
+Use semantic tokens â€?they handle light/dark via CSS variables. `bg-background text-foreground` not `bg-white dark:bg-gray-950`.
 
 ---
 

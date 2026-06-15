@@ -158,8 +158,8 @@ python3 skills/ui-ux-pro-max/scripts/search.py "<query>" --design-system --persi
 ```
 
 This creates:
-- `design-system/MASTER.md` — Global Source of Truth with all design rules
-- `design-system/pages/` — Folder for page-specific overrides
+- `design-system/MASTER.md` �?Global Source of Truth with all design rules
+- `design-system/pages/` �?Folder for page-specific overrides
 
 **With page-specific override:**
 ```bash
@@ -167,7 +167,7 @@ python3 skills/ui-ux-pro-max/scripts/search.py "<query>" --design-system --persi
 ```
 
 This also creates:
-- `design-system/pages/dashboard.md` — Page-specific deviations from Master
+- `design-system/pages/dashboard.md` �?Page-specific deviations from Master
 
 **How hierarchical retrieval works:**
 1. When building a specific page (e.g., "Checkout"), first check `design-system/pages/checkout.md`
@@ -240,7 +240,7 @@ Available stacks: `html-tailwind`, `react`, `nextjs`, `vue`, `svelte`, `swiftui`
 
 ## Example Workflow
 
-**User request:** "Làm landing page cho dịch vụ chăm sóc da chuyên nghiệp"
+**User request:** "Làm landing page cho dịch v�?chăm sóc da chuyên nghiệp"
 
 ### Step 1: Analyze Requirements
 - Product type: Beauty/Spa service

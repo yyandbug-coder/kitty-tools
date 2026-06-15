@@ -147,11 +147,11 @@ const items = [
 
 ---
 
-## Select â€” multiple selection and object values (base only)
+## Select â€?multiple selection and object values (base only)
 
 Base supports `multiple`, render-function children on `SelectValue`, and object values with `itemToStringValue`. Radix is single-select with string values only.
 
-**Correct (base â€” multiple selection):**
+**Correct (base â€?multiple selection):**
 
 ```tsx
 <Select items={items} multiple defaultValue={[]}>
@@ -164,7 +164,7 @@ Base supports `multiple`, render-function children on `SelectValue`, and object 
 </Select>
 ```
 
-**Correct (base â€” object values):**
+**Correct (base â€?object values):**
 
 ```tsx
 <Select defaultValue={plans[0]} itemToStringValue={(plan) => plan.name}>
@@ -224,11 +224,11 @@ Base uses a `multiple` boolean prop. Radix uses `type="single"` or `type="multip
 **Controlled single value:**
 
 ```tsx
-// base â€” wrap/unwrap arrays.
+// base â€?wrap/unwrap arrays.
 const [value, setValue] = React.useState("normal")
 <ToggleGroup value={[value]} onValueChange={(v) => setValue(v[0])}>
 
-// radix â€” plain string.
+// radix â€?plain string.
 const [value, setValue] = React.useState("normal")
 <ToggleGroup type="single" value={value} onValueChange={setValue}>
 ```

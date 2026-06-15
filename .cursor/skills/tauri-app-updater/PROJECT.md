@@ -22,6 +22,7 @@ node ~/.agents/skills/tauri-app-updater/scripts/init-project.mjs
 | 项 | 值 |
 |----|-----|
 | GitCode 仓库 | `yyandbug/kitty-tools` |
+| GitHub 仓库 | `yyandbug-coder/kitty-tools` |
 | 签名私钥 | `~/.tauri/kitty-tools.key` |
 | 环境变量 | `KITTY_TOOLS_SIGNING_PRIVATE_KEY` |
 | 发版文档 | `docs/RELEASE.md` |

@@ -11,12 +11,16 @@
 ├── reference.md
 ├── templates/
 │   ├── release.config.json
-│   └── package.json.scripts.snippet
+│   ├── capabilities/mobile-update.json
+│   └── src/
+│       ├── lib/mobile-update.ts
+│       └── hooks/useMobileUpdate.ts
 └── scripts/
     ├── init-project.mjs
     ├── release-interactive.mjs
     ├── release.mjs
     ├── generate-latest-json.mjs
+    ├── generate-mobile-update-config.mjs
     ├── github-upload-release.mjs
     ├── gitcode-upload-release.mjs
     ├── upload-release.mjs
@@ -24,8 +28,9 @@
     └── lib/
         ├── skill-paths.mjs
         ├── load-release-config.mjs
-        ├── release-targets.mjs
-        ├── project-version.mjs
+    ├── release-targets.mjs
+    ├── release-platforms.mjs
+    ├── release-artifacts.mjs
         └── import-from-project.mjs
 ```
 
@@ -45,7 +50,14 @@ project/
 │   ├── Cargo.toml
 │   ├── capabilities/default.json
 │   └── src/app_updater.rs
-└── src/lib/app-updater.ts
+└── src/
+    ├── lib/
+    │   ├── app-updater.ts
+    │   ├── mobile-update.ts
+    │   └── mobile-update-config.generated.ts
+    └── hooks/
+        ├── useAppUpdater.ts
+        └── useMobileUpdate.ts
 ```
 
 ## 接入命令
@@ -68,6 +80,11 @@ pnpm install
   "appName": "Your App",
   "versionBump": "pre",
   "tauriBuildCommand": "pnpm tauri build",
+  "desktop": {
+    "windowsBuildCommand": "pnpm tauri build -- --target x86_64-pc-windows-msvc",
+    "macosBuildCommand": "pnpm tauri build -- --target aarch64-apple-darwin",
+    "linuxBuildCommand": "pnpm tauri build -- --target x86_64-unknown-linux-gnu"
+  },
   "signing": {
     "privateKeyPath": "~/.tauri/<app-name>.key",
     "privateKeyPassword": "",
@@ -84,11 +101,151 @@ pnpm install
     "repo": "<repo>",
     "apiUrl": "https://api.gitcode.com/api/v5",
     "defaultBranch": "master"
+  },
+  "mobile": {
+    "androidBuildCommand": "pnpm tauri android build -- --apk --aab",
+    "iosBuildCommand": "pnpm tauri ios build",
+    "artifactDirs": [],
+    "update": {
+      "target": "gitcode",
+      "versionSource": "latest-json",
+      "releasePageUrl": "",
+      "versionCheckUrl": "",
+      "releaseApiUrl": ""
+    }
   }
 }
 ```
 
 `envKeyVar` / `envPasswordVar` 可选；未设置时默认使用 `TAURI_SIGNING_PRIVATE_KEY`。
+
+### 桌面分平台构建（`desktop`）
+
+| 字段 | 说明 |
+|------|------|
+| `windowsBuildCommand` | `--platform windows` 时执行 |
+| `macosBuildCommand` | `--platform macos` 时执行 |
+| `linuxBuildCommand` | `--platform linux` 时执行 |
+
+`--platform desktop` 仍使用顶层 `tauriBuildCommand`（当前主机默认构建）。
+
+### 移动端字段（`mobile`）
+
+| 字段 | 说明 |
+|------|------|
+| `androidBuildCommand` | Android 构建命令，默认 `pnpm tauri android build -- --apk --aab` |
+| `iosBuildCommand` | iOS 构建命令，默认 `pnpm tauri ios build` |
+| `artifactDirs` | 额外搜索 `.apk` / `.aab` / `.ipa` 的目录（相对项目根或绝对路径） |
+
+移动端产物默认从以下路径收集：
+
+- Android：`src-tauri/gen/android/app/build/outputs/`（release 构建，优先 universal、已签名 APK）
+- iOS：`src-tauri/gen/apple/build/`（`.ipa`）
+
+复制到 `releases/artifacts/` 时会自动重命名为 `{AppName}_{version}_android-universal.apk` 等，便于 Release 页面识别与上传过滤。
+
+`--platform` 支持**多选**（逗号分隔或重复传参）：
+
+| 平台 | 说明 |
+|------|------|
+| `desktop` | 桌面默认构建（`tauriBuildCommand`，当前主机） |
+| `windows` | Windows x86_64 |
+| `macos` | macOS aarch64 |
+| `linux` | Linux x86_64 |
+| `android` | Android APK + AAB |
+| `ios` | iOS IPA |
+| `mobile` | 简写：`android` + `ios` |
+| `all` | 简写：`desktop` + `android` + `ios` |
+
+```bash
+# 仅 Windows + Android
+pnpm release:cli --platform windows,android --skip-bump --upload
+
+# 多参数写法
+pnpm release:cli --platform desktop --platform ios --part patch
+
+# 全部
+pnpm release:cli --platform all --upload
+```
+
+可在 `release.config.json` → `desktop` 中自定义各平台构建命令。
+
+仅移动端发版时**不生成** `latest.json`（Tauri updater 仅用于桌面端）。
+
+#### 移动端更新（跳转 Release 页）
+
+| 字段 | 说明 |
+|------|------|
+| `update.target` | 检查版本与跳转的目标平台：`gitcode` / `github`，默认取已配置的主平台 |
+| `update.versionSource` | `latest-json`（默认，读 Release 中的 latest.json）或 `release-api`（读 latest Release 的 tag_name） |
+| `update.releasePageUrl` | 自定义 Release 列表页 URL，留空则按 owner/repo 自动生成 |
+| `update.versionCheckUrl` | 自定义 latest.json 地址，留空则自动生成 |
+| `update.releaseApiUrl` | 自定义 Release API 地址，留空则自动生成 |
+
+生成前端配置：
+
+```bash
+pnpm release:mobile-config
+# 输出 src/lib/mobile-update-config.generated.ts
+```
+
+Release 页 URL 示例：
+
+- GitCode 列表：`https://gitcode.com/{owner}/{repo}/releases`
+- GitCode 指定版本：`https://gitcode.com/{owner}/{repo}/releases/tag/v{version}`
+- GitHub 最新：`https://github.com/{owner}/{repo}/releases/latest`
+- GitHub 指定版本：`https://github.com/{owner}/{repo}/releases/tag/v{version}`
+
+## 移动端更新（前端）
+
+`init-project.mjs` 会写入：
+
+```
+src/lib/mobile-update.ts
+src/lib/mobile-update-config.generated.ts   # pnpm release:mobile-config 生成
+src/hooks/useMobileUpdate.ts
+```
+
+### 权限
+
+在 `src-tauri/capabilities/` 中加入 `opener:default`（参考 `templates/capabilities/mobile-update.json`），并安装：
+
+```bash
+pnpm add @tauri-apps/plugin-opener
+```
+
+Rust 侧注册（`lib.rs`）：
+
+```rust
+#[cfg(mobile)]
+app.handle().plugin(tauri_plugin_opener::init())?;
+```
+
+### Hook 用法
+
+```tsx
+import { useMobileUpdate } from '@/hooks/useMobileUpdate'
+
+function AboutMobileUpdate() {
+  const { phase, latestVersion, hasUpdate, checkAndOpenRelease, openReleasePage } = useMobileUpdate()
+
+  return (
+    <button onClick={() => checkAndOpenRelease()}>
+      {phase === 'checking' ? '检查中…' : hasUpdate ? `前往下载 v${latestVersion}` : '检查更新'}
+    </button>
+  )
+}
+```
+
+桌面 / 移动分流示例：
+
+```tsx
+import { platform } from '@tauri-apps/plugin-os'
+
+const isMobile = platform() === 'android' || platform() === 'ios'
+
+// isMobile ? useMobileUpdate() : useAppUpdater()
+```
 
 ## latest.json URL 格式
 
@@ -136,7 +293,8 @@ pnpm install
   "release:upload:github": "node scripts/updater-skill.mjs github-upload-release.mjs",
   "release:upload:gitcode": "node scripts/updater-skill.mjs gitcode-upload-release.mjs",
   "git:push-all": "node scripts/updater-skill.mjs git-push-all.mjs",
-  "release:json": "node scripts/updater-skill.mjs generate-latest-json.mjs"
+  "release:json": "node scripts/updater-skill.mjs generate-latest-json.mjs",
+  "release:mobile-config": "node scripts/updater-skill.mjs generate-mobile-update-config.mjs"
 }
 ```
 

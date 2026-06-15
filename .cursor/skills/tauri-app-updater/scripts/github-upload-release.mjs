@@ -7,6 +7,7 @@ import { basename, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { getAppDisplayName, loadReleaseConfigRaw } from './lib/load-release-config.mjs'
+import { shouldIncludeReleaseAsset } from './lib/release-artifacts.mjs'
 import { getGithubConfig } from './lib/release-targets.mjs'
 import { getProjectRoot } from './lib/skill-paths.mjs'
 
@@ -148,12 +149,7 @@ function listAssetFiles() {
   return readdirSync(assetsDir)
     .map((name) => join(assetsDir, name))
     .filter((path) => statSync(path).isFile())
-    .filter((path) => {
-      const name = basename(path)
-      if (name === 'latest.json') return true
-      if (!releaseVersion) return true
-      return name.includes(releaseVersion)
-    })
+    .filter((path) => shouldIncludeReleaseAsset(basename(path), releaseVersion))
 }
 
 const files = listAssetFiles()

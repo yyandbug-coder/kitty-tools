@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 /**
- * 创建 GitCode Release 并上传产物（供 pnpm release --upload 与 CI 使用）。
- *
- * 用法：
- *   GITCODE_TOKEN=xxx node scripts/gitcode-upload-release.mjs --tag v0.1.1 --dir releases/artifacts
+ * 创建 GitCode Release 并上传产物（Skill 内置，从项目根调用）。
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { basename, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
-const releaseConfig = JSON.parse(readFileSync(join(projectRoot, 'release.config.json'), 'utf-8'))
+import { getAppDisplayName, loadReleaseConfigRaw } from './lib/load-release-config.mjs'
+import { shouldIncludeReleaseAsset } from './lib/release-artifacts.mjs'
+import { getProjectRoot } from './lib/skill-paths.mjs'
+
+const projectRoot = getProjectRoot()
+const releaseConfig = loadReleaseConfigRaw(projectRoot)
 const gitcodeCfg = releaseConfig.gitcode ?? {}
+const appName = getAppDisplayName(projectRoot, releaseConfig)
 
 const args = process.argv.slice(2)
 
@@ -23,9 +24,9 @@ function readArg(name) {
 }
 
 const tagName = readArg('--tag') || process.env.GITCODE_TAG
-const releaseName = readArg('--name') || `Kitty Tools ${tagName}`
+const releaseName = readArg('--name') || `${appName} ${tagName}`
 const releaseBody = readArg('--body') || `Release ${tagName}`
-const assetsDir = resolve(projectRoot, readArg('--dir') || 'releases/artifacts')
+const assetsDir = join(projectRoot, readArg('--dir') || 'releases/artifacts')
 
 const token = process.env.GITCODE_TOKEN
 const owner = process.env.GITCODE_OWNER || gitcodeCfg.owner
@@ -40,8 +41,7 @@ function resolveDefaultBranch() {
     cwd: projectRoot,
     encoding: 'utf-8',
   })
-  const branch = result.stdout?.trim()
-  return branch || 'master'
+  return result.stdout?.trim() || 'master'
 }
 
 const defaultBranch = resolveDefaultBranch()
@@ -60,19 +60,10 @@ if (!owner || !repo) {
   process.exit(1)
 }
 
-/**
- * @param {string} method
- * @param {string} path
- * @param {BodyInit | null | undefined} [body]
- * @param {Record<string, string>} [headers]
- */
 async function gitcodeRequest(method, path, body, headers = {}) {
   const response = await fetch(`${apiUrl}${path}`, {
     method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...headers,
-    },
+    headers: { Authorization: `Bearer ${token}`, ...headers },
     body,
   })
   const text = await response.text()
@@ -107,7 +98,10 @@ async function createRelease() {
     return
   }
 
-  const existing = await gitcodeRequest('GET', `/repos/${owner}/${repo}/releases/tags/${encodeURIComponent(tagName)}`)
+  const existing = await gitcodeRequest(
+    'GET',
+    `/repos/${owner}/${repo}/releases/tags/${encodeURIComponent(tagName)}`,
+  )
   if (existing.ok) {
     console.log(`[gitcode-upload] Release 已存在，继续上传：${tagName}`)
     return
@@ -118,9 +112,6 @@ async function createRelease() {
   process.exit(1)
 }
 
-/**
- * @param {string} filePath
- */
 async function uploadFile(filePath) {
   const filename = basename(filePath)
   const encoded = encodeURIComponent(filename)
@@ -135,14 +126,10 @@ async function uploadFile(filePath) {
     process.exit(1)
   }
 
-  const uploadUrl = uploadInfo.json.url
-  const headers = uploadInfo.json.headers ?? {}
-  const fileBuffer = readFileSync(filePath)
-
-  const response = await fetch(uploadUrl, {
+  const response = await fetch(uploadInfo.json.url, {
     method: 'PUT',
-    headers,
-    body: fileBuffer,
+    headers: uploadInfo.json.headers ?? {},
+    body: readFileSync(filePath),
   })
 
   if (!response.ok) {
@@ -163,34 +150,21 @@ function listAssetFiles() {
   return readdirSync(assetsDir)
     .map((name) => join(assetsDir, name))
     .filter((path) => statSync(path).isFile())
-    .filter((path) => {
-      const name = basename(path)
-      if (name === 'latest.json') return true
-      if (!releaseVersion) return true
-      return name.includes(releaseVersion)
-    })
+    .filter((path) => shouldIncludeReleaseAsset(basename(path), releaseVersion))
 }
 
-async function main() {
-  const files = listAssetFiles()
-  if (files.length === 0) {
-    console.error(`[gitcode-upload] 目录为空：${assetsDir}`)
-    process.exit(1)
-  }
-
-  await createRelease()
-
-  const nonJson = files.filter((file) => !/\.json$/i.test(file))
-  const jsonFiles = files.filter((file) => /\.json$/i.test(file))
-
-  for (const file of nonJson) {
-    await uploadFile(file)
-  }
-  for (const file of jsonFiles) {
-    await uploadFile(file)
-  }
-
-  console.log(`[gitcode-upload] 全部上传完成：${tagName}`)
+const files = listAssetFiles()
+if (files.length === 0) {
+  console.error(`[gitcode-upload] 目录为空：${assetsDir}`)
+  process.exit(1)
 }
 
-void main()
+await createRelease()
+
+const nonJson = files.filter((file) => !/\.json$/i.test(file))
+const jsonFiles = files.filter((file) => /\.json$/i.test(file))
+
+for (const file of nonJson) await uploadFile(file)
+for (const file of jsonFiles) await uploadFile(file)
+
+console.log(`[gitcode-upload] 全部上传完成：${tagName}`)

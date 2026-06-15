@@ -1,69 +1,34 @@
 #!/usr/bin/env node
 /**
- * Kitty Tools 一键发版：递增版本 → 构建 → 生成 latest.json →（可选）上传 GitCode Release
- *
- * 用法：
- *   pnpm release
- *   pnpm release --part minor --notes "新增启动器"
- *   pnpm release --dry-run
- *   pnpm release --upload
- *   pnpm release --push
- *   pnpm release:publish
- *   pnpm release --skip-bump --upload
- *   pnpm release --set-version 0.2.0
- *
- * 环境变量：
- *   KITTY_TOOLS_SIGNING_PRIVATE_KEY          本项目签名私钥（路径或内容，优先于 release.config.json）
- *   KITTY_TOOLS_SIGNING_PRIVATE_KEY_PASSWORD 本项目私钥密码（Kitty Tools 密钥默认无密码）
- *   GITCODE_TOKEN                            GitCode Personal Access Token（--upload 时需要）
- *   RELEASE_BASE_URL                         覆盖 latest.json 下载前缀
- *
- * 注意：不会读取全局 TAURI_SIGNING_PRIVATE_KEY_PASSWORD，避免与其他 Tauri 应用冲突。
+ * Tauri 应用自动更新 Skill — 非交互发版底层。
+ * 从任意 Tauri 项目根目录调用；脚本由 tauri-app-updater Skill 提供。
  */
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { basename, join, relative, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
+import { basename, join, relative } from 'node:path'
 
-import { bumpProjectVersion } from '../node_modules/tauri-release-utils/scripts/lib/bump-version.mjs'
-import { loadReleaseConfig } from '../node_modules/tauri-release-utils/scripts/lib/release-config.mjs'
-import { getProjectVersion, setProjectVersion } from './lib/project-version.mjs'
+import { createBuildEnv, getAppDisplayName, loadReleaseConfigRaw } from './lib/load-release-config.mjs'
+import {
+  collectDesktopBundleFiles,
+  collectMobileArtifacts,
+  mobileArtifactDestName,
+} from './lib/release-artifacts.mjs'
+import {
+  describeBuildPlan,
+  hasDesktopBuild,
+  platformSelectionLabel,
+} from './lib/release-platforms.mjs'
+import { listConfiguredReleaseTargets, resolveReleaseBaseUrl } from './lib/release-targets.mjs'
+import { getProjectVersion, getTauriReleaseUtils, setProjectVersion } from './lib/project-version.mjs'
+import { getProjectRoot, getSkillRoot } from './lib/skill-paths.mjs'
 
-const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
-const releaseCfg = loadReleaseConfig(projectRoot)
-const releaseConfigRaw = JSON.parse(readFileSync(join(projectRoot, 'release.config.json'), 'utf-8'))
-const gitcodeCfg = releaseConfigRaw.gitcode ?? {}
+const projectRoot = getProjectRoot()
+const skillScripts = join(getSkillRoot(), 'scripts')
+const releaseConfigRaw = loadReleaseConfigRaw(projectRoot)
 const signingCfg = releaseConfigRaw.signing ?? {}
+const appName = getAppDisplayName(projectRoot, releaseConfigRaw)
 
 const args = process.argv.slice(2)
-
-function resolveSigningPrivateKeyPath() {
-  if (process.env.KITTY_TOOLS_SIGNING_PRIVATE_KEY) {
-    return process.env.KITTY_TOOLS_SIGNING_PRIVATE_KEY
-  }
-  const configured = signingCfg.privateKeyPath
-  if (configured) {
-    if (configured.startsWith('~')) {
-      const home = process.env.USERPROFILE || process.env.HOME || ''
-      return join(home, configured.slice(2).replace(/^[\\/]/, ''))
-    }
-    return resolve(projectRoot, configured)
-  }
-  const home = process.env.USERPROFILE || process.env.HOME || ''
-  return join(home, '.tauri', 'kitty-tools.key')
-}
-
-/** 构建子进程环境：仅注入 Kitty Tools 签名配置，不继承其他应用的 Tauri 签名变量。 */
-function createBuildEnv(extraEnv = {}) {
-  const password =
-    process.env.KITTY_TOOLS_SIGNING_PRIVATE_KEY_PASSWORD ?? signingCfg.privateKeyPassword ?? ''
-  return {
-    ...process.env,
-    TAURI_SIGNING_PRIVATE_KEY: resolveSigningPrivateKeyPath(),
-    TAURI_SIGNING_PRIVATE_KEY_PASSWORD: password,
-    ...extraEnv,
-  }
-}
 
 function readArg(name) {
   const index = args.indexOf(name)
@@ -75,9 +40,7 @@ function hasFlag(name) {
   return args.includes(name)
 }
 
-/** Windows 下仅对 pnpm/npm 等脚本命令启用 shell；git 必须禁用 shell，否则 -m 含空格会被拆成多个参数。 */
-function shouldUseShell(command, override) {
-  if (override !== undefined) return override
+function shouldUseShell(command) {
   if (process.platform !== 'win32') return false
   return ['pnpm', 'npm', 'npx', 'yarn'].includes(command)
 }
@@ -87,28 +50,12 @@ function run(command, commandArgs, options = {}) {
   const result = spawnSync(command, commandArgs, {
     cwd: projectRoot,
     stdio: 'inherit',
-    shell: shouldUseShell(command, options.shell),
-    env: createBuildEnv(options.env ?? {}),
+    shell: shouldUseShell(command),
+    env: createBuildEnv(projectRoot, options.env ?? {}),
   })
   if (result.status !== 0) {
     process.exit(result.status ?? 1)
   }
-}
-
-function collectBundleFiles(dir, acc = []) {
-  if (!existsSync(dir)) return acc
-  for (const entry of readdirSync(dir)) {
-    const fullPath = join(dir, entry)
-    const stat = statSync(fullPath)
-    if (stat.isDirectory()) {
-      collectBundleFiles(fullPath, acc)
-      continue
-    }
-    if (/\.(exe|msi|sig|tar\.gz|AppImage)$/i.test(entry)) {
-      acc.push(fullPath)
-    }
-  }
-  return acc
 }
 
 const dryRun = hasFlag('--dry-run')
@@ -118,35 +65,43 @@ const shouldPublish = hasFlag('--publish')
 const shouldPush = hasFlag('--push') || shouldPublish
 const shouldUpload = hasFlag('--upload') || shouldPublish
 const partArg = readArg('--part') || process.env.TAURI_DMG_VERSION_BUMP_PART || 'patch'
-const notes = readArg('--notes') || `Kitty Tools release`
+const notes = readArg('--notes') || `${appName} release`
 const setVersion = readArg('--set-version')
 const tagFromEnv = process.env.GITCODE_TAG || readArg('--tag')
+
+let platformSelection
+try {
+  platformSelection = readPlatformArgs(args)
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error))
+  process.exit(1)
+}
 
 if (!['patch', 'minor', 'major'].includes(partArg)) {
   console.error('[release] --part 必须是 patch、minor 或 major')
   process.exit(1)
 }
 
-/** @type {'patch' | 'minor' | 'major'} */
-const part = /** @type {'patch' | 'minor' | 'major'} */ (partArg)
+const { bump, config: releaseConfigLoader } = await getTauriReleaseUtils(projectRoot)
+const releaseCfg = releaseConfigLoader.loadReleaseConfig(projectRoot)
 
-let version = getProjectVersion(projectRoot)
+let version = await getProjectVersion(projectRoot)
 /** @type {string[]} */
 let versionFiles = []
 
 if (setVersion) {
-  const result = setProjectVersion(projectRoot, setVersion, { dryRun })
+  const result = await setProjectVersion(projectRoot, setVersion, { dryRun })
   console.log(`[release] 版本 ${result.from} → ${result.to}${dryRun ? '（dry-run）' : ''}`)
   version = result.to
   versionFiles = result.files
 } else if (tagFromEnv) {
   const tagVersion = tagFromEnv.replace(/^v/, '')
-  const result = setProjectVersion(projectRoot, tagVersion, { dryRun })
+  const result = await setProjectVersion(projectRoot, tagVersion, { dryRun })
   console.log(`[release] 按 tag 同步版本 ${result.from} → ${result.to}${dryRun ? '（dry-run）' : ''}`)
   version = result.to
   versionFiles = result.files
 } else if (!skipBump) {
-  const result = bumpProjectVersion(projectRoot, { part, dryRun })
+  const result = bump.bumpProjectVersion(projectRoot, { part: partArg, dryRun })
   console.log(`[release] 版本 ${result.from} → ${result.to}${dryRun ? '（dry-run）' : ''}`)
   for (const file of result.files) {
     console.log(`  ${dryRun ? '将更新' : '已更新'}：${file}`)
@@ -158,23 +113,34 @@ if (setVersion) {
 }
 
 const tagName = `v${version}`
-const owner = process.env.GITCODE_OWNER || gitcodeCfg.owner || 'yyandbug'
-const repo = process.env.GITCODE_REPO || gitcodeCfg.repo || 'kitty-tools'
+const releaseTargets = listConfiguredReleaseTargets(releaseConfigRaw)
+const primaryTarget = releaseTargets.includes('gitcode') ? 'gitcode' : releaseTargets[0] || 'gitcode'
 const releaseBaseUrl =
-  process.env.RELEASE_BASE_URL ||
-  `https://api.gitcode.com/api/v5/repos/${owner}/${repo}/releases/${tagName}/attach_files`
+  process.env.RELEASE_BASE_URL || resolveReleaseBaseUrl(primaryTarget, releaseConfigRaw, version)
+
+if (releaseTargets.length === 0) {
+  console.error('[release] release.config.json 需配置 github 或 gitcode')
+  process.exit(1)
+}
+
+function resolveBuildCommands() {
+  return describeBuildPlan(platformSelection, releaseCfg, releaseConfigRaw)
+}
 
 if (dryRun) {
   console.log('\n[release] dry-run 完成。将执行：')
-  console.log(`  构建：${releaseCfg.tauriBuildCommand}`)
-  console.log(`  生成：releases/latest.json（${releaseBaseUrl}）`)
+  console.log(`  平台：${platformSelectionLabel(platformSelection)}`)
+  for (const command of resolveBuildCommands()) {
+    console.log(`  构建：${command}`)
+  }
+  if (hasDesktopBuild(platformSelection)) {
+    console.log(`  生成：releases/latest.json（${releaseBaseUrl}）`)
+  } else {
+    console.log('  生成：跳过 latest.json（仅移动端）')
+  }
   console.log(`  Tag：${tagName}`)
-  if (shouldPush) {
-    console.log(`  Git：commit + tag ${tagName} + push`)
-  }
-  if (shouldUpload) {
-    console.log(`  上传：GitCode ${owner}/${repo}`)
-  }
+  if (shouldPush) console.log(`  Git：commit + tag ${tagName} + push`)
+  if (shouldUpload) console.log(`  上传：${releaseTargets.join(' + ')}`)
   process.exit(0)
 }
 
@@ -196,7 +162,7 @@ function gitPushRelease(tag, commitFiles) {
   const filesToAdd = [
     ...new Set([
       ...commitFiles.map((file) => toRepoRelativePath(file)),
-      'releases/latest.json',
+      ...(existsSync(join(projectRoot, 'releases/latest.json')) ? ['releases/latest.json'] : []),
     ]),
   ]
 
@@ -213,43 +179,78 @@ function gitPushRelease(tag, commitFiles) {
   }
 
   run('git', ['tag', tag])
-  run('git', ['push'])
-  run('git', ['push', 'origin', tag])
-  console.log(`\n[release] 已推送 ${tag} 到远程仓库`)
+  run('node', [join(skillScripts, 'git-push-all.mjs'), '--tag', tag])
+  console.log(`\n[release] 已推送 ${tag} 到所有远程仓库`)
 }
 
 if (!skipBuild) {
-  const signingKeyPath = resolveSigningPrivateKeyPath()
-  if (!existsSync(signingKeyPath) && !process.env.KITTY_TOOLS_SIGNING_PRIVATE_KEY?.includes('BEGIN')) {
-    console.warn(`[release] 警告：未找到签名私钥 ${signingKeyPath}，构建产物可能没有 .sig 文件`)
+  if (hasDesktopBuild(platformSelection)) {
+    const signingKeyPath = createBuildEnv(projectRoot).TAURI_SIGNING_PRIVATE_KEY
+    if (!existsSync(signingKeyPath) && !String(signingKeyPath).includes('BEGIN')) {
+      console.warn(`[release] 警告：未找到签名私钥 ${signingKeyPath}，构建产物可能没有 .sig 文件`)
+    }
   }
-  const buildCmd = releaseCfg.tauriBuildCommand
-  const [buildBin, ...buildArgs] = buildCmd.split(/\s+/)
-  run(buildBin, buildArgs)
+
+  for (const buildCmd of resolveBuildCommands()) {
+    const [buildBin, ...buildArgs] = buildCmd.split(/\s+/)
+    run(buildBin, buildArgs)
+  }
 }
 
 const bundleRoot = join(projectRoot, 'src-tauri/target/release/bundle')
 const artifactDir = join(projectRoot, 'releases/artifacts')
 mkdirSync(artifactDir, { recursive: true })
 
-for (const file of collectBundleFiles(bundleRoot)) {
-  cpSync(file, join(artifactDir, basename(file)), { force: true })
+if (hasDesktopBuild(platformSelection)) {
+  for (const file of collectDesktopBundleFiles(bundleRoot, platformSelection)) {
+    cpSync(file, join(artifactDir, basename(file)), { force: true })
+  }
 }
 
-run('node', [
-  'scripts/generate-latest-json.mjs',
-  '--version',
-  version,
-  '--notes',
-  notes,
-  '--bundle-root',
-  bundleRoot,
-], {
-  env: { RELEASE_BASE_URL: releaseBaseUrl },
-})
+if (hasMobileBuild(platformSelection)) {
+  const mobileFiles = collectMobileArtifacts(projectRoot, releaseConfigRaw, {
+    android: platformSelection.android,
+    ios: platformSelection.ios,
+  })
+  if (mobileFiles.length === 0) {
+    console.warn('[release] 未找到 Android/iOS 产物，请确认已执行 tauri android/ios build')
+  }
+  for (const file of mobileFiles) {
+    const destName = mobileArtifactDestName(file, appName, version)
+    cpSync(file, join(artifactDir, destName), { force: true })
+    console.log(`[release] 已收集移动端产物：${destName}`)
+  }
+}
 
-cpSync(join(projectRoot, 'releases/latest.json'), join(artifactDir, 'latest.json'), { force: true })
+const desktopArtifacts = hasDesktopBuild(platformSelection)
+  ? collectDesktopBundleFiles(bundleRoot, platformSelection).filter((file) => !file.endsWith('.sig'))
+  : []
 
+if (desktopArtifacts.length > 0) {
+  run('node', [
+    join(skillScripts, 'generate-latest-json.mjs'),
+    '--version',
+    version,
+    '--notes',
+    notes,
+    '--bundle-root',
+    bundleRoot,
+    '--target',
+    primaryTarget,
+  ], {
+    env: { RELEASE_BASE_URL: releaseBaseUrl, RELEASE_TARGET: primaryTarget },
+  })
+
+  cpSync(join(projectRoot, 'releases/latest.json'), join(artifactDir, 'latest.json'), { force: true })
+} else {
+  console.log('[release] 无桌面产物，跳过 latest.json（移动端包将直接上传到 Release）')
+}
+
+if (hasMobileBuild(platformSelection)) {
+  run('node', [join(skillScripts, 'generate-mobile-update-config.mjs')])
+}
+
+console.log(`\n[release] 发版平台：${platformSelectionLabel(platformSelection)}`)
 console.log('\n[release] 发版本地产物：')
 for (const file of readdirSync(artifactDir)) {
   console.log(`  releases/artifacts/${file}`)
@@ -259,28 +260,33 @@ if (shouldPush) {
   gitPushRelease(tagName, versionFiles)
 } else {
   console.log(`\n[release] 下一步：`)
-  console.log(`  pnpm release:publish   # 或 pnpm release --push --upload`)
-  console.log(`  git add . && git commit -m "chore: release ${tagName}"`)
-  console.log(`  git tag ${tagName} && git push && git push origin ${tagName}`)
+  console.log(`  pnpm release:publish   # 或 pnpm release:cli --push --upload`)
 }
 
 if (shouldUpload) {
-  if (!process.env.GITCODE_TOKEN) {
-    console.error('\n[release] --upload 需要设置环境变量 GITCODE_TOKEN')
+  const hasGithubToken = Boolean(process.env.GITHUB_TOKEN || process.env.GH_TOKEN)
+  const hasGitcodeToken = Boolean(process.env.GITCODE_TOKEN)
+  if (!hasGithubToken && !hasGitcodeToken) {
+    console.error('\n[release] --upload 需要设置 GITHUB_TOKEN（或 GH_TOKEN）和/或 GITCODE_TOKEN')
     process.exit(1)
   }
   run('node', [
-    'scripts/gitcode-upload-release.mjs',
+    join(skillScripts, 'upload-release.mjs'),
     '--tag',
     tagName,
+    '--version',
+    version,
     '--name',
-    `Kitty Tools ${tagName}`,
+    `${appName} ${tagName}`,
     '--body',
     notes,
     '--dir',
     'releases/artifacts',
+    '--bundle-root',
+    bundleRoot,
+    '--skip-json',
   ])
-  console.log(`\n[release] 已上传到 GitCode Release：${tagName}`)
+  console.log(`\n[release] 已上传到所有可用平台：${tagName}`)
 }
 
 console.log(`\n[release] 完成：${tagName}`)

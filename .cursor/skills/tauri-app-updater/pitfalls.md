@@ -27,6 +27,19 @@
 | 安装包文件名含空格 | 偶发 URL 问题 | `generate-latest-json` 须 `encodeURIComponent(fileName)` |
 | 客户端版本过旧 | 修复后仍下载失败 | 下载修复在**新安装包**内；旧用户须手动装一次 |
 
+## 移动端上传
+
+| 模块 | 典型症状 | 原因与处理 |
+|------|----------|------------|
+| `release.mjs --platform android` | 未找到 Android 产物 | 先执行 `pnpm tauri android build -- --apk --aab`；产物在 `src-tauri/gen/android/app/build/outputs/` |
+| 同上 `--platform ios` | 未找到 IPA | 需 macOS + Xcode；产物在 `src-tauri/gen/apple/build/arm64/*.ipa` |
+| 上传脚本 | `.apk` 未上传 | 旧版按版本号过滤文件名；现已对 `.apk`/`.aab`/`.ipa` 始终上传 |
+| 仅移动端发版 | 无 `latest.json` | 正常；移动端不走 Tauri updater，包直接挂在 Release 附件 |
+| Android 签名 | `INSTALL_PARSE_FAILED_NO_CERTIFICATES` | 使用已签名 release APK，勿上传 `-unsigned.apk` |
+| `useMobileUpdate` | 点击无反应 / 无法打开浏览器 | 检查 `opener:default` 权限与 `@tauri-apps/plugin-opener` |
+| 同上 | 始终提示已是最新 | 确认 `release.config.json` 的 `mobile.update` 与 Release 中 latest.json / tag 一致 |
+| 仅移动端发版 | `latest.json` 不存在导致检查失败 | 将 `mobile.update.versionSource` 改为 `release-api` |
+
 ## 发版后验证
 
 ```bash

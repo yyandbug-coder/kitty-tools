@@ -4,10 +4,20 @@
  * 从任意 Tauri 项目根目录调用；脚本由 tauri-app-updater Skill 提供。
  */
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { basename, join, relative } from 'node:path'
 
 import { createBuildEnv, getAppDisplayName, loadReleaseConfigRaw } from './lib/load-release-config.mjs'
+import {
+  collectDesktopBundleFiles,
+  collectMobileArtifacts,
+  mobileArtifactDestName,
+} from './lib/release-artifacts.mjs'
+import {
+  describeBuildPlan,
+  hasDesktopBuild,
+  platformSelectionLabel,
+} from './lib/release-platforms.mjs'
 import { listConfiguredReleaseTargets, resolveReleaseBaseUrl } from './lib/release-targets.mjs'
 import { getProjectVersion, getTauriReleaseUtils, setProjectVersion } from './lib/project-version.mjs'
 import { getProjectRoot, getSkillRoot } from './lib/skill-paths.mjs'
@@ -48,22 +58,6 @@ function run(command, commandArgs, options = {}) {
   }
 }
 
-function collectBundleFiles(dir, acc = []) {
-  if (!existsSync(dir)) return acc
-  for (const entry of readdirSync(dir)) {
-    const fullPath = join(dir, entry)
-    const stat = statSync(fullPath)
-    if (stat.isDirectory()) {
-      collectBundleFiles(fullPath, acc)
-      continue
-    }
-    if (/\.(exe|msi|sig|tar\.gz|AppImage)$/i.test(entry)) {
-      acc.push(fullPath)
-    }
-  }
-  return acc
-}
-
 const dryRun = hasFlag('--dry-run')
 const skipBump = hasFlag('--skip-bump')
 const skipBuild = hasFlag('--skip-build')
@@ -74,6 +68,14 @@ const partArg = readArg('--part') || process.env.TAURI_DMG_VERSION_BUMP_PART || 
 const notes = readArg('--notes') || `${appName} release`
 const setVersion = readArg('--set-version')
 const tagFromEnv = process.env.GITCODE_TAG || readArg('--tag')
+
+let platformSelection
+try {
+  platformSelection = readPlatformArgs(args)
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error))
+  process.exit(1)
+}
 
 if (!['patch', 'minor', 'major'].includes(partArg)) {
   console.error('[release] --part 必须是 patch、minor 或 major')
@@ -121,10 +123,21 @@ if (releaseTargets.length === 0) {
   process.exit(1)
 }
 
+function resolveBuildCommands() {
+  return describeBuildPlan(platformSelection, releaseCfg, releaseConfigRaw)
+}
+
 if (dryRun) {
   console.log('\n[release] dry-run 完成。将执行：')
-  console.log(`  构建：${releaseCfg.tauriBuildCommand}`)
-  console.log(`  生成：releases/latest.json（${releaseBaseUrl}）`)
+  console.log(`  平台：${platformSelectionLabel(platformSelection)}`)
+  for (const command of resolveBuildCommands()) {
+    console.log(`  构建：${command}`)
+  }
+  if (hasDesktopBuild(platformSelection)) {
+    console.log(`  生成：releases/latest.json（${releaseBaseUrl}）`)
+  } else {
+    console.log('  生成：跳过 latest.json（仅移动端）')
+  }
   console.log(`  Tag：${tagName}`)
   if (shouldPush) console.log(`  Git：commit + tag ${tagName} + push`)
   if (shouldUpload) console.log(`  上传：${releaseTargets.join(' + ')}`)
@@ -147,7 +160,10 @@ function gitPushRelease(tag, commitFiles) {
   }
 
   const filesToAdd = [
-    ...new Set([...commitFiles.map((file) => toRepoRelativePath(file)), 'releases/latest.json']),
+    ...new Set([
+      ...commitFiles.map((file) => toRepoRelativePath(file)),
+      ...(existsSync(join(projectRoot, 'releases/latest.json')) ? ['releases/latest.json'] : []),
+    ]),
   ]
 
   run('git', ['add', '--', ...filesToAdd])
@@ -168,39 +184,73 @@ function gitPushRelease(tag, commitFiles) {
 }
 
 if (!skipBuild) {
-  const signingKeyPath = createBuildEnv(projectRoot).TAURI_SIGNING_PRIVATE_KEY
-  if (!existsSync(signingKeyPath) && !String(signingKeyPath).includes('BEGIN')) {
-    console.warn(`[release] 警告：未找到签名私钥 ${signingKeyPath}，构建产物可能没有 .sig 文件`)
+  if (hasDesktopBuild(platformSelection)) {
+    const signingKeyPath = createBuildEnv(projectRoot).TAURI_SIGNING_PRIVATE_KEY
+    if (!existsSync(signingKeyPath) && !String(signingKeyPath).includes('BEGIN')) {
+      console.warn(`[release] 警告：未找到签名私钥 ${signingKeyPath}，构建产物可能没有 .sig 文件`)
+    }
   }
-  const buildCmd = releaseCfg.tauriBuildCommand
-  const [buildBin, ...buildArgs] = buildCmd.split(/\s+/)
-  run(buildBin, buildArgs)
+
+  for (const buildCmd of resolveBuildCommands()) {
+    const [buildBin, ...buildArgs] = buildCmd.split(/\s+/)
+    run(buildBin, buildArgs)
+  }
 }
 
 const bundleRoot = join(projectRoot, 'src-tauri/target/release/bundle')
 const artifactDir = join(projectRoot, 'releases/artifacts')
 mkdirSync(artifactDir, { recursive: true })
 
-for (const file of collectBundleFiles(bundleRoot)) {
-  cpSync(file, join(artifactDir, basename(file)), { force: true })
+if (hasDesktopBuild(platformSelection)) {
+  for (const file of collectDesktopBundleFiles(bundleRoot, platformSelection)) {
+    cpSync(file, join(artifactDir, basename(file)), { force: true })
+  }
 }
 
-run('node', [
-  join(skillScripts, 'generate-latest-json.mjs'),
-  '--version',
-  version,
-  '--notes',
-  notes,
-  '--bundle-root',
-  bundleRoot,
-  '--target',
-  primaryTarget,
-], {
-  env: { RELEASE_BASE_URL: releaseBaseUrl, RELEASE_TARGET: primaryTarget },
-})
+if (hasMobileBuild(platformSelection)) {
+  const mobileFiles = collectMobileArtifacts(projectRoot, releaseConfigRaw, {
+    android: platformSelection.android,
+    ios: platformSelection.ios,
+  })
+  if (mobileFiles.length === 0) {
+    console.warn('[release] 未找到 Android/iOS 产物，请确认已执行 tauri android/ios build')
+  }
+  for (const file of mobileFiles) {
+    const destName = mobileArtifactDestName(file, appName, version)
+    cpSync(file, join(artifactDir, destName), { force: true })
+    console.log(`[release] 已收集移动端产物：${destName}`)
+  }
+}
 
-cpSync(join(projectRoot, 'releases/latest.json'), join(artifactDir, 'latest.json'), { force: true })
+const desktopArtifacts = hasDesktopBuild(platformSelection)
+  ? collectDesktopBundleFiles(bundleRoot, platformSelection).filter((file) => !file.endsWith('.sig'))
+  : []
 
+if (desktopArtifacts.length > 0) {
+  run('node', [
+    join(skillScripts, 'generate-latest-json.mjs'),
+    '--version',
+    version,
+    '--notes',
+    notes,
+    '--bundle-root',
+    bundleRoot,
+    '--target',
+    primaryTarget,
+  ], {
+    env: { RELEASE_BASE_URL: releaseBaseUrl, RELEASE_TARGET: primaryTarget },
+  })
+
+  cpSync(join(projectRoot, 'releases/latest.json'), join(artifactDir, 'latest.json'), { force: true })
+} else {
+  console.log('[release] 无桌面产物，跳过 latest.json（移动端包将直接上传到 Release）')
+}
+
+if (hasMobileBuild(platformSelection)) {
+  run('node', [join(skillScripts, 'generate-mobile-update-config.mjs')])
+}
+
+console.log(`\n[release] 发版平台：${platformSelectionLabel(platformSelection)}`)
 console.log('\n[release] 发版本地产物：')
 for (const file of readdirSync(artifactDir)) {
   console.log(`  releases/artifacts/${file}`)

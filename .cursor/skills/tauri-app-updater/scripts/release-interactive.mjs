@@ -3,11 +3,17 @@
  * Tauri 应用自动更新 Skill — 交互式发版向导。
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { importFromProject } from './lib/import-from-project.mjs'
 import { getAppDisplayName, loadReleaseConfigRaw } from './lib/load-release-config.mjs'
+import { hasReleaseArtifacts } from './lib/release-artifacts.mjs'
+import {
+  describeBuildPlan,
+  hasDesktopBuild,
+  normalizePlatformSelection,
+  platformSelectionLabel,
+} from './lib/release-platforms.mjs'
 import { getProjectVersion } from './lib/project-version.mjs'
 import { getProjectRoot, getSkillRoot } from './lib/skill-paths.mjs'
 
@@ -20,8 +26,7 @@ const artifactDir = join(projectRoot, 'releases/artifacts')
 const releaseScript = join(getSkillRoot(), 'scripts', 'release.mjs')
 
 function hasArtifacts() {
-  if (!existsSync(artifactDir)) return false
-  return readdirSync(artifactDir).some((name) => /\.(exe|msi|sig|tar\.gz|AppImage|json)$/i.test(name))
+  return hasReleaseArtifacts(artifactDir)
 }
 
 function runRelease(args) {
@@ -122,6 +127,32 @@ async function main() {
     versionLabel = `递增 ${versionStrategy} → v${targetVersion}`
   }
 
+  const selectedPlatforms = cancelIfNeeded(
+    await p.multiselect({
+      message: '选择发版平台（空格切换，可多选）',
+      options: [
+        { value: 'desktop', label: '桌面（当前主机）', hint: '默认 pnpm tauri build' },
+        { value: 'windows', label: 'Windows', hint: 'x86_64-pc-windows-msvc' },
+        { value: 'macos', label: 'macOS', hint: 'aarch64-apple-darwin' },
+        { value: 'linux', label: 'Linux', hint: 'x86_64-unknown-linux-gnu' },
+        { value: 'android', label: 'Android', hint: 'APK + AAB' },
+        { value: 'ios', label: 'iOS', hint: 'IPA' },
+      ],
+      initialValues: ['desktop'],
+      required: true,
+    }),
+  )
+
+  let platformSelection
+  try {
+    platformSelection = normalizePlatformSelection(selectedPlatforms)
+  } catch (error) {
+    p.log.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  }
+
+  releaseArgs.push('--platform', selectedPlatforms.join(','))
+
   const defaultNotes = action === 'upload-only' ? `${appName} ${targetVersion}` : `${appName} release`
   const notes = cancelIfNeeded(
     await p.text({
@@ -159,12 +190,18 @@ async function main() {
     if (pushTag) releaseArgs.push('--push')
   }
 
+  const buildCommands = describeBuildPlan(platformSelection, { tauriBuildCommand: releaseConfigRaw.tauriBuildCommand || 'pnpm tauri build' }, releaseConfigRaw)
   const buildLabel =
-    action === 'upload-only' ? '跳过构建' : action === 'dry-run' ? '预览（不构建）' : '执行 pnpm tauri build'
+    action === 'upload-only'
+      ? '跳过构建'
+      : action === 'dry-run'
+        ? '预览（不构建）'
+        : buildCommands.join('\n  ')
 
   p.note(
     [
       `操作：${actionLabel(action)}`,
+      `平台：${platformSelectionLabel(platformSelection)}`,
       `版本：${versionLabel}`,
       `构建：${buildLabel}`,
       `上传：${upload ? '是（GitHub + GitCode）' : '否'}`,
@@ -172,7 +209,7 @@ async function main() {
       `说明：${String(notes).trim() || defaultNotes}`,
       '',
       '产物目录：releases/artifacts/',
-      '更新清单：releases/latest.json',
+      hasDesktopBuild(platformSelection) ? '更新清单：releases/latest.json' : '更新清单：跳过（无桌面产物）',
     ].join('\n'),
     '发版摘要',
   )

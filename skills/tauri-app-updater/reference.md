@@ -17,10 +17,14 @@
     ├── release-interactive.mjs
     ├── release.mjs
     ├── generate-latest-json.mjs
+    ├── github-upload-release.mjs
     ├── gitcode-upload-release.mjs
+    ├── upload-release.mjs
+    ├── git-push-all.mjs
     └── lib/
         ├── skill-paths.mjs
         ├── load-release-config.mjs
+        ├── release-targets.mjs
         ├── project-version.mjs
         └── import-from-project.mjs
 ```
@@ -70,6 +74,11 @@ pnpm install
     "envKeyVar": "YOUR_APP_SIGNING_PRIVATE_KEY",
     "envPasswordVar": "YOUR_APP_SIGNING_PRIVATE_KEY_PASSWORD"
   },
+  "github": {
+    "owner": "<github-owner>",
+    "repo": "<repo>",
+    "defaultBranch": "master"
+  },
   "gitcode": {
     "owner": "<owner>",
     "repo": "<repo>",
@@ -83,10 +92,18 @@ pnpm install
 
 ## latest.json URL 格式
 
-- **Endpoint**（检查更新）：
+每个平台 Release 中的 `latest.json` 应使用**该平台自身**的下载地址：
+
+- **GitCode Endpoint**（检查更新）：
   `https://api.gitcode.com/api/v5/repos/{owner}/{repo}/releases/latest/attach_files/latest.json/download`
-- **安装包 URL**（platforms 内）：
+- **GitCode 安装包 URL**：
   `https://api.gitcode.com/api/v5/repos/{owner}/{repo}/releases/v{version}/attach_files/{encodeURIComponent(fileName)}/download`
+- **GitHub Endpoint**：
+  `https://github.com/{owner}/{repo}/releases/latest/download/latest.json`
+- **GitHub 安装包 URL**：
+  `https://github.com/{owner}/{repo}/releases/download/v{version}/{fileName}`
+
+`tauri.conf.json` 可配置多个 `endpoints`，应用会依次尝试。
 
 ## Rust 命令注册
 
@@ -115,7 +132,10 @@ pnpm install
   "create:release": "node scripts/updater-skill.mjs release-interactive.mjs",
   "release:cli": "node scripts/updater-skill.mjs release.mjs",
   "release:publish": "node scripts/updater-skill.mjs release.mjs --publish",
-  "release:upload": "node scripts/updater-skill.mjs gitcode-upload-release.mjs",
+  "release:upload": "node scripts/updater-skill.mjs upload-release.mjs",
+  "release:upload:github": "node scripts/updater-skill.mjs github-upload-release.mjs",
+  "release:upload:gitcode": "node scripts/updater-skill.mjs gitcode-upload-release.mjs",
+  "git:push-all": "node scripts/updater-skill.mjs git-push-all.mjs",
   "release:json": "node scripts/updater-skill.mjs generate-latest-json.mjs"
 }
 ```

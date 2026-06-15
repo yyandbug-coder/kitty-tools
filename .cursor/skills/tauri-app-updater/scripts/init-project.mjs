@@ -28,6 +28,11 @@ const defaultConfig = {
     envKeyVar: 'YOUR_APP_SIGNING_PRIVATE_KEY',
     envPasswordVar: 'YOUR_APP_SIGNING_PRIVATE_KEY_PASSWORD',
   },
+  github: {
+    owner: 'YOUR_GITHUB_OWNER',
+    repo: 'YOUR_REPO_NAME',
+    defaultBranch: 'master',
+  },
   gitcode: {
     owner: 'YOUR_GITCODE_OWNER',
     repo: 'YOUR_REPO_NAME',
@@ -43,7 +48,10 @@ const packageScripts = {
   'release:cli': 'node scripts/updater-skill.mjs release.mjs',
   'release:publish': 'node scripts/updater-skill.mjs release.mjs --publish',
   'release:dry-run': 'node scripts/updater-skill.mjs release.mjs --dry-run',
-  'release:upload': 'node scripts/updater-skill.mjs gitcode-upload-release.mjs',
+  'release:upload': 'node scripts/updater-skill.mjs upload-release.mjs',
+  'release:upload:github': 'node scripts/updater-skill.mjs github-upload-release.mjs',
+  'release:upload:gitcode': 'node scripts/updater-skill.mjs gitcode-upload-release.mjs',
+  'git:push-all': 'node scripts/updater-skill.mjs git-push-all.mjs',
   'release:json': 'node scripts/updater-skill.mjs generate-latest-json.mjs',
 }
 

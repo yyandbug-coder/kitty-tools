@@ -4,6 +4,7 @@
 # 前置 Secret：
 #   TAURI_SIGNING_PRIVATE_KEY — 更新包签名私钥（内容或文件路径）
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — 私钥密码（可选）
+#   GITCODE_TOKEN — 上传到 GitCode Release（可选，配置后同步双平台发版）
 name: Release
 
 on:
@@ -64,6 +65,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -74,12 +87,14 @@ jobs:
           find artifacts -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.sig' -o -name '*.tar.gz' -o -name '*.AppImage' \) -exec cp {} release-assets/ \;
           ls -la release-assets
 
-      - name: Generate latest.json
-        env:
-          RELEASE_BASE_URL: https://api.gitcode.com/api/v5/repos/yyandbug/kitty-tools/releases/${{ github.ref_name }}/attach_files
+      - name: Generate latest.json for GitHub
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          node scripts/updater-skill.mjs generate-latest-json.mjs --version "$VERSION" --notes "Release $GITHUB_REF_NAME" --bundle-root artifacts
+          node scripts/updater-skill.mjs generate-latest-json.mjs \
+            --version "$VERSION" \
+            --notes "Release $GITHUB_REF_NAME" \
+            --bundle-root artifacts \
+            --target github
 
       - name: Upload latest.json to release assets
         run: cp releases/latest.json release-assets/latest.json
@@ -91,3 +106,18 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to GitCode Release
+        if: ${{ secrets.GITCODE_TOKEN != '' }}
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+        run: |
+          mkdir -p releases/artifacts
+          find release-assets -type f -exec cp {} releases/artifacts/ \;
+          VERSION="${GITHUB_REF_NAME#v}"
+          node scripts/updater-skill.mjs upload-release.mjs \
+            --tag "$GITHUB_REF_NAME" \
+            --version "$VERSION" \
+            --notes "Release $GITHUB_REF_NAME" \
+            --bundle-root artifacts \
+            --target gitcode

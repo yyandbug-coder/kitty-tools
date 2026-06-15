@@ -8,6 +8,11 @@
     "envKeyVar": "KITTY_TOOLS_SIGNING_PRIVATE_KEY",
     "envPasswordVar": "KITTY_TOOLS_SIGNING_PRIVATE_KEY_PASSWORD"
   },
+  "github": {
+    "owner": "yyandbug-coder",
+    "repo": "kitty-tools",
+    "defaultBranch": "master"
+  },
   "gitcode": {
     "owner": "yyandbug",
     "repo": "kitty-tools",

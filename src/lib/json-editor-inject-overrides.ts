@@ -30,6 +30,15 @@ function moveToHeadEnd(node: HTMLElement): void {
   document.head.appendChild(node)
 }
 
+/** 退出导航栏 JSONPath 编辑模式，恢复面包屑路径展示 */
+export function closeJsonEditorPathEditor(): void {
+  document
+    .querySelectorAll<HTMLButtonElement>('.kitty-json-editor-host .jse-navigation-bar-edit.editing')
+    .forEach((button) => {
+      button.click()
+    })
+}
+
 export function injectJsonEditorCriticalOverrides(): void {
   if (injectingOverrides) return
   injectingOverrides = true
@@ -40,9 +49,10 @@ export function injectJsonEditorCriticalOverrides(): void {
       el.id = STYLE_ID
       el.textContent = CRITICAL_CSS
       document.head.appendChild(el)
-      return
+    } else {
+      moveToHeadEnd(el)
     }
-    moveToHeadEnd(el)
+    closeJsonEditorPathEditor()
   } finally {
     injectingOverrides = false
   }

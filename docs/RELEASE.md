@@ -1,10 +1,10 @@
 # Kitty Tools 发版指南
 
-本文档说明如何打包桌面安装包、生成自动更新清单，以及上传到 GitCode Release。
+本文档说明如何打包桌面安装包、生成自动更新清单，以及**同时发布到 GitHub 与 GitCode Release**。
 
 > Skill 安装：`npx skills add yyandbug-coder/kitty-tools --skill tauri-app-updater -g -y`  
 > 全局规范与踩坑：`~/.agents/skills/tauri-app-updater/`  
-> 本项目 Skill 索引：`.cursor/skills/tauri-app-updater/`
+> 本项目 Skill 索引：`skills/tauri-app-updater/`
 
 其他 Tauri 项目安装（两条命令，和别的 skill 一样）：
 
@@ -48,10 +48,37 @@ pnpm release
 | `pnpm release` | 同 `create:release`（日常默认） |
 | `pnpm release:cli` | 非交互底层（CI / 脚本） |
 | `pnpm release:publish` | `release:cli --publish` |
-| `pnpm release:upload` | 仅上传 `releases/artifacts/` |
+| `pnpm release:upload` | 上传到 GitHub + GitCode（双平台） |
+| `pnpm release:upload:github` | 仅上传到 GitHub |
+| `pnpm release:upload:gitcode` | 仅上传到 GitCode |
+| `pnpm git:push-all` | 推送代码到 GitHub + GitCode |
 | `pnpm release:json` | 仅生成 `latest.json` |
 | `pnpm release:dry-run` | 预览非交互流程 |
 | `pnpm tauri build` | 仅构建，不整理产物（**非发版流程**） |
+
+---
+
+## Git 双远程配置（一次性）
+
+代码仓库：**GitHub**（主仓库）+ **GitCode**（镜像）。日常 `git pull` 只从 GitHub 拉，推送时两边同步。
+
+```powershell
+# origin 统一为 GitHub（fetch + push）
+git remote set-url origin https://github.com/yyandbug-coder/kitty-tools.git
+git remote set-url --delete --push origin 2>$null
+
+# 添加 GitCode 镜像（若已存在会报错，可忽略）
+git remote add gitcode https://gitcode.com/yyandbug/kitty-tools.git
+```
+
+日常推送代码：
+
+```powershell
+git push origin master          # 推 GitHub
+pnpm git:push-all               # 同时推 GitHub + GitCode
+```
+
+发版时若勾选「推送 tag」，会自动执行 `git-push-all`，无需手动推两次。
 
 ---
 
@@ -78,21 +105,28 @@ $env:KITTY_TOOLS_SIGNING_PRIVATE_KEY = "C:\path\to\kitty-tools.key"
 $env:KITTY_TOOLS_SIGNING_PRIVATE_KEY_PASSWORD = ""
 ```
 
-### 2. GitCode Token（上传时需要）
+### 2. 发版 Token（上传时需要）
 
 ```powershell
-$env:GITCODE_TOKEN = "你的Token"
+$env:GITHUB_TOKEN = "你的 GitHub PAT"   # 或 GH_TOKEN
+$env:GITCODE_TOKEN = "你的 GitCode Token"
 ```
 
 ```json
 // release.config.json
 {
+  "github": {
+    "owner": "yyandbug-coder",
+    "repo": "kitty-tools"
+  },
   "gitcode": {
     "owner": "yyandbug",
     "repo": "kitty-tools"
   }
 }
 ```
+
+上传时缺少某一平台的 Token 会**跳过该平台**，不会中断另一平台的上传。
 
 ---
 
@@ -142,8 +176,8 @@ pnpm release:cli [options]
 | `--set-version 0.1.3` | 指定目标版本 |
 | `--part patch` | 自动递增 patch |
 | `--skip-build` | 跳过构建 |
-| `--upload` | 上传到 GitCode |
-| `--push` | 提交 + tag + push |
+| `--upload` | 上传到 GitHub + GitCode |
+| `--push` | 提交 + tag + 推送到所有远程 |
 | `--publish` | `--push --upload` |
 | `--notes "说明"` | Release 说明 |
 | `--dry-run` | 仅预览 |
@@ -157,7 +191,8 @@ pnpm release:cli --skip-bump
 # 打包指定版本
 pnpm release:cli --set-version 0.1.3
 
-# 打包并上传
+# 打包并上传（双平台）
+$env:GITHUB_TOKEN = "你的Token"
 $env:GITCODE_TOKEN = "你的Token"
 pnpm release:cli --skip-bump --upload --notes "修复更新下载"
 
@@ -183,11 +218,14 @@ releases/
 src-tauri/target/release/bundle/nsis/
 ```
 
-Updater endpoint：
+Updater endpoints（应用会依次尝试，任一可用即可）：
 
 ```
 https://api.gitcode.com/api/v5/repos/yyandbug/kitty-tools/releases/latest/attach_files/latest.json/download
+https://github.com/yyandbug-coder/kitty-tools/releases/latest/download/latest.json
 ```
+
+每个平台 Release 中的 `latest.json` 内安装包 URL 指向**该平台自身**的下载地址。
 
 ---
 
@@ -197,7 +235,7 @@ https://api.gitcode.com/api/v5/repos/yyandbug/kitty-tools/releases/latest/attach
 
 ### 上传失败
 
-- 缺少 `GITCODE_TOKEN`
+- 缺少 `GITHUB_TOKEN` / `GITCODE_TOKEN`（对应平台会被跳过）
 - GitCode 同名附件**不覆盖**（重发前须手动删除旧附件）
 - 无 `.sig`（签名私钥缺失）
 - `tag 已存在` 时不要 `--push`
@@ -213,7 +251,7 @@ https://api.gitcode.com/api/v5/repos/yyandbug/kitty-tools/releases/latest/attach
 
 ## 重发同一版本
 
-1. GitCode Release 页删除旧 `.exe`、`.sig`、`latest.json`
+1. GitHub / GitCode Release 页删除旧 `.exe`、`.sig`、`latest.json`
 2. `pnpm create:release` → 打包并上传 → 保持当前版本 或 指定版本号
 
 ---
@@ -221,7 +259,11 @@ https://api.gitcode.com/api/v5/repos/yyandbug/kitty-tools/releases/latest/attach
 ## 发版后验证
 
 ```bash
+# GitCode
 curl -sL "https://api.gitcode.com/api/v5/repos/yyandbug/kitty-tools/releases/latest/attach_files/latest.json/download"
+
+# GitHub
+curl -sL "https://github.com/yyandbug-coder/kitty-tools/releases/latest/download/latest.json"
 ```
 
 应用内：设置 → 关于 → 检查更新 → 下载并安装。

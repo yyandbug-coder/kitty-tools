@@ -17,7 +17,10 @@
     "release:cli": "node scripts/updater-skill.mjs release.mjs",
     "release:publish": "node scripts/updater-skill.mjs release.mjs --publish",
     "release:dry-run": "node scripts/updater-skill.mjs release.mjs --dry-run",
-    "release:upload": "node scripts/updater-skill.mjs gitcode-upload-release.mjs",
+    "release:upload": "node scripts/updater-skill.mjs upload-release.mjs",
+    "release:upload:github": "node scripts/updater-skill.mjs github-upload-release.mjs",
+    "release:upload:gitcode": "node scripts/updater-skill.mjs gitcode-upload-release.mjs",
+    "git:push-all": "node scripts/updater-skill.mjs git-push-all.mjs",
     "release:json": "node scripts/updater-skill.mjs generate-latest-json.mjs"
   },
   "dependencies": {

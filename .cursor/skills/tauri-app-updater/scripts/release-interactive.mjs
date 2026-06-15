@@ -52,7 +52,7 @@ async function main() {
       message: '选择发版操作',
       options: [
         { value: 'build', label: '仅打包', hint: '本地构建 + 生成 latest.json，不上传' },
-        { value: 'build-upload', label: '打包并上传', hint: '构建后上传到 GitCode Release' },
+        { value: 'build-upload', label: '打包并上传', hint: '构建后上传到 GitHub + GitCode Release' },
         { value: 'upload-only', label: '仅上传已有产物', hint: '跳过构建，上传 releases/artifacts/' },
         { value: 'dry-run', label: '预览流程', hint: 'dry-run，不实际构建/上传' },
       ],
@@ -137,8 +137,8 @@ async function main() {
   if (action === 'build' || action === 'dry-run') upload = false
 
   if (action === 'build-upload' || action === 'upload-only') {
-    if (!process.env.GITCODE_TOKEN) {
-      p.log.warn('未检测到环境变量 GITCODE_TOKEN，上传将失败。')
+    if (!process.env.GITCODE_TOKEN && !process.env.GITHUB_TOKEN && !process.env.GH_TOKEN) {
+      p.log.warn('未检测到 GITHUB_TOKEN / GITCODE_TOKEN，上传将跳过缺少 Token 的平台。')
       const continueWithoutToken = cancelIfNeeded(
         await p.confirm({ message: '是否仍继续（稍后手动设置 Token）？', initialValue: false }),
       )
@@ -150,7 +150,7 @@ async function main() {
     if (action === 'build-upload') {
       pushTag = cancelIfNeeded(
         await p.confirm({
-          message: '是否同时提交代码、打 tag 并 push 到 Git？',
+          message: '是否同时提交代码、打 tag 并 push 到 GitHub + GitCode？',
           initialValue: false,
         }),
       )
@@ -167,7 +167,7 @@ async function main() {
       `操作：${actionLabel(action)}`,
       `版本：${versionLabel}`,
       `构建：${buildLabel}`,
-      `上传：${upload ? '是（GitCode）' : '否'}`,
+      `上传：${upload ? '是（GitHub + GitCode）' : '否'}`,
       `推送 Git tag：${pushTag ? '是' : '否'}`,
       `说明：${String(notes).trim() || defaultNotes}`,
       '',

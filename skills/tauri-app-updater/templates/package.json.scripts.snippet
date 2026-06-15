@@ -6,7 +6,10 @@
     "release:cli": "node scripts/release.mjs",
     "release:publish": "node scripts/release.mjs --publish",
     "release:dry-run": "node scripts/release.mjs --dry-run",
-    "release:upload": "node scripts/gitcode-upload-release.mjs",
+    "release:upload": "node scripts/updater-skill.mjs upload-release.mjs",
+    "release:upload:github": "node scripts/updater-skill.mjs github-upload-release.mjs",
+    "release:upload:gitcode": "node scripts/updater-skill.mjs gitcode-upload-release.mjs",
+    "git:push-all": "node scripts/updater-skill.mjs git-push-all.mjs",
     "release:json": "node scripts/generate-latest-json.mjs"
   },
   "devDependencies": {

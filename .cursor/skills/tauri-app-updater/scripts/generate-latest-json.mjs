@@ -6,12 +6,12 @@ import { basename, join } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 
 import { getAppDisplayName, loadReleaseConfigRaw } from './lib/load-release-config.mjs'
+import { resolveReleaseBaseUrl } from './lib/release-targets.mjs'
 import { getProjectRoot } from './lib/skill-paths.mjs'
 
 const projectRoot = getProjectRoot()
 const tauriConfig = JSON.parse(readFileSync(join(projectRoot, 'src-tauri/tauri.conf.json'), 'utf8'))
 const releaseConfigRaw = loadReleaseConfigRaw(projectRoot)
-const gitcodeCfg = releaseConfigRaw.gitcode ?? {}
 const appName = getAppDisplayName(projectRoot, releaseConfigRaw)
 
 const args = process.argv.slice(2)
@@ -24,12 +24,9 @@ function readArg(name) {
 const version = readArg('--version') || tauriConfig.version
 const notes = readArg('--notes') || `${appName} ${version}`
 const bundleRoot = readArg('--bundle-root') || join(projectRoot, 'src-tauri/target/release/bundle')
-const owner = gitcodeCfg.owner
-const repo = gitcodeCfg.repo
-const tagName = version.startsWith('v') ? version : `v${version}`
+const target = readArg('--target') || process.env.RELEASE_TARGET || 'gitcode'
 const releaseBaseUrl =
-  process.env.RELEASE_BASE_URL ??
-  `https://api.gitcode.com/api/v5/repos/${owner}/${repo}/releases/${tagName}/attach_files`
+  process.env.RELEASE_BASE_URL ?? resolveReleaseBaseUrl(target, releaseConfigRaw, version)
 
 function readSig(path) {
   return readFileSync(path, 'utf8').trim()
@@ -57,6 +54,9 @@ function findAllBundlePairs(files, extension) {
 }
 
 function toReleaseUrl(fileName) {
+  if (target === 'github') {
+    return `${releaseBaseUrl}/${encodeURIComponent(fileName)}`
+  }
   return `${releaseBaseUrl}/${encodeURIComponent(fileName)}/download`
 }
 

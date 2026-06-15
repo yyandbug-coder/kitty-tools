@@ -8,13 +8,13 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } fr
 import { basename, join, relative } from 'node:path'
 
 import { createBuildEnv, getAppDisplayName, loadReleaseConfigRaw } from './lib/load-release-config.mjs'
+import { listConfiguredReleaseTargets, resolveReleaseBaseUrl } from './lib/release-targets.mjs'
 import { getProjectVersion, getTauriReleaseUtils, setProjectVersion } from './lib/project-version.mjs'
 import { getProjectRoot, getSkillRoot } from './lib/skill-paths.mjs'
 
 const projectRoot = getProjectRoot()
 const skillScripts = join(getSkillRoot(), 'scripts')
 const releaseConfigRaw = loadReleaseConfigRaw(projectRoot)
-const gitcodeCfg = releaseConfigRaw.gitcode ?? {}
 const signingCfg = releaseConfigRaw.signing ?? {}
 const appName = getAppDisplayName(projectRoot, releaseConfigRaw)
 
@@ -111,14 +111,13 @@ if (setVersion) {
 }
 
 const tagName = `v${version}`
-const owner = process.env.GITCODE_OWNER || gitcodeCfg.owner
-const repo = process.env.GITCODE_REPO || gitcodeCfg.repo
+const releaseTargets = listConfiguredReleaseTargets(releaseConfigRaw)
+const primaryTarget = releaseTargets.includes('gitcode') ? 'gitcode' : releaseTargets[0] || 'gitcode'
 const releaseBaseUrl =
-  process.env.RELEASE_BASE_URL ||
-  `https://api.gitcode.com/api/v5/repos/${owner}/${repo}/releases/${tagName}/attach_files`
+  process.env.RELEASE_BASE_URL || resolveReleaseBaseUrl(primaryTarget, releaseConfigRaw, version)
 
-if (!owner || !repo) {
-  console.error('[release] release.config.json 缺少 gitcode.owner / gitcode.repo')
+if (releaseTargets.length === 0) {
+  console.error('[release] release.config.json 需配置 github 或 gitcode')
   process.exit(1)
 }
 
@@ -128,7 +127,7 @@ if (dryRun) {
   console.log(`  生成：releases/latest.json（${releaseBaseUrl}）`)
   console.log(`  Tag：${tagName}`)
   if (shouldPush) console.log(`  Git：commit + tag ${tagName} + push`)
-  if (shouldUpload) console.log(`  上传：GitCode ${owner}/${repo}`)
+  if (shouldUpload) console.log(`  上传：${releaseTargets.join(' + ')}`)
   process.exit(0)
 }
 
@@ -164,9 +163,8 @@ function gitPushRelease(tag, commitFiles) {
   }
 
   run('git', ['tag', tag])
-  run('git', ['push'])
-  run('git', ['push', 'origin', tag])
-  console.log(`\n[release] 已推送 ${tag} 到远程仓库`)
+  run('node', [join(skillScripts, 'git-push-all.mjs'), '--tag', tag])
+  console.log(`\n[release] 已推送 ${tag} 到所有远程仓库`)
 }
 
 if (!skipBuild) {
@@ -195,8 +193,10 @@ run('node', [
   notes,
   '--bundle-root',
   bundleRoot,
+  '--target',
+  primaryTarget,
 ], {
-  env: { RELEASE_BASE_URL: releaseBaseUrl },
+  env: { RELEASE_BASE_URL: releaseBaseUrl, RELEASE_TARGET: primaryTarget },
 })
 
 cpSync(join(projectRoot, 'releases/latest.json'), join(artifactDir, 'latest.json'), { force: true })
@@ -214,22 +214,29 @@ if (shouldPush) {
 }
 
 if (shouldUpload) {
-  if (!process.env.GITCODE_TOKEN) {
-    console.error('\n[release] --upload 需要设置环境变量 GITCODE_TOKEN')
+  const hasGithubToken = Boolean(process.env.GITHUB_TOKEN || process.env.GH_TOKEN)
+  const hasGitcodeToken = Boolean(process.env.GITCODE_TOKEN)
+  if (!hasGithubToken && !hasGitcodeToken) {
+    console.error('\n[release] --upload 需要设置 GITHUB_TOKEN（或 GH_TOKEN）和/或 GITCODE_TOKEN')
     process.exit(1)
   }
   run('node', [
-    join(skillScripts, 'gitcode-upload-release.mjs'),
+    join(skillScripts, 'upload-release.mjs'),
     '--tag',
     tagName,
+    '--version',
+    version,
     '--name',
     `${appName} ${tagName}`,
     '--body',
     notes,
     '--dir',
     'releases/artifacts',
+    '--bundle-root',
+    bundleRoot,
+    '--skip-json',
   ])
-  console.log(`\n[release] 已上传到 GitCode Release：${tagName}`)
+  console.log(`\n[release] 已上传到所有可用平台：${tagName}`)
 }
 
 console.log(`\n[release] 完成：${tagName}`)

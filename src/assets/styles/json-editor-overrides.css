@@ -69,6 +69,17 @@
   color: var(--accent-foreground) !important;
 }
 
+/* 导航栏仅作路径展示与面包屑跳转，隐藏「编辑路径」入口（保留取消按钮以便退出误触状态） */
+.kitty-json-editor-host .jse-navigation-bar-edit:not(.editing) {
+  display: none !important;
+}
+
+/* 若路径编辑模式仍被打开，禁止手动输入 JSONPath */
+.kitty-json-editor-host .jse-navigation-bar-path-editor input.jse-navigation-bar-text {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
 /*
  * 插入线：沿用库 height:0 + outline 画线（不占垂直空间），仅改为细虚线并适配主题色。
  * 勿改 height / flex / display，否则会撑出空行。
